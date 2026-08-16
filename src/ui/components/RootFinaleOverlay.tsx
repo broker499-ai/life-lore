@@ -17,12 +17,13 @@ export function RootFinaleOverlay({
           <h2>Корень Живознания</h2>
         </header>
         <p>
-          Корневой Предел удержан, маршрут разведан, образцы сверены. За последним сводом находится то,
-          ради чего экспедиция спускалась в Орсию.
+          Последний город маршрута удержан, путь за зрительным корнем пройден, образцы сверены. За последним сводом находится то,
+          ради чего экспедиция действительно спускалась в Орсию.
         </p>
         <div className="root-finale-summary">
           <span>Города: {availability.progress.controlledCities}</span>
-          <span>Образцы: {availability.progress.specimens}</span>
+          <span>Изучено образцов: {availability.progress.specimensCollected}/{availability.progress.requiredSpecimensCollected}</span>
+          <span>В запасе: {availability.progress.specimensAvailable}</span>
           <span>Расход припасов: {availability.supplyCost}</span>
         </div>
         <p className="root-finale-warning">

@@ -18,6 +18,7 @@ export function ResearchOverview({
 }) {
   const faction = state.factions[state.playerFactionId];
   const specimens = faction?.resources.specimens ?? 0;
+  const specimensCollected = faction?.specimensCollected ?? specimens;
   const completed = new Set(state.campaign.completedResearchIds);
 
   return (
@@ -29,8 +30,9 @@ export function ResearchOverview({
           <p>Образцы расходуются на постоянные улучшения экспедиции. Исследование не тратит стратегическое действие.</p>
         </div>
         <div className="specimen-counter">
-          <span>ОБРАЗЦЫ</span>
+          <span>ОБРАЗЦЫ В ЗАПАСЕ</span>
           <strong>{specimens}</strong>
+          <small>изучено всего: {specimensCollected}</small>
         </div>
       </header>
 

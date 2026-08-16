@@ -210,9 +210,122 @@ export const prototypeCities: CityDefinitions = {
       { unitTypeId: 'expedition-rangers', amount: 3, cost: 34 },
     ],
     special: {
-      name: 'Передовая у Корня',
-      description: 'Город подготовлен как база последнего броска. Контроль Корневого Предела снижает стоимость финальной операции в припасах на 30%.',
-      traits: [{ type: 'root_claim_supply_cost_multiplier', multiplier: 0.7 }],
+      name: 'Передовая у предполагаемого Корня',
+      description: 'Город готовили как базу последнего броска к тому, что все считали Корнем. Отдых здесь восстанавливает на 30% больше припасов.',
+      traits: [{ type: 'rest_supplies_multiplier', multiplier: 1.3 }],
+    },
+  },
+
+  'mining-kingdom': {
+    id: 'mining-kingdom',
+    taxIncome: 24,
+    rest: { suppliesRestore: 22, moraleRestore: 15 },
+    recruitment: [...standardRecruitment],
+    special: {
+      name: 'Третий Рим шахтёров',
+      description: 'Шахты дают устойчивую ренту и дисциплинированное ополчение. Налоговый доход выше на 30%, защитники сильнее на 10%.',
+      traits: [
+        { type: 'tax_income_multiplier', multiplier: 1.3 },
+        { type: 'defender_unit_power_multiplier', multiplier: 1.1 },
+      ],
+    },
+  },
+  'lower-garden': {
+    id: 'lower-garden',
+    taxIncome: 26,
+    rest: { suppliesRestore: 24, moraleRestore: 18 },
+    recruitment: [...standardRecruitment],
+    special: {
+      name: 'Петербургская контрабанда',
+      description: 'Торговые тоннели в странные подвалы наверху делают город богаче и снижают цену найма.',
+      traits: [
+        { type: 'tax_income_multiplier', multiplier: 1.25 },
+        { type: 'recruitment_cost_multiplier', multiplier: 0.88 },
+      ],
+    },
+  },
+  'secret-city-7': {
+    id: 'secret-city-7',
+    taxIncome: 17,
+    rest: { suppliesRestore: 18, moraleRestore: 14 },
+    recruitment: [...standardRecruitment],
+    special: {
+      name: 'Засекречено даже от жителей',
+      description: 'КПП, бетон и привычка ничего не объяснять делают город крайне тяжёлой целью. Защитники получают +35% к силе, но налоги ниже на 15%.',
+      traits: [
+        { type: 'defender_unit_power_multiplier', multiplier: 1.35 },
+        { type: 'tax_income_multiplier', multiplier: 0.85 },
+      ],
+    },
+  },
+  'red-gallery': {
+    id: 'red-gallery',
+    taxIncome: 21,
+    rest: { suppliesRestore: 28, moraleRestore: 15 },
+    recruitment: [...standardRecruitment],
+    special: {
+      name: 'Тоннельная логистика',
+      description: 'Старый железнодорожный тоннель облегчает снабжение и быстрый сбор людей. Найм даёт на 20% больше бойцов, содержание армий владельца дешевле на 6%.',
+      traits: [
+        { type: 'recruitment_amount_multiplier', multiplier: 1.2 },
+        { type: 'faction_army_upkeep_multiplier', multiplier: 0.94 },
+      ],
+    },
+  },
+  undermoscow: {
+    id: 'undermoscow',
+    taxIncome: 18,
+    rest: { suppliesRestore: 34, moraleRestore: 13 },
+    recruitment: [...standardRecruitment],
+    special: {
+      name: 'Мусоропроводная экономика',
+      description: 'Поток вещей из Надподподмосковья отлично пополняет запасы, хотя психологически не вдохновляет. Отдых даёт +55% припасов и −15% морали.',
+      traits: [
+        { type: 'rest_supplies_multiplier', multiplier: 1.55 },
+        { type: 'rest_morale_multiplier', multiplier: 0.85 },
+      ],
+    },
+  },
+  skovorodsk: {
+    id: 'skovorodsk',
+    taxIncome: 20,
+    rest: { suppliesRestore: 30, moraleRestore: 20 },
+    recruitment: [...standardRecruitment],
+    special: {
+      name: 'Городская сковорода',
+      description: 'Любой первый этаж здесь одновременно кухня. Отдых восстанавливает на 45% больше припасов и на 20% больше морали.',
+      traits: [
+        { type: 'rest_supplies_multiplier', multiplier: 1.45 },
+        { type: 'rest_morale_multiplier', multiplier: 1.2 },
+      ],
+    },
+  },
+  'raw-material': {
+    id: 'raw-material',
+    taxIncome: 23,
+    rest: { suppliesRestore: 20, moraleRestore: 14 },
+    recruitment: [...standardRecruitment],
+    special: {
+      name: 'Концептуально незавершённое',
+      description: 'Здесь всё дешевле, если согласиться не доводить процесс до конца. Найм дешевле на 18%, но отдых восстанавливает на 20% меньше морали.',
+      traits: [
+        { type: 'recruitment_cost_multiplier', multiplier: 0.82 },
+        { type: 'rest_morale_multiplier', multiplier: 0.8 },
+      ],
+    },
+  },
+  'secondary-freshness': {
+    id: 'secondary-freshness',
+    taxIncome: 27,
+    rest: { suppliesRestore: 27, moraleRestore: 18 },
+    recruitment: [...standardRecruitment],
+    special: {
+      name: 'Рынок вторичной свежести',
+      description: 'Крупнейший поздний торговый узел маршрута. Налоговый доход выше на 40%, припасы при отдыхе восстанавливаются на 20% лучше.',
+      traits: [
+        { type: 'tax_income_multiplier', multiplier: 1.4 },
+        { type: 'rest_supplies_multiplier', multiplier: 1.2 },
+      ],
     },
   },
 };

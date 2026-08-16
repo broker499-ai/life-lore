@@ -12,6 +12,7 @@ export type OrsiaSubfactionDefinition = {
   leaderName: string;
   traitSummary: string;
   traits: FactionTrait[];
+  enabledForDistribution: boolean;
 };
 
 export const orsiaSubfactions: OrsiaSubfactionDefinition[] = [
@@ -27,6 +28,7 @@ export const orsiaSubfactions: OrsiaSubfactionDefinition[] = [
     traits: [
       { type: 'random_battle_morale_gain', chancePercent: 32, minGain: 4, maxGain: 9 },
     ],
+    enabledForDistribution: true,
   },
   {
     id: 'orsia-goblins',
@@ -41,6 +43,7 @@ export const orsiaSubfactions: OrsiaSubfactionDefinition[] = [
       { type: 'initial_garrison_size_multiplier_range', minMultiplier: 2, maxMultiplier: 3 },
       { type: 'battle_unit_power_multiplier', multiplier: 0.45 },
     ],
+    enabledForDistribution: true,
   },
   {
     id: 'orsia-nazbols',
@@ -55,6 +58,7 @@ export const orsiaSubfactions: OrsiaSubfactionDefinition[] = [
       { type: 'initial_garrison_morale_floor', value: 94 },
       { type: 'defeat_reaction', eventId: 'nazbol-first-defeat', triggerOpponent: 'player' },
     ],
+    enabledForDistribution: true,
   },
   {
     id: 'orsia-tyranids',
@@ -72,6 +76,7 @@ export const orsiaSubfactions: OrsiaSubfactionDefinition[] = [
         multiplier: 0.7,
       },
     ],
+    enabledForDistribution: true,
   },
   {
     id: 'orsia-fgushniki',
@@ -85,8 +90,37 @@ export const orsiaSubfactions: OrsiaSubfactionDefinition[] = [
     traits: [
       { type: 'captured_city_income_multiplier', multiplier: 0.6 },
     ],
+    enabledForDistribution: true,
+  },
+  {
+    id: 'orsia-profkom',
+    name: 'Профком',
+    shortName: 'Профком',
+    description: 'Разросшаяся сеть распределителей льгот, общежитий и очень неприятных разговоров в тесных кабинетах. Формально всегда помогают. Фактически сначала собирают бумагу в трёх экземплярах.',
+    mapClass: 'orsia-profkom',
+    portraitSrc: '/assets/factions/orsia/profkom.png',
+    leaderName: 'Коменда',
+    traitSummary: 'По устройству эквивалентны ФГУшникам: после захвата их городов остаётся коррупционный след и доход проседает до 60%.',
+    traits: [
+      { type: 'captured_city_income_multiplier', multiplier: 0.6 },
+    ],
+    enabledForDistribution: false,
+  },
+  {
+    id: 'orsia-linhao',
+    name: 'Линьхао',
+    shortName: 'Линьхао',
+    description: 'Персональное владение сущности по имени Линьхао. Обычно это не гарнизон, а один единственный сторож, который почему-то эквивалентен полноценной полусотне бойцов.',
+    mapClass: 'orsia-linhao',
+    portraitSrc: '/assets/factions/orsia/linhao.png',
+    leaderName: 'Линьхао',
+    traitSummary: 'Каждый их город охраняет ровно один особый юнит, по боевой мощи сопоставимый примерно с 50 обычными бойцами.',
+    traits: [],
+    enabledForDistribution: false,
   },
 ];
+
+export const orsiaMapSubfactions = orsiaSubfactions.filter((faction) => faction.enabledForDistribution);
 
 export const orsiaSubfactionById = Object.fromEntries(
   orsiaSubfactions.map((faction) => [faction.id, faction]),

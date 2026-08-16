@@ -5,6 +5,7 @@ import type {
   CityState,
   CampaignState,
   FactionId,
+  FactionState,
   GameState,
   NodeId,
   ResourcesState,
@@ -15,10 +16,21 @@ import { DEFAULT_LEADER_ID, prototypeLeaderById, prototypeLeaders } from '@/data
 import { RIVAL_FACTION_ID } from '@/data/factions/rivalExpeditions';
 import { orsiaSubfactionById } from '@/data/factions/orsiaSubfactions';
 import { prototypeMap } from '@/data/map/prototypeMap';
+import { extensionCityIds } from '@/core/map/extensionMap';
+import { prototypeArtifacts } from '@/data/artifacts/prototypeArtifacts';
+import { MAX_ACTIVE_ARTIFACTS, rebuildActiveArtifactTraits } from '@/core/artifacts/artifactLoadout';
 
-export const CURRENT_SAVE_VERSION = 14 as const;
+export const CURRENT_SAVE_VERSION = 16 as const;
 const LEGACY_DEFAULT_UNIT_TYPE_ID = 'expedition-infantry';
 const LEGACY_RIVAL_FACTION_ID = 'meridian-company';
+const LEGACY_RESEARCH_COSTS_V14: Record<string, number> = {
+  'flora-field-rations': 2,
+  'flora-root-tonics': 3,
+  'fauna-tunnel-tracks': 2,
+  'fauna-pack-logistics': 3,
+  'anomaly-office-resonance': 2,
+  'anomaly-root-signal': 4,
+};
 
 // Previous stages are kept as explicit legacy shapes so save migrations remain readable.
 type LegacyFactionStateV1 = { id: FactionId; controlledCityIds: string[] };
@@ -44,7 +56,10 @@ type LegacyCampaignStateV10 = {
   endedTurn: number | null;
 };
 type LegacyCampaignStateV11 = LegacyCampaignStateV10 & { discoveredNodeIds: NodeId[] };
-type LegacyCampaignStateV13 = Omit<CampaignState, 'cityArtifactClaimedIds' | 'pendingBriefingId' | 'resolvedBriefingIds'>;
+type LegacyFactionStateV13 = Omit<FactionState, 'specimensCollected'>;
+type LegacyCampaignStateV13 = Omit<CampaignState, 'activeArtifactIds' | 'cityArtifactClaimedIds' | 'pendingBriefingId' | 'resolvedBriefingIds' | 'extensionLocationOrder'>;
+type LegacyCampaignStateV14 = Omit<CampaignState, 'activeArtifactIds' | 'extensionLocationOrder'>;
+type LegacyCampaignStateV15 = Omit<CampaignState, 'extensionLocationOrder'>;
 type LegacyCityStateV4 = Omit<CityState, 'garrison'>;
 type LegacyArmyStateV3 = {
   id: ArmyId;
@@ -54,7 +69,9 @@ type LegacyArmyStateV3 = {
   totalUnits: number;
 };
 
-type LegacyGameStateV13 = Omit<GameState, 'campaign'> & { campaign: LegacyCampaignStateV13 };
+type LegacyGameStateV13 = Omit<GameState, 'campaign' | 'factions'> & { campaign: LegacyCampaignStateV13; factions: Record<FactionId, LegacyFactionStateV13> };
+type LegacyGameStateV14 = Omit<GameState, 'campaign' | 'factions'> & { campaign: LegacyCampaignStateV14; factions: Record<FactionId, LegacyFactionStateV13> };
+type LegacyGameStateV15 = Omit<GameState, 'campaign'> & { campaign: LegacyCampaignStateV15 };
 type LegacyGameStateV11 = Omit<LegacyGameStateV13, 'campaign'> & { campaign: LegacyCampaignStateV11 };
 type LegacyGameStateV10 = Omit<LegacyGameStateV11, 'campaign'> & { campaign: LegacyCampaignStateV10 };
 type LegacyGameStateV9 = Omit<LegacyGameStateV10, 'campaign'> & { campaign: LegacyCampaignStateV9 };
@@ -93,7 +110,9 @@ export type SaveFileV10 = { version: 10; state: LegacyGameStateV10 };
 export type SaveFileV11 = { version: 11; state: LegacyGameStateV11 };
 export type SaveFileV12 = { version: 12; state: LegacyGameStateV13 };
 export type SaveFileV13 = { version: 13; state: LegacyGameStateV13 };
-export type SaveFileV14 = { version: typeof CURRENT_SAVE_VERSION; state: GameState };
+export type SaveFileV14 = { version: 14; state: LegacyGameStateV14 };
+export type SaveFileV15 = { version: 15; state: LegacyGameStateV15 };
+export type SaveFileV16 = { version: typeof CURRENT_SAVE_VERSION; state: GameState };
 export type SaveFile =
   | SaveFileV1
   | SaveFileV2
@@ -108,10 +127,12 @@ export type SaveFile =
   | SaveFileV11
   | SaveFileV12
   | SaveFileV13
-  | SaveFileV14;
+  | SaveFileV14
+  | SaveFileV15
+  | SaveFileV16;
 
 export function serializeGame(state: GameState): string {
-  const save: SaveFileV14 = { version: CURRENT_SAVE_VERSION, state };
+  const save: SaveFileV16 = { version: CURRENT_SAVE_VERSION, state };
   return JSON.stringify(save);
 }
 
@@ -122,26 +143,81 @@ export function deserializeGame(serialized: string): GameState {
   }
 
   if (parsed.version === CURRENT_SAVE_VERSION) return parsed.state as GameState;
-  if (parsed.version === 13) return migrateV13ToV14(parsed.state as LegacyGameStateV13);
-  if (parsed.version === 12) return migrateV13ToV14(migrateV12ToV13(parsed.state as LegacyGameStateV13));
-  if (parsed.version === 11) return migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(parsed.state as LegacyGameStateV11)));
-  if (parsed.version === 10) return migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(parsed.state as LegacyGameStateV10))));
-  if (parsed.version === 9) return migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(migrateV9ToV10(parsed.state as LegacyGameStateV9)))));
-  if (parsed.version === 8) return migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(migrateV9ToV10(migrateV8ToV9(parsed.state as LegacyGameStateV8))))));
-  if (parsed.version === 7) return migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(migrateV9ToV10(migrateV8ToV9(migrateV7ToV8(parsed.state as LegacyGameStateV7)))))));
-  if (parsed.version === 6) return migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(migrateV9ToV10(migrateV8ToV9(migrateV7ToV8(migrateV6ToV7(parsed.state as LegacyGameStateV7))))))));
-  if (parsed.version === 5) return migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(migrateV9ToV10(migrateV8ToV9(migrateV7ToV8(migrateV6ToV7(migrateV5ToV6(parsed.state as LegacyGameStateV5)))))))));
-  if (parsed.version === 4) return migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(migrateV9ToV10(migrateV8ToV9(migrateV7ToV8(migrateV6ToV7(migrateV5ToV6(migrateV4ToV5(parsed.state as LegacyGameStateV4))))))))));
-  if (parsed.version === 3) return migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(migrateV9ToV10(migrateV8ToV9(migrateV7ToV8(migrateV6ToV7(migrateV5ToV6(migrateV4ToV5(migrateV3ToV4(parsed.state as LegacyGameStateV3)))))))))));
-  if (parsed.version === 2) return migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(migrateV9ToV10(migrateV8ToV9(migrateV7ToV8(migrateV6ToV7(migrateV5ToV6(migrateV4ToV5(migrateV3ToV4(migrateV2ToV3(parsed.state as LegacyGameStateV2))))))))))));
-  if (parsed.version === 1) return migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(migrateV9ToV10(migrateV8ToV9(migrateV7ToV8(migrateV6ToV7(migrateV5ToV6(migrateV4ToV5(migrateV3ToV4(migrateV1ToV3(parsed.state as LegacyGameStateV1))))))))))));
-
+  if (parsed.version === 15) return migrateV15ToV16(parsed.state as LegacyGameStateV15);
+  if (parsed.version === 14) return migrateV15ToV16(migrateV14ToV15(parsed.state as LegacyGameStateV14));
+  if (parsed.version === 13) return migrateV15ToV16(migrateV14ToV15(migrateV13ToV14(parsed.state as LegacyGameStateV13)));
+  if (parsed.version === 12) return migrateV15ToV16(migrateV14ToV15(migrateV13ToV14(migrateV12ToV13(parsed.state as LegacyGameStateV13))));
+  if (parsed.version === 11) return migrateV15ToV16(migrateV14ToV15(migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(parsed.state as LegacyGameStateV11)))));
+  if (parsed.version === 10) return migrateV15ToV16(migrateV14ToV15(migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(parsed.state as LegacyGameStateV10))))));
+  if (parsed.version === 9) return migrateV15ToV16(migrateV14ToV15(migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(migrateV9ToV10(parsed.state as LegacyGameStateV9)))))));
+  if (parsed.version === 8) return migrateV15ToV16(migrateV14ToV15(migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(migrateV9ToV10(migrateV8ToV9(parsed.state as LegacyGameStateV8))))))));
+  if (parsed.version === 7) return migrateV15ToV16(migrateV14ToV15(migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(migrateV9ToV10(migrateV8ToV9(migrateV7ToV8(parsed.state as LegacyGameStateV7)))))))));
+  if (parsed.version === 6) return migrateV15ToV16(migrateV14ToV15(migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(migrateV9ToV10(migrateV8ToV9(migrateV7ToV8(migrateV6ToV7(parsed.state as LegacyGameStateV7))))))))));
+  if (parsed.version === 5) return migrateV15ToV16(migrateV14ToV15(migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(migrateV9ToV10(migrateV8ToV9(migrateV7ToV8(migrateV6ToV7(migrateV5ToV6(parsed.state as LegacyGameStateV5)))))))))));
+  if (parsed.version === 4) return migrateV15ToV16(migrateV14ToV15(migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(migrateV9ToV10(migrateV8ToV9(migrateV7ToV8(migrateV6ToV7(migrateV5ToV6(migrateV4ToV5(parsed.state as LegacyGameStateV4))))))))))));
+  if (parsed.version === 3) return migrateV15ToV16(migrateV14ToV15(migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(migrateV9ToV10(migrateV8ToV9(migrateV7ToV8(migrateV6ToV7(migrateV5ToV6(migrateV4ToV5(migrateV3ToV4(parsed.state as LegacyGameStateV3)))))))))))));
+  if (parsed.version === 2) return migrateV15ToV16(migrateV14ToV15(migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(migrateV9ToV10(migrateV8ToV9(migrateV7ToV8(migrateV6ToV7(migrateV5ToV6(migrateV4ToV5(migrateV3ToV4(migrateV2ToV3(parsed.state as LegacyGameStateV2))))))))))))));
+  if (parsed.version === 1) return migrateV15ToV16(migrateV14ToV15(migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(migrateV9ToV10(migrateV8ToV9(migrateV7ToV8(migrateV6ToV7(migrateV5ToV6(migrateV4ToV5(migrateV3ToV4(migrateV1ToV3(parsed.state as LegacyGameStateV1))))))))))))));
 
   throw new Error('Unsupported or invalid save file');
 }
 
 
-function migrateV13ToV14(state: LegacyGameStateV13): GameState {
+function migrateV15ToV16(state: LegacyGameStateV15): GameState {
+  const defaults = createPrototypeGameState(state.rng.campaign.seed, state.selectedLeaderId);
+  const factions = { ...state.factions } as GameState['factions'];
+  for (const factionId of ['orsia-profkom', 'orsia-linhao']) {
+    if (!factions[factionId] && defaults.factions[factionId]) {
+      factions[factionId] = defaults.factions[factionId];
+    }
+  }
+
+  const cities = { ...state.cities } as GameState['cities'];
+  for (const cityId of extensionCityIds) {
+    if (!cities[cityId] && defaults.cities[cityId]) cities[cityId] = defaults.cities[cityId];
+  }
+
+  return {
+    ...state,
+    factions,
+    cities,
+    campaign: {
+      ...state.campaign,
+      extensionLocationOrder: [...defaults.campaign.extensionLocationOrder],
+    },
+  };
+}
+
+function migrateV14ToV15(state: LegacyGameStateV14): GameState {
+  const completedResearchCost = state.campaign.completedResearchIds.reduce(
+    (sum, researchId) => sum + (LEGACY_RESEARCH_COSTS_V14[researchId] ?? 0),
+    0,
+  );
+  const factions = Object.fromEntries(
+    Object.entries(state.factions).map(([factionId, faction]) => [
+      factionId,
+      {
+        ...faction,
+        specimensCollected: Math.max(
+          0,
+          faction.resources.specimens + (factionId === state.playerFactionId ? completedResearchCost : 0),
+        ),
+      },
+    ]),
+  ) as GameState['factions'];
+  const activeArtifactIds = state.campaign.artifactIds.slice(0, MAX_ACTIVE_ARTIFACTS);
+  const migrated: GameState = {
+    ...state,
+    factions,
+    campaign: { ...state.campaign, activeArtifactIds, extensionLocationOrder: [] },
+  };
+  return synchronizePlayerMapKnowledge(
+    rebuildActiveArtifactTraits(migrated, migrated.playerFactionId, prototypeArtifacts),
+    prototypeMap,
+  );
+}
+
+function migrateV13ToV14(state: LegacyGameStateV13): LegacyGameStateV14 {
   const artifactIdMap: Record<string, string> = {
     'warehouse-one-seal': 'apple-skeleton',
     'normal-water-flask': 'normal-juice-flask',
@@ -152,7 +228,7 @@ function migrateV13ToV14(state: LegacyGameStateV13): GameState {
   };
   const mapEventId = (eventId: string) => eventId === 'temporary-pass' ? 'jungle-foraging' : eventId;
   const artifactIds = Array.from(new Set(state.campaign.artifactIds.map((artifactId) => artifactIdMap[artifactId] ?? artifactId)));
-  return synchronizePlayerMapKnowledge({
+  return {
     ...state,
     campaign: {
       ...state.campaign,
@@ -163,7 +239,7 @@ function migrateV13ToV14(state: LegacyGameStateV13): GameState {
       pendingBriefingId: null,
       resolvedBriefingIds: [],
     },
-  }, prototypeMap);
+  };
 }
 
 function migrateV12ToV13(state: LegacyGameStateV13): LegacyGameStateV13 {
@@ -245,7 +321,7 @@ function migrateV10ToV11(state: LegacyGameStateV10): LegacyGameStateV11 {
 function migrateV9ToV10(state: LegacyGameStateV9): LegacyGameStateV10 {
   const rivalLeader = prototypeLeaders.find((leader) => leader.id !== state.selectedLeaderId) ?? prototypeLeaders[0];
   const oldRival = state.factions[LEGACY_RIVAL_FACTION_ID];
-  const factions = { ...state.factions } as GameState['factions'];
+  const factions = { ...state.factions } as Record<FactionId, LegacyFactionStateV13>;
   delete factions[LEGACY_RIVAL_FACTION_ID];
   if (oldRival) {
     factions[RIVAL_FACTION_ID] = {
@@ -258,7 +334,8 @@ function migrateV9ToV10(state: LegacyGameStateV9): LegacyGameStateV10 {
     };
   } else if (!factions[RIVAL_FACTION_ID]) {
     const defaults = createPrototypeGameState(state.rng.campaign.seed, state.selectedLeaderId);
-    factions[RIVAL_FACTION_ID] = defaults.factions[RIVAL_FACTION_ID];
+    const { specimensCollected: _specimensCollected, ...legacyDefaultRival } = defaults.factions[RIVAL_FACTION_ID];
+    factions[RIVAL_FACTION_ID] = legacyDefaultRival;
   }
 
   const cities = Object.fromEntries(

@@ -1,22 +1,15 @@
 import type { CityId } from '@/core/state/GameState';
 
 /**
- * Stage 23 placeholder distribution. It was randomized once during development
- * and is intentionally fixed in data so saves and replays stay deterministic.
+ * Stage 27: city artifacts became meaningfully rarer.
+ * Only a subset of cities hides a unique first-visit artifact,
+ * so POI choices remain the primary source of strong artifacts.
  */
 export const cityVisitArtifactByCityId: Partial<Record<CityId, string>> = {
   'outer-post': 'shared-private-key',
   'moss-market': 'last-word-stone',
-  'quiet-scream': 'econom-spoon',
   'big-lunch': 'clean-towel',
-  impassable: 'club-card',
-  'crooked-chambers': 'passage-key',
   'great-canteen-vaults': 'voluntary-slavery-contract',
-  underfountain: 'wall-14b-moss',
-  'club-club': 'permit-for-permit',
-  'rival-post': 'ownerless-gradebook',
   phalanstery: 'root-bark-chip',
-  'echo-vault': 'cutlet-seven',
-  'last-decent-inn': 'power-plumb',
   'root-limit': 'ceiling-chip',
 };

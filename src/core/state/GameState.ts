@@ -25,6 +25,7 @@ export type FactionState = {
   id: FactionId;
   superFactionId: string | null;
   resources: ResourcesState;
+  specimensCollected: number;
   strategicActionSpent: boolean;
   lastStrategicAction: StrategicActionKind | null;
   leaderAbilityLastUsedTurn: number | null;
@@ -61,6 +62,7 @@ export type CampaignState = {
   pendingEventId: string | null;
   resolvedEventIds: string[];
   artifactIds: string[];
+  activeArtifactIds: string[];
   cityArtifactClaimedIds: CityId[];
   pendingBriefingId: string | null;
   resolvedBriefingIds: string[];
@@ -68,6 +70,7 @@ export type CampaignState = {
   completedResearchIds: string[];
   pendingFactionEvent: PendingFactionEventState | null;
   resolvedFactionEventIds: string[];
+  extensionLocationOrder: NodeId[];
   rivalOrganizationId: string;
   rivalLeaderId: LeaderId;
   status: CampaignStatus;

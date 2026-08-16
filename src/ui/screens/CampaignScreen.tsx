@@ -32,15 +32,18 @@ import { getSupplyStatus } from '@/core/supply/Supply';
 import { canUseRiverDoubleMove } from '@/core/leaders/LeaderAbility';
 import { resolveLocationEvent, triggerLocationEvent } from '@/core/events/LocationEvent';
 import { resolveCityVisitArtifact } from '@/core/artifacts/resolveCityVisitArtifact';
+import { toggleActiveArtifact } from '@/core/artifacts/artifactLoadout';
 import { acknowledgeSurfaceBriefing, triggerAvailableSurfaceBriefing, triggerSurfaceBriefingById } from '@/core/story/SurfaceBriefing';
 import { advanceTurn } from '@/core/turns/advanceTurn';
 import { completeResearch } from '@/core/research/completeResearch';
 import { resolveFactionDefeatEvent } from '@/core/factions/resolveFactionDefeatEvent';
 import { RIVAL_ARMY_ID, RIVAL_FACTION_ID } from '@/core/state/createPrototypeGameState';
 import { prototypeBattleRules } from '@/data/battles/prototypeBattleRules';
-import { prototypeCampaignRules } from '@/data/campaign/prototypeRules';
+import { getPrototypeRootObjectiveRules, prototypeCampaignRules } from '@/data/campaign/prototypeRules';
 import { prototypeCities } from '@/data/cities/prototypeCities';
-import { prototypeMap, prototypeMapRegions } from '@/data/map/prototypeMap';
+import { prototypeMapRegions } from '@/data/map/prototypeMap';
+import { getCampaignMap, isExtensionUnlocked } from '@/core/map/extensionMap';
+import type { MapGraph } from '@/core/map/MapGraph';
 import { prototypeUnits } from '@/data/units/prototypeUnits';
 import { prototypeLeaderById } from '@/data/leaders/prototypeLeader';
 import { prototypeEvents } from '@/data/events/prototypeEvents';
@@ -52,6 +55,7 @@ import { factionDefeatEvents } from '@/data/factions/factionDefeatEvents';
 import { orsiaSubfactionById } from '@/data/factions/orsiaSubfactions';
 import { prototypeResearch } from '@/data/research/prototypeResearch';
 import { t } from '@/i18n/t';
+import type { TranslationKey } from '@/i18n/ru';
 import { ArmyOverview } from '@/ui/components/ArmyOverview';
 import {
   DecisionPanel,
@@ -110,6 +114,15 @@ export function CampaignScreen({
   onExit: () => void;
 }) {
   const [state, setState] = useState(() => triggerAvailableSurfaceBriefing(evaluatePlayerDefeat(initialState).state, prototypeSurfaceBriefings));
+  const campaignMap = useMemo(() => getCampaignMap(state), [state.campaign.extensionLocationOrder, state.campaign.resolvedEventIds]);
+  const campaignRegions = useMemo(() => isExtensionUnlocked(state)
+    ? [
+        ...prototypeMapRegions,
+        { id: 'deep-route-upper', cx: 50, cy: -86, rx: 21, ry: 88, kind: 'root' as const },
+        { id: 'deep-route-lower', cx: 50, cy: -168, rx: 18, ry: 38, kind: 'fungal' as const },
+      ]
+    : prototypeMapRegions, [state.campaign.resolvedEventIds]);
+  const rootObjectiveRules = useMemo(() => getPrototypeRootObjectiveRules(state), [state.campaign.extensionLocationOrder]);
   const [view, setView] = useState<CampaignView>(initialUi.view);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(initialUi.selectedNodeId);
   const [mapCamera, setMapCamera] = useState<MapCameraSnapshot | null>(initialUi.mapCamera);
@@ -146,7 +159,7 @@ export function CampaignScreen({
   }, [mapCamera, selectedNodeId, state, view]);
 
   const mapVisibilityById = useMemo(
-    () => getMapNodeVisibilityById(state, prototypeMap, state.playerFactionId),
+    () => getMapNodeVisibilityById(state, campaignMap, state.playerFactionId),
     [state],
   );
   const selectedNodeVisibility = selectedNodeId
@@ -155,7 +168,7 @@ export function CampaignScreen({
   const selectedNode = useMemo(
     () => selectedNodeVisibility === 'unknown'
       ? null
-      : prototypeMap.nodes.find((node) => node.id === selectedNodeId) ?? null,
+      : campaignMap.nodes.find((node) => node.id === selectedNodeId) ?? null,
     [selectedNodeId, selectedNodeVisibility],
   );
   const selectedCity = selectedNodeId && selectedNodeVisibility === 'visible'
@@ -174,14 +187,14 @@ export function CampaignScreen({
     () => getRootClaimAvailability(state, {
       factionId: state.playerFactionId,
       armyId: 'player-main',
-      rules: prototypeCampaignRules.rootObjective,
+      rules: rootObjectiveRules,
       cityDefinitions: prototypeCities,
     }),
     [state],
   );
   const isPlayerMoving = pendingMovement !== null;
   const movementDestination = pendingMovement
-    ? prototypeMap.nodes.find((node) => node.id === pendingMovement.toNodeId) ?? null
+    ? campaignMap.nodes.find((node) => node.id === pendingMovement.toNodeId) ?? null
     : null;
   const playerNodeId = playerArmy?.nodeId ?? 'outer-post';
   const currentCity = state.cities[playerNodeId] ?? null;
@@ -193,16 +206,21 @@ export function CampaignScreen({
   );
 
   const neighboringNodeIds = useMemo(
-    () => getNeighborNodeIds(prototypeMap, playerNodeId),
+    () => getNeighborNodeIds(campaignMap, playerNodeId),
     [playerNodeId],
   );
   const playerSupply = useMemo(
-    () => getSupplyStatus(state, prototypeMap, state.playerFactionId, playerNodeId),
+    () => getSupplyStatus(state, campaignMap, state.playerFactionId, playerNodeId),
     [playerNodeId, state],
   );
   const pendingEvent = state.campaign.pendingEventId
     ? prototypeEvents[state.campaign.pendingEventId] ?? null
     : null;
+  const pendingEventNode = pendingEvent
+    ? campaignMap.nodes.find((node) => node.id === pendingEvent.nodeId) ?? null
+    : null;
+  const pendingEventLocationName = pendingEventNode ? t(pendingEventNode.nameKey as TranslationKey) : null;
+  const pendingEventLocationDescription = pendingEventNode?.descriptionKey ? t(pendingEventNode.descriptionKey as TranslationKey) : null;
   const pendingBriefing = state.campaign.pendingBriefingId
     ? prototypeSurfaceBriefingById[state.campaign.pendingBriefingId] ?? null
     : null;
@@ -215,8 +233,8 @@ export function CampaignScreen({
     : null;
 
   const selectedMoveAvailability = useMemo<MoveArmyAvailability | null>(() => {
-    if (!selectedNodeId || selectedNodeVisibility !== 'visible' || selectedNodeId === prototypeCampaignRules.rootObjective.nodeId) return null;
-    return getMoveArmyAvailability(state, prototypeMap, {
+    if (!selectedNodeId || selectedNodeVisibility !== 'visible' || selectedNodeId === rootObjectiveRules.nodeId) return null;
+    return getMoveArmyAvailability(state, campaignMap, {
       armyId: 'player-main',
       toNodeId: selectedNodeId,
       supplyCost: prototypeCampaignRules.moveSupplyCost,
@@ -225,7 +243,7 @@ export function CampaignScreen({
 
   const selectedAttackAvailability = useMemo<AttackCityAvailability | null>(() => {
     if (!selectedNodeId || selectedNodeVisibility !== 'visible' || !state.cities[selectedNodeId]) return null;
-    return getAttackCityAvailability(state, prototypeMap, {
+    return getAttackCityAvailability(state, campaignMap, {
       armyId: 'player-main',
       cityId: selectedNodeId,
       tactic: selectedTactic,
@@ -263,8 +281,8 @@ export function CampaignScreen({
   const movableNodeIds = useMemo(
     () =>
       neighboringNodeIds.filter((nodeId) => {
-        if (nodeId === prototypeCampaignRules.rootObjective.nodeId) return playerRootAvailability.canClaim;
-        return getMoveArmyAvailability(state, prototypeMap, {
+        if (nodeId === rootObjectiveRules.nodeId) return playerRootAvailability.canClaim;
+        return getMoveArmyAvailability(state, campaignMap, {
           armyId: 'player-main',
           toNodeId: nodeId,
           supplyCost: prototypeCampaignRules.moveSupplyCost,
@@ -277,7 +295,7 @@ export function CampaignScreen({
     () =>
       neighboringNodeIds.filter((nodeId) => {
         if (!state.cities[nodeId]) return false;
-        return getAttackCityAvailability(state, prototypeMap, {
+        return getAttackCityAvailability(state, campaignMap, {
           armyId: 'player-main',
           cityId: nodeId,
           tactic: selectedTactic,
@@ -290,7 +308,7 @@ export function CampaignScreen({
   function handleMove(toNodeId: string) {
     if (pendingMovement) return;
 
-    const result = moveArmy(state, prototypeMap, {
+    const result = moveArmy(state, campaignMap, {
       armyId: 'player-main',
       toNodeId,
       supplyCost: prototypeCampaignRules.moveSupplyCost,
@@ -361,7 +379,7 @@ export function CampaignScreen({
     const originNodeId = state.armies['player-main']?.nodeId ?? null;
     const result = attackCity(
       state,
-      prototypeMap,
+      campaignMap,
       {
         armyId: 'player-main',
         cityId,
@@ -437,8 +455,8 @@ export function CampaignScreen({
 
     const attacker = result.battle.sides.A;
     const defender = result.battle.sides.B;
-    const cityNode = prototypeMap.nodes.find((node) => node.id === movement.cityId);
-    const originNode = prototypeMap.nodes.find((node) => node.id === movement.originNodeId);
+    const cityNode = campaignMap.nodes.find((node) => node.id === movement.cityId);
+    const originNode = campaignMap.nodes.find((node) => node.id === movement.originNodeId);
     const cityName = cityNode ? t(cityNode.nameKey as Parameters<typeof t>[0]) : movement.cityId;
     const originName = originNode ? t(originNode.nameKey as Parameters<typeof t>[0]) : 'исходной позиции';
 
@@ -470,7 +488,7 @@ export function CampaignScreen({
     const result = claimRoot(state, {
       factionId: state.playerFactionId,
       armyId: 'player-main',
-      rules: prototypeCampaignRules.rootObjective,
+      rules: rootObjectiveRules,
       cityDefinitions: prototypeCities,
     });
     if (!result.ok) {
@@ -555,11 +573,32 @@ export function CampaignScreen({
     const artifact = result.events.find((event) => event.type === 'artifact_acquired');
     if (artifact?.type === 'artifact_acquired') {
       const definition = prototypeArtifacts[artifact.artifactId];
-      const bonus = artifact.multiplier > 1 ? ` Эффект Владоса ×${artifact.multiplier}.` : '';
-      setFeedback(`Получен артефакт «${definition?.name ?? artifact.artifactId}».${bonus}`);
+      const bonus = artifact.multiplier > 1 ? ` Владос усиливает его численные эффекты ×${artifact.multiplier}.` : '';
+      const activation = artifact.activated ? ' Артефакт автоматически помещён в свободный активный слот.' : ' Активные слоты заполнены — предмет добавлен в коллекцию.';
+      setFeedback(`Получен артефакт «${definition?.name ?? artifact.artifactId}».${activation}${bonus}`);
     } else {
       setFeedback('Событие завершено. Результат записан в экспедиционный журнал.');
     }
+  }
+
+  function handleToggleArtifact(artifactId: string) {
+    const result = toggleActiveArtifact(
+      state,
+      { factionId: state.playerFactionId, armyId: 'player-main', artifactId },
+      prototypeArtifacts,
+    );
+    if (!result.ok) {
+      const message = result.error === 'not_in_controlled_city'
+        ? 'Комплект артефактов можно менять только в своём городе.'
+        : result.error === 'slots_full'
+          ? 'Все три слота заняты. Сначала снимите один активный артефакт.'
+          : 'Не удалось изменить комплект артефактов.';
+      setFeedback(message);
+      return;
+    }
+    setState(result.state);
+    const isActive = result.state.campaign.activeArtifactIds.includes(artifactId);
+    setFeedback(isActive ? 'Артефакт активирован.' : 'Артефакт снят с активного комплекта.');
   }
 
   function handleResearch(researchId: string) {
@@ -567,7 +606,7 @@ export function CampaignScreen({
       state,
       { factionId: state.playerFactionId, researchId },
       prototypeResearch,
-      prototypeMap,
+      campaignMap,
     );
     if (!result.ok) {
       const message =
@@ -587,7 +626,7 @@ export function CampaignScreen({
   function handleFactionDefeatAcknowledge() {
     const pending = state.campaign.pendingFactionEvent;
     if (!pending) return;
-    const result = resolveFactionDefeatEvent(state, pending.eventId, prototypeMap);
+    const result = resolveFactionDefeatEvent(state, pending.eventId, campaignMap);
     if (!result.ok) {
       setFeedback('Не удалось оформить капитуляцию фракции.');
       return;
@@ -612,7 +651,7 @@ export function CampaignScreen({
     if (pendingMovement) return;
 
     const result = advanceTurn(state, {
-      graph: prototypeMap,
+      graph: campaignMap,
       cityDefinitions: prototypeCities,
       unitDefinitions: prototypeUnits,
       battleRules: prototypeBattleRules,
@@ -620,7 +659,7 @@ export function CampaignScreen({
       attackSupplyCost: prototypeCampaignRules.attackSupplyCost,
       recruitMoraleRestore: prototypeCampaignRules.recruitMoraleRestore,
       moraleCap: prototypeCampaignRules.moraleCap,
-      rootObjective: prototypeCampaignRules.rootObjective,
+      rootObjective: rootObjectiveRules,
       aiTurns: [{ factionId: RIVAL_FACTION_ID, armyId: RIVAL_ARMY_ID }],
     });
     setState(triggerAvailableSurfaceBriefing(result.state, prototypeSurfaceBriefings));
@@ -646,7 +685,7 @@ export function CampaignScreen({
             upkeep.unpaid > 0 ? `, не оплачено ${formatMoney(upkeep.unpaid)}` : ''
           }.`
         : '';
-    const rivalText = aiAction?.type === 'ai_action_taken' ? ` ${describeAiAction(aiAction.action, aiAction.targetId, rivalName)} ` : ' ';
+    const rivalText = aiAction?.type === 'ai_action_taken' ? ` ${describeAiAction(aiAction.action, aiAction.targetId, rivalName, campaignMap)} ` : ' ';
     const supplyText =
       supplyPressure?.type === 'supply_pressure_applied'
         ? ` Снабжение ${supplyPressure.supplyPercent}%: мораль −${supplyPressure.moraleLost}.`
@@ -674,7 +713,7 @@ export function CampaignScreen({
   }
 
   if (view === 'battle' && battleReport) {
-    const battleNode = prototypeMap.nodes.find((node) => node.id === battleReport.cityId);
+    const battleNode = campaignMap.nodes.find((node) => node.id === battleReport.cityId);
     const battleCityName = battleNode
       ? t(battleNode.nameKey as Parameters<typeof t>[0])
       : battleReport.cityId;
@@ -702,14 +741,14 @@ export function CampaignScreen({
           <CampaignToolbar state={state} morale={playerArmy?.morale ?? 0} supply={playerSupply} onSave={handleManualSave} onExit={onExit} interactionLocked={isPlayerMoving} />
           <RaceIndicator
             state={state}
-            graph={prototypeMap}
+            graph={campaignMap}
             rivalFactionId={RIVAL_FACTION_ID}
             rivalArmyId={RIVAL_ARMY_ID}
           />
           <SvgWorldMap
-            graph={prototypeMap}
+            graph={campaignMap}
             nodeVisibilityById={mapVisibilityById}
-            regions={prototypeMapRegions}
+            regions={campaignRegions}
             cities={state.cities}
             playerFactionId={state.playerFactionId}
             rivalFactionId={RIVAL_FACTION_ID}
@@ -742,7 +781,13 @@ export function CampaignScreen({
             ) : (
               <div className="empty-state">Основная армия не найдена.</div>
             )}
-            <ArtifactInventory artifactIds={state.campaign.artifactIds} definitions={prototypeArtifacts} />
+            <ArtifactInventory
+              artifactIds={state.campaign.artifactIds}
+              activeArtifactIds={state.campaign.activeArtifactIds}
+              definitions={prototypeArtifacts}
+              canManage={currentCityControlled}
+              onToggle={handleToggleArtifact}
+            />
           </div>
         </section>
       ) : view === 'cities' ? (
@@ -783,7 +828,7 @@ export function CampaignScreen({
               playerNodeId={playerNodeId}
               neighboringNodeIds={neighboringNodeIds}
               moveAvailability={selectedMoveAvailability}
-              rootClaimAvailability={selectedNodeId === prototypeCampaignRules.rootObjective.nodeId ? playerRootAvailability : null}
+              rootClaimAvailability={selectedNodeId === rootObjectiveRules.nodeId ? playerRootAvailability : null}
               attackAvailability={selectedAttackAvailability}
               selectedTactic={selectedTactic}
               onClear={() => setSelectedNodeId(null)}
@@ -796,7 +841,7 @@ export function CampaignScreen({
               playerNodeId={playerNodeId}
               neighboringNodeIds={neighboringNodeIds}
               moveAvailability={selectedMoveAvailability}
-              rootClaimAvailability={selectedNodeId === prototypeCampaignRules.rootObjective.nodeId ? playerRootAvailability : null}
+              rootClaimAvailability={selectedNodeId === rootObjectiveRules.nodeId ? playerRootAvailability : null}
               attackAvailability={selectedAttackAvailability}
               currentCityId={currentCityDefinition ? playerNodeId : null}
               currentCityDefinition={currentCityDefinition}
@@ -886,6 +931,8 @@ export function CampaignScreen({
           state={state}
           event={pendingEvent}
           artifacts={prototypeArtifacts}
+          locationName={pendingEventLocationName}
+          locationDescription={pendingEventLocationDescription}
           onChoose={handleResolveEvent}
         />
       ) : null}
@@ -933,7 +980,7 @@ function CampaignToolbar({
       </div>
       <div className="toolbar-meta">
         <span>Мораль {morale}</span>
-        <span className="artifact-toolbar-chip">Артефакты {state.campaign.artifactIds.length}</span>
+        <span className="artifact-toolbar-chip">Артефакты {state.campaign.artifactIds.length} · активно {state.campaign.activeArtifactIds.length}/3</span>
         <span className={`supply-toolbar-chip is-${supply.level}`} title={getSupplyTitle(supply)}>
           {supply.level === 'ignored' ? 'Снабжение — не требуется' : `Снабжение ${supply.percent}%`}
         </span>
@@ -996,8 +1043,8 @@ function getRootClaimErrorMessage(error: import('@/core/campaign/rootObjective')
   if (error === 'campaign_finished') return 'Кампания уже завершена.';
   if (error === 'army_not_found') return 'Основная армия не найдена.';
   if (error === 'army_empty') return 'Для финальной операции нужна боеспособная армия.';
-  if (error === 'not_at_staging_city') return 'Армия должна находиться в Корневом Пределе.';
-  if (error === 'staging_city_not_controlled') return 'Сначала захватите Корневой Предел.';
+  if (error === 'not_at_staging_city') return 'Армия должна находиться в последнем городе перед настоящим Корнем.';
+  if (error === 'staging_city_not_controlled') return 'Сначала захватите последний город перед настоящим Корнем.';
   if (error === 'requirements_not_met') return 'Не выполнены условия доступа к Корню.';
   if (error === 'strategic_action_spent') return 'Стратегическое действие этого хода уже использовано.';
   return 'Недостаточно припасов для финальной операции.';
@@ -1007,8 +1054,9 @@ function describeAiAction(
   action: 'attack' | 'move' | 'recruit' | 'hold',
   targetId: string | undefined,
   rivalName: string,
+  graph: MapGraph,
 ): string {
-  const node = targetId ? prototypeMap.nodes.find((item) => item.id === targetId) : null;
+  const node = targetId ? graph.nodes.find((item) => item.id === targetId) : null;
   const name = node ? t(node.nameKey as Parameters<typeof t>[0]) : targetId;
   if (action === 'attack') return `${rivalName} атаковал ${name ?? 'соседний город'}.`;
   if (action === 'move') return `${rivalName} переместился к ${name ?? 'новой позиции'}.`;

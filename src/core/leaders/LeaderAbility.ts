@@ -1,7 +1,7 @@
 import type { BattleTacticId } from '@/core/battles/BattleTypes';
 import type { FactionId, GameState } from '@/core/state/GameState';
 
-export type FactionTrait =
+export type FactionTrait = (
   | { type: 'ignore_supply' }
   | { type: 'artifact_effect_multiplier'; multiplier: number }
   | { type: 'map_revealed' }
@@ -19,7 +19,9 @@ export type FactionTrait =
   | { type: 'random_battle_morale_gain'; chancePercent: number; minGain: number; maxGain: number }
   | { type: 'battle_unit_power_multiplier'; multiplier: number }
   | { type: 'initial_garrison_size_multiplier_range'; minMultiplier: number; maxMultiplier: number }
-  | { type: 'captured_city_income_multiplier'; multiplier: number };
+  | { type: 'captured_city_income_multiplier'; multiplier: number }
+  | { type: 'root_claim_supply_cost_multiplier'; multiplier: number }
+) & { source?: string };
 
 export function getFactionTrait<TType extends FactionTrait['type']>(
   state: GameState,
@@ -132,6 +134,10 @@ export function getInitialGarrisonSizeMultiplierRange(state: GameState, factionI
 
 export function getCapturedCityIncomeMultiplier(state: GameState, factionId: FactionId): number {
   return multiplyTraits(state, factionId, 'captured_city_income_multiplier', (trait) => trait.multiplier);
+}
+
+export function getRootClaimSupplyCostMultiplier(state: GameState, factionId: FactionId): number {
+  return multiplyTraits(state, factionId, 'root_claim_supply_cost_multiplier', (trait) => trait.multiplier);
 }
 
 export function canUseRiverDoubleMove(state: GameState, factionId: FactionId): boolean {

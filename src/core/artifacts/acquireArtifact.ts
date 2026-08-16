@@ -1,4 +1,5 @@
 import type { ArtifactDefinitions } from '@/core/artifacts/ArtifactDefinition';
+import { activateArtifactTraits, MAX_ACTIVE_ARTIFACTS } from '@/core/artifacts/artifactLoadout';
 import type { GameEvent } from '@/core/commands/CommandResult';
 import { getArtifactEffectMultiplier } from '@/core/leaders/LeaderAbility';
 import type { ArmyId, FactionId, GameState } from '@/core/state/GameState';
@@ -22,49 +23,31 @@ export function acquireArtifact(
   definitions: ArtifactDefinitions,
 ): AcquireArtifactResult {
   if (state.campaign.artifactIds.includes(input.artifactId)) return { state, event: null };
-
   const artifact = definitions[input.artifactId];
   const faction = state.factions[input.factionId];
   const army = state.armies[input.armyId];
-  if (!artifact || !faction || !army) return { state, event: null };
+  if (!artifact || !faction || !army || army.factionId !== input.factionId) return { state, event: null };
 
-  const multiplier = getArtifactEffectMultiplier(state, input.factionId);
-  let money = faction.resources.money;
-  let supplies = faction.resources.supplies;
-  let specimens = faction.resources.specimens;
-  let morale = army.morale;
-
-  for (const effect of artifact.effects) {
-    const amount = Math.round(effect.amount * multiplier);
-    if (effect.type === 'money') money += amount;
-    if (effect.type === 'supplies') supplies = clamp(supplies + amount, 0, input.supplyCap);
-    if (effect.type === 'specimens') specimens = Math.max(0, specimens + amount);
-    if (effect.type === 'morale') morale = clamp(morale + amount, 0, input.moraleCap);
-  }
+  const autoActivate = state.campaign.activeArtifactIds.length < MAX_ACTIVE_ARTIFACTS;
+  let nextState: GameState = {
+    ...state,
+    campaign: {
+      ...state.campaign,
+      artifactIds: [...state.campaign.artifactIds, artifact.id],
+      activeArtifactIds: autoActivate
+        ? [...state.campaign.activeArtifactIds, artifact.id]
+        : state.campaign.activeArtifactIds,
+    },
+  };
+  if (autoActivate) nextState = activateArtifactTraits(nextState, input.factionId, artifact);
 
   return {
-    state: {
-      ...state,
-      factions: {
-        ...state.factions,
-        [faction.id]: {
-          ...faction,
-          resources: { money, supplies, specimens },
-        },
-      },
-      armies: {
-        ...state.armies,
-        [army.id]: { ...army, morale },
-      },
-      campaign: {
-        ...state.campaign,
-        artifactIds: [...state.campaign.artifactIds, artifact.id],
-      },
+    state: nextState,
+    event: {
+      type: 'artifact_acquired',
+      artifactId: artifact.id,
+      multiplier: getArtifactEffectMultiplier(state, input.factionId),
+      activated: autoActivate,
     },
-    event: { type: 'artifact_acquired', artifactId: artifact.id, multiplier },
   };
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
 }

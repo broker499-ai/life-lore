@@ -1,3 +1,6 @@
+import type { GameState } from '@/core/state/GameState';
+import { getExtensionStagingCityId, TRUE_ROOT_NODE_ID } from '@/core/map/extensionMap';
+
 export type RootAccessRule = {
   minControlledCities: number;
   minSpecimens: number;
@@ -29,12 +32,12 @@ export const prototypeCampaignRules: CampaignRules = {
   moraleCap: 100,
   recruitMoraleRestore: 4,
   rootObjective: {
-    nodeId: 'root-sanctum',
+    nodeId: TRUE_ROOT_NODE_ID,
     stagingCityId: 'root-limit',
     claimSupplyCost: 12,
     player: {
       minControlledCities: 4,
-      minSpecimens: 5,
+      minSpecimens: 6,
       requiredResolvedEventId: 'almost-root-shop',
     },
     rival: {
@@ -44,3 +47,10 @@ export const prototypeCampaignRules: CampaignRules = {
     },
   },
 };
+
+export function getPrototypeRootObjectiveRules(state: GameState): RootObjectiveRules {
+  return {
+    ...prototypeCampaignRules.rootObjective,
+    stagingCityId: getExtensionStagingCityId(state),
+  };
+}

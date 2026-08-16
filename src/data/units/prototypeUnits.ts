@@ -51,4 +51,16 @@ export const prototypeUnits: UnitDefinitions = {
     upkeepPerUnit: 0.3,
     description: 'Лёгкие местные стрелки, опасные при удачном манёвре и уязвимые в прямом бою.',
   },
+
+  'linhao-singular': {
+    id: 'linhao-singular',
+    name: 'Линьхао',
+    shortName: 'Линьхао',
+    role: 'line',
+    attack: 300,
+    defense: 350,
+    upkeepPerUnit: 0,
+    description: 'Один боец, который по совокупной боевой мощи сопоставим примерно с пятью десятками обычных солдат.',
+    singularFormation: true,
+  },
 };

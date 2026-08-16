@@ -3,14 +3,30 @@ import type { RngState } from '@/core/rng/RngState';
 import { synchronizePlayerMapKnowledge } from '@/core/map/MapVisibility';
 import type { CityState, FactionState, GameState } from '@/core/state/GameState';
 import { DEFAULT_LEADER_ID, prototypeLeaderById, prototypeLeaders } from '@/data/leaders/prototypeLeader';
-import { ORSIA_SUPER_FACTION_ID, orsiaSubfactionById, orsiaSubfactions } from '@/data/factions/orsiaSubfactions';
+import { ORSIA_SUPER_FACTION_ID, orsiaMapSubfactions, orsiaSubfactionById } from '@/data/factions/orsiaSubfactions';
 import { RIVAL_FACTION_ID, rivalExpeditions } from '@/data/factions/rivalExpeditions';
 import { prototypeMap } from '@/data/map/prototypeMap';
+import { chooseExtensionLocationOrder, extensionCityIds } from '@/core/map/extensionMap';
 
 export const PLAYER_FACTION_ID = 'expedition';
 export { RIVAL_FACTION_ID };
 export const PLAYER_ARMY_ID = 'player-main';
 export const RIVAL_ARMY_ID = 'rival-main';
+
+
+const EXTENSION_CITY_CONFIGS = [
+  ['mining-kingdom', 22, 10, 80],
+  ['lower-garden', 18, 12, 78],
+  ['secret-city-7', 28, 14, 86],
+  ['red-gallery', 24, 13, 82],
+  ['undermoscow', 20, 12, 79],
+  ['skovorodsk', 25, 10, 84],
+  ['raw-material', 21, 14, 81],
+  ['secondary-freshness', 26, 15, 85],
+] as const;
+
+const PROFKOM_FACTION_ID = 'orsia-profkom';
+const LINHAO_FACTION_ID = 'orsia-linhao';
 
 const ORSIA_CITY_CONFIGS = [
   ['moss-market', 8, 4, 62],
@@ -61,6 +77,11 @@ export function createPrototypeGameState(
   const distribution = distributeOrsiaCities(rng.campaign);
   rng = { ...rng, campaign: distribution.rngState };
 
+  const extensionOrder = chooseExtensionLocationOrder(rng.campaign);
+  rng = { ...rng, campaign: extensionOrder.rngState };
+  const extensionDistribution = distributeExtensionCities(rng.campaign, distribution.activeFactionIds);
+  rng = { ...rng, campaign: extensionDistribution.rngState };
+
   const rivalLeader = prototypeLeaderById[rivalIdentity.leaderId];
   if (!rivalLeader) throw new Error(`Missing rival leader definition ${rivalIdentity.leaderId}`);
 
@@ -69,6 +90,7 @@ export function createPrototypeGameState(
       id: PLAYER_FACTION_ID,
       superFactionId: null,
       resources: { money: 120, supplies: 80, specimens: 0 },
+      specimensCollected: 0,
       strategicActionSpent: false,
       lastStrategicAction: null,
       leaderAbilityLastUsedTurn: null,
@@ -78,6 +100,7 @@ export function createPrototypeGameState(
       id: RIVAL_FACTION_ID,
       superFactionId: null,
       resources: { money: 118, supplies: 80, specimens: 0 },
+      specimensCollected: 0,
       strategicActionSpent: false,
       lastStrategicAction: null,
       leaderAbilityLastUsedTurn: null,
@@ -85,11 +108,12 @@ export function createPrototypeGameState(
     },
   };
 
-  for (const factionId of distribution.activeFactionIds) {
+  for (const factionId of [...distribution.activeFactionIds, PROFKOM_FACTION_ID, LINHAO_FACTION_ID]) {
     factions[factionId] = {
       id: factionId,
       superFactionId: ORSIA_SUPER_FACTION_ID,
       resources: { money: 0, supplies: 0, specimens: 0 },
+      specimensCollected: 0,
       strategicActionSpent: false,
       lastStrategicAction: null,
       leaderAbilityLastUsedTurn: null,
@@ -114,28 +138,25 @@ export function createPrototypeGameState(
 
   for (const [id, guards, slingers, morale] of ORSIA_CITY_CONFIGS) {
     const ownerFactionId = distribution.cityOwners[id];
-    const factionDefinition = orsiaSubfactionById[ownerFactionId];
-    const moraleFloor = factionDefinition?.traits
-      .filter((trait) => trait.type === 'initial_garrison_morale_floor')
-      .reduce((highest, trait) => Math.max(highest, trait.value), 0) ?? 0;
-    const sizeRange = factionDefinition?.traits.find(
-      (trait) => trait.type === 'initial_garrison_size_multiplier_range',
-    );
-    let sizeMultiplier = 1;
-    if (sizeRange?.type === 'initial_garrison_size_multiplier_range') {
-      const minPercent = Math.round(sizeRange.minMultiplier * 100);
-      const maxPercent = Math.round(sizeRange.maxMultiplier * 100);
-      const roll = randomInt(rng.campaign, minPercent, maxPercent);
-      rng = { ...rng, campaign: roll.state };
-      sizeMultiplier = roll.value / 100;
+    const created = createFactionCity(id, ownerFactionId, guards, slingers, morale, rng.campaign);
+    rng = { ...rng, campaign: created.rngState };
+    cities[id] = created.city;
+  }
+
+  for (const [id, guards, slingers, morale] of EXTENSION_CITY_CONFIGS) {
+    const ownerFactionId = extensionDistribution.cityOwners[id];
+    if (ownerFactionId === LINHAO_FACTION_ID) {
+      cities[id] = {
+        id,
+        ownerFactionId,
+        garrison: { roster: { 'linhao-singular': 1 }, morale: 92 },
+        incomeMultiplier: 1,
+      };
+      continue;
     }
-    cities[id] = orsiaCity(
-      id,
-      ownerFactionId,
-      Math.max(0, Math.round(guards * sizeMultiplier)),
-      Math.max(0, Math.round(slingers * sizeMultiplier)),
-      Math.max(morale, moraleFloor),
-    );
+    const created = createFactionCity(id, ownerFactionId, guards, slingers, morale, rng.campaign);
+    rng = { ...rng, campaign: created.rngState };
+    cities[id] = created.city;
   }
 
   const initialState: GameState = {
@@ -171,6 +192,7 @@ export function createPrototypeGameState(
       pendingEventId: null,
       resolvedEventIds: [],
       artifactIds: [],
+      activeArtifactIds: [],
       cityArtifactClaimedIds: [],
       pendingBriefingId: null,
       resolvedBriefingIds: [],
@@ -178,6 +200,7 @@ export function createPrototypeGameState(
       completedResearchIds: [],
       pendingFactionEvent: null,
       resolvedFactionEventIds: [],
+      extensionLocationOrder: extensionOrder.order,
       rivalOrganizationId: rivalIdentity.organizationId,
       rivalLeaderId: rivalIdentity.leaderId,
       status: 'active',
@@ -188,6 +211,69 @@ export function createPrototypeGameState(
   };
 
   return synchronizePlayerMapKnowledge(initialState, prototypeMap);
+}
+
+
+function createFactionCity(
+  id: string,
+  ownerFactionId: string,
+  guards: number,
+  slingers: number,
+  morale: number,
+  initialRng: RngState,
+): { city: CityState; rngState: RngState } {
+  let rng = initialRng;
+  const factionDefinition = orsiaSubfactionById[ownerFactionId];
+  const moraleFloor = factionDefinition?.traits
+    .filter((trait) => trait.type === 'initial_garrison_morale_floor')
+    .reduce((highest, trait) => Math.max(highest, trait.value), 0) ?? 0;
+  const sizeRange = factionDefinition?.traits.find(
+    (trait) => trait.type === 'initial_garrison_size_multiplier_range',
+  );
+  let sizeMultiplier = 1;
+  if (sizeRange?.type === 'initial_garrison_size_multiplier_range') {
+    const minPercent = Math.round(sizeRange.minMultiplier * 100);
+    const maxPercent = Math.round(sizeRange.maxMultiplier * 100);
+    const roll = randomInt(rng, minPercent, maxPercent);
+    rng = roll.state;
+    sizeMultiplier = roll.value / 100;
+  }
+  return {
+    city: orsiaCity(
+      id,
+      ownerFactionId,
+      Math.max(0, Math.round(guards * sizeMultiplier)),
+      Math.max(0, Math.round(slingers * sizeMultiplier)),
+      Math.max(morale, moraleFloor),
+    ),
+    rngState: rng,
+  };
+}
+
+export type ExtensionDistribution = {
+  cityOwners: Record<string, string>;
+  rngState: RngState;
+};
+
+export function distributeExtensionCities(initialRng: RngState, activeOriginalFactionIds: readonly string[]): ExtensionDistribution {
+  let rng = initialRng;
+  const cityShuffle = shuffleWithRng([...extensionCityIds], rng);
+  rng = cityShuffle.rngState;
+  const cityOwners: Record<string, string> = {};
+
+  const profkomCity = cityShuffle.items[0];
+  const linhaoCity = cityShuffle.items[1];
+  if (profkomCity) cityOwners[profkomCity] = PROFKOM_FACTION_ID;
+  if (linhaoCity) cityOwners[linhaoCity] = LINHAO_FACTION_ID;
+
+  const ownerPool = [...activeOriginalFactionIds, PROFKOM_FACTION_ID, LINHAO_FACTION_ID];
+  for (const cityId of cityShuffle.items.slice(2)) {
+    const ownerResult = randomInt(rng, 0, ownerPool.length - 1);
+    rng = ownerResult.state;
+    cityOwners[cityId] = ownerPool[ownerResult.value];
+  }
+
+  return { cityOwners, rngState: rng };
 }
 
 export type RivalIdentitySelection = {
@@ -221,11 +307,11 @@ export type OrsiaDistribution = {
 
 export function distributeOrsiaCities(initialRng: RngState): OrsiaDistribution {
   let rng = initialRng;
-  const countResult = randomInt(rng, 4, orsiaSubfactions.length);
+  const countResult = randomInt(rng, 4, orsiaMapSubfactions.length);
   rng = countResult.state;
 
   const factionShuffle = shuffleWithRng(
-    orsiaSubfactions.map((faction) => faction.id),
+    orsiaMapSubfactions.map((faction) => faction.id),
     rng,
   );
   rng = factionShuffle.rngState;

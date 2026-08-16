@@ -30,6 +30,7 @@ function ensureOrsiaFaction(
     id: factionId,
     superFactionId: ORSIA_SUPER_FACTION_ID,
     resources: { money: 100, supplies: 100, specimens: 0 },
+    specimensCollected: 0,
     strategicActionSpent: false,
     lastStrategicAction: null,
     leaderAbilityLastUsedTurn: null,

@@ -11,6 +11,7 @@ export type UnitDefinition = {
   defense: number;
   upkeepPerUnit: number;
   description: string;
+  singularFormation?: boolean;
 };
 
 export type UnitDefinitions = Record<UnitTypeId, UnitDefinition>;

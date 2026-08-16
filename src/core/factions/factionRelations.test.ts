@@ -4,14 +4,14 @@ import { areFactionsAllied, areFactionsHostile } from '@/core/factions/factionRe
 import { createPrototypeGameState, distributeOrsiaCities } from '@/core/state/createPrototypeGameState';
 import { createRngState } from '@/core/rng/seededRandom';
 import { prototypeMap } from '@/data/map/prototypeMap';
-import { orsiaSubfactions } from '@/data/factions/orsiaSubfactions';
+import { orsiaMapSubfactions } from '@/data/factions/orsiaSubfactions';
 
 describe('Orsia super-faction', () => {
   it('uses four or five subfactions and assigns every Orsia city deterministically', () => {
     for (const seed of [1, 2, 3, 4, 42, 99]) {
       const distribution = distributeOrsiaCities(createRngState(seed));
       expect(distribution.activeFactionIds.length).toBeGreaterThanOrEqual(4);
-      expect(distribution.activeFactionIds.length).toBeLessThanOrEqual(orsiaSubfactions.length);
+      expect(distribution.activeFactionIds.length).toBeLessThanOrEqual(orsiaMapSubfactions.length);
       expect(Object.keys(distribution.cityOwners)).toHaveLength(12);
       for (const factionId of distribution.activeFactionIds) {
         expect(Object.values(distribution.cityOwners)).toContain(factionId);

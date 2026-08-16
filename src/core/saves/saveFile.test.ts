@@ -63,11 +63,13 @@ function stripGarrisons(state: ReturnType<typeof createPrototypeGameState>) {
 }
 
 describe('save file', () => {
-  it('round-trips v14 including research, story state, city artifacts, fog knowledge, rival identity and battle RNG cursor', () => {
+  it('round-trips v15 including research, artifact loadout, scientific progress, story state and battle RNG cursor', () => {
     const state = createPrototypeGameState(99);
     state.rng.battles.cursor = 7;
     state.factions[RIVAL_FACTION_ID].strategicActionSpent = true;
     state.campaign.artifactIds = ['apple-skeleton'];
+    state.campaign.activeArtifactIds = ['apple-skeleton'];
+    state.factions.expedition.specimensCollected = 4;
     state.campaign.cityArtifactClaimedIds = ['moss-market'];
     state.campaign.resolvedBriefingIds = ['surface-artifact-directive'];
     state.campaign.resolvedEventIds = ['warehouse-inventory'];
@@ -85,9 +87,35 @@ describe('save file', () => {
   });
 
 
+  it('migrates v14 by reconstructing total collected specimens and activating up to three existing artifacts', () => {
+    const current = createPrototypeGameState(90, 'vlados');
+    current.factions.expedition.resources.specimens = 1;
+    current.campaign.completedResearchIds = ['flora-field-rations'];
+    current.campaign.artifactIds = ['apple-skeleton', 'last-word-stone'];
+    const legacyFactions = Object.fromEntries(
+      Object.entries(current.factions).map(([id, faction]) => {
+        const { specimensCollected: _collected, ...legacyFaction } = faction;
+        return [id, legacyFaction];
+      }),
+    );
+    const { activeArtifactIds: _active, ...legacyCampaign } = current.campaign;
+
+    const restored = deserializeGame(JSON.stringify({
+      version: 14,
+      state: { ...current, factions: legacyFactions, campaign: legacyCampaign },
+    }));
+
+    expect(restored.factions.expedition.specimensCollected).toBe(3);
+    expect(restored.campaign.activeArtifactIds).toEqual(['apple-skeleton', 'last-word-stone']);
+    const artifactTrait = restored.factions.expedition.traits.find((trait) => trait.source === 'artifact:apple-skeleton');
+    expect(artifactTrait?.type).toBe('city_income_multiplier');
+    if (artifactTrait?.type === 'city_income_multiplier') expect(artifactTrait.multiplier).toBeCloseTo(1.27);
+  });
+
+
   it('migrates v13 map artifacts and initializes Stage 23 city/story state', () => {
     const current = createPrototypeGameState(84);
-    const { cityArtifactClaimedIds: _cityArtifacts, pendingBriefingId: _pendingBriefing, resolvedBriefingIds: _resolvedBriefings, ...legacyCampaign } = current.campaign;
+    const { activeArtifactIds: _activeArtifacts, cityArtifactClaimedIds: _cityArtifacts, pendingBriefingId: _pendingBriefing, resolvedBriefingIds: _resolvedBriefings, ...legacyCampaign } = current.campaign;
     const legacy = {
       version: 13,
       state: {
@@ -108,6 +136,7 @@ describe('save file', () => {
     expect(restored.campaign.cityArtifactClaimedIds).toEqual([]);
     expect(restored.campaign.pendingBriefingId).toBeNull();
     expect(restored.campaign.resolvedBriefingIds).toEqual([]);
+    expect(restored.campaign.activeArtifactIds).toEqual(['apple-skeleton', 'vanilla-cartilage']);
   });
 
 

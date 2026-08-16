@@ -11,6 +11,7 @@ function preparePlayerForRoot() {
   state.cities['moss-market'].ownerFactionId = state.playerFactionId;
   state.cities['big-lunch'].ownerFactionId = state.playerFactionId;
   state.factions[state.playerFactionId].resources.specimens = 5;
+  state.factions[state.playerFactionId].specimensCollected = 6;
   state.factions[state.playerFactionId].resources.supplies = 40;
   state.campaign.resolvedEventIds.push('almost-root-shop');
   return state;
@@ -33,7 +34,7 @@ describe('root objective', () => {
     if (availability.canClaim) return;
     expect(availability.reason).toBe('requirements_not_met');
     expect(availability.progress.requiredCities).toBe(4);
-    expect(availability.progress.requiredSpecimens).toBe(5);
+    expect(availability.progress.requiredSpecimensCollected).toBe(6);
   });
 
   it('lets the player claim the Root and ends the campaign with victory', () => {

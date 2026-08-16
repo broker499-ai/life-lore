@@ -53,6 +53,7 @@ export type SvgWorldMapProps = {
 };
 
 type CameraState = { zoom: number; centerX: number; centerY: number };
+type WorldBounds = { minX: number; maxX: number; minY: number; maxY: number; width: number; height: number };
 type DragState = {
   pointerId: number;
   startClientX: number;
@@ -63,9 +64,9 @@ type DragState = {
 };
 
 const ZOOM_LEVELS = [1, 1.35, 1.75, 2.2] as const;
-const WORLD_MIN = -8;
-const WORLD_MAX = 108;
-const WORLD_SIZE = WORLD_MAX - WORLD_MIN;
+const BASE_WORLD_MIN = -8;
+const BASE_WORLD_MAX = 108;
+const WORLD_PADDING = 8;
 
 export function SvgWorldMap({
   graph,
@@ -90,8 +91,9 @@ export function SvgWorldMap({
   supplyPathNodeIds = [],
   onSelectNode,
 }: SvgWorldMapProps) {
+  const worldBounds = getWorldBounds(graph);
   const [camera, setCamera] = useState<CameraState>(() =>
-    clampCamera(initialCamera ?? { zoom: 1, centerX: 50, centerY: 50 }),
+    clampCamera(initialCamera ?? { zoom: 1, centerX: 50, centerY: 50 }, worldBounds),
   );
   const dragRef = useRef<DragState | null>(null);
   const suppressNextClickRef = useRef(false);
@@ -131,6 +133,10 @@ export function SvgWorldMap({
   }
 
   useEffect(() => {
+    setCamera((current) => clampCamera(current, worldBounds));
+  }, [worldBounds.minX, worldBounds.maxX, worldBounds.minY, worldBounds.maxY]);
+
+  useEffect(() => {
     if (movementId === null || movementDurationMs <= 0) {
       setMovementProgress(0);
       return;
@@ -158,9 +164,10 @@ export function SvgWorldMap({
     cameraChangeRef.current?.(camera);
   }, [camera]);
 
-  const viewSize = WORLD_SIZE / camera.zoom;
-  const viewBoxX = camera.centerX - viewSize / 2;
-  const viewBoxY = camera.centerY - viewSize / 2;
+  const viewWidth = worldBounds.width / camera.zoom;
+  const viewHeight = worldBounds.height / camera.zoom;
+  const viewBoxX = camera.centerX - viewWidth / 2;
+  const viewBoxY = camera.centerY - viewHeight / 2;
   const zoomIndex = getNearestZoomIndex(camera.zoom);
 
   function setZoom(nextZoom: number, focusPlayerWhenLeavingFit = false) {
@@ -170,7 +177,7 @@ export function SvgWorldMap({
         focusPlayerWhenLeavingFit && current.zoom === 1 && nextZoom > 1 && playerNode
           ? { x: playerNode.x, y: playerNode.y }
           : { x: current.centerX, y: current.centerY };
-      return clampCamera({ zoom: nextZoom, centerX: center.x, centerY: center.y });
+      return clampCamera({ zoom: nextZoom, centerX: center.x, centerY: center.y }, worldBounds);
     });
   }
 
@@ -193,7 +200,7 @@ export function SvgWorldMap({
     const playerNode = nodeById.get(playerNodeId);
     if (!playerNode) return;
     const zoom = camera.zoom === 1 ? ZOOM_LEVELS[2] : camera.zoom;
-    setCamera(clampCamera({ zoom, centerX: playerNode.x, centerY: playerNode.y }));
+    setCamera(clampCamera({ zoom, centerX: playerNode.x, centerY: playerNode.y }, worldBounds));
   }
 
   function handleWheel(event: ReactWheelEvent<SVGSVGElement>) {
@@ -226,12 +233,13 @@ export function SvgWorldMap({
 
     const rect = event.currentTarget.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return;
-    const currentViewSize = WORLD_SIZE / camera.zoom;
+    const currentViewWidth = worldBounds.width / camera.zoom;
+    const currentViewHeight = worldBounds.height / camera.zoom;
     const next = clampCamera({
       zoom: camera.zoom,
-      centerX: drag.startCenterX - (dx / rect.width) * currentViewSize,
-      centerY: drag.startCenterY - (dy / rect.height) * currentViewSize,
-    });
+      centerX: drag.startCenterX - (dx / rect.width) * currentViewWidth,
+      centerY: drag.startCenterY - (dy / rect.height) * currentViewHeight,
+    }, worldBounds);
     setCamera(next);
   }
 
@@ -266,7 +274,7 @@ export function SvgWorldMap({
 
       <svg
         className="world-map"
-        viewBox={`${viewBoxX} ${viewBoxY} ${viewSize} ${viewSize}`}
+        viewBox={`${viewBoxX} ${viewBoxY} ${viewWidth} ${viewHeight}`}
         role="img"
         aria-label="Схематическая карта Орсии"
         onWheel={handleWheel}
@@ -282,8 +290,8 @@ export function SvgWorldMap({
           <clipPath id="cityOwnerPortraitClip" clipPathUnits="objectBoundingBox">
             <circle cx="0.5" cy="0.5" r="0.5" />
           </clipPath>
-          <mask id="mapFogMask" maskUnits="userSpaceOnUse" x={WORLD_MIN} y={WORLD_MIN} width={WORLD_SIZE} height={WORLD_SIZE}>
-            <rect x={WORLD_MIN} y={WORLD_MIN} width={WORLD_SIZE} height={WORLD_SIZE} fill="white" />
+          <mask id="mapFogMask" maskUnits="userSpaceOnUse" x={worldBounds.minX} y={worldBounds.minY} width={worldBounds.width} height={worldBounds.height}>
+            <rect x={worldBounds.minX} y={worldBounds.minY} width={worldBounds.width} height={worldBounds.height} fill="white" />
             {discoveredNodeIds.map((nodeId) => {
               const node = nodeById.get(nodeId);
               if (!node) return null;
@@ -308,8 +316,8 @@ export function SvgWorldMap({
           </filter>
         </defs>
 
-        <rect x={WORLD_MIN} y={WORLD_MIN} width={WORLD_SIZE} height={WORLD_SIZE} rx="6" className="map-bg" />
-        <rect x={WORLD_MIN} y={WORLD_MIN} width={WORLD_SIZE} height={WORLD_SIZE} rx="6" fill="url(#caveGlow)" />
+        <rect x={worldBounds.minX} y={worldBounds.minY} width={worldBounds.width} height={worldBounds.height} rx="6" className="map-bg" />
+        <rect x={worldBounds.minX} y={worldBounds.minY} width={worldBounds.width} height={worldBounds.height} rx="6" fill="url(#caveGlow)" />
 
         <g className="map-regions" aria-hidden="true">
           {regions.map((region) => (
@@ -335,10 +343,10 @@ export function SvgWorldMap({
 
         {!allNodesVisible ? (
           <rect
-            x={WORLD_MIN}
-            y={WORLD_MIN}
-            width={WORLD_SIZE}
-            height={WORLD_SIZE}
+            x={worldBounds.minX}
+            y={worldBounds.minY}
+            width={worldBounds.width}
+            height={worldBounds.height}
             className="map-fog-unknown"
             mask="url(#mapFogMask)"
             aria-hidden="true"
@@ -558,14 +566,30 @@ function smoothStep(value: number): number {
   return clamped * clamped * (3 - 2 * clamped);
 }
 
-function clampCamera(camera: CameraState): CameraState {
-  const size = WORLD_SIZE / camera.zoom;
-  const half = size / 2;
+function clampCamera(camera: CameraState, bounds: WorldBounds): CameraState {
+  const viewWidth = bounds.width / camera.zoom;
+  const viewHeight = bounds.height / camera.zoom;
+  const halfWidth = viewWidth / 2;
+  const halfHeight = viewHeight / 2;
+  const minCenterX = bounds.minX + halfWidth;
+  const maxCenterX = bounds.maxX - halfWidth;
+  const minCenterY = bounds.minY + halfHeight;
+  const maxCenterY = bounds.maxY - halfHeight;
   return {
     zoom: camera.zoom,
-    centerX: Math.min(WORLD_MAX - half, Math.max(WORLD_MIN + half, camera.centerX)),
-    centerY: Math.min(WORLD_MAX - half, Math.max(WORLD_MIN + half, camera.centerY)),
+    centerX: minCenterX > maxCenterX ? (bounds.minX + bounds.maxX) / 2 : Math.min(maxCenterX, Math.max(minCenterX, camera.centerX)),
+    centerY: minCenterY > maxCenterY ? (bounds.minY + bounds.maxY) / 2 : Math.min(maxCenterY, Math.max(minCenterY, camera.centerY)),
   };
+}
+
+function getWorldBounds(graph: MapGraph): WorldBounds {
+  const xs = graph.nodes.map((node) => node.x);
+  const ys = graph.nodes.map((node) => node.y);
+  const minX = Math.min(BASE_WORLD_MIN, ...xs.map((value) => value - WORLD_PADDING));
+  const maxX = Math.max(BASE_WORLD_MAX, ...xs.map((value) => value + WORLD_PADDING));
+  const minY = Math.min(BASE_WORLD_MIN, ...ys.map((value) => value - WORLD_PADDING));
+  const maxY = Math.max(BASE_WORLD_MAX, ...ys.map((value) => value + WORLD_PADDING));
+  return { minX, maxX, minY, maxY, width: maxX - minX, height: maxY - minY };
 }
 
 function getNearestZoomIndex(zoom: number): number {

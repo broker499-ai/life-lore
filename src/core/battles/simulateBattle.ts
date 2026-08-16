@@ -89,6 +89,7 @@ export function simulateBattle(
       rules.tactics[sideB.input.tactic].casualtyInflictedMultiplier *
         tacticalCasualtyTakenA *
         (sideA.input.casualtyTakenMultiplier ?? 1),
+      isSingularFormation(sideA.roster, unitDefinitions),
     );
     const lossesToB = calculateLossCount(
       unitsBeforeB,
@@ -98,6 +99,7 @@ export function simulateBattle(
       rules.tactics[sideA.input.tactic].casualtyInflictedMultiplier *
         tacticalCasualtyTakenB *
         (sideB.input.casualtyTakenMultiplier ?? 1),
+      isSingularFormation(sideB.roster, unitDefinitions),
     );
 
     const lossesRosterA = distributeLosses(sideA.roster, lossesToA, unitDefinitions);
@@ -291,6 +293,7 @@ function calculateLossCount(
   defenderPower: number,
   baseCasualtyRate: number,
   casualtyInflictedMultiplier: number,
+  allowZeroCasualties: boolean,
 ): number {
   if (defenderUnits <= 0 || attackerPower <= 0) return 0;
   const pressure = attackerPower / Math.max(1, defenderPower);
@@ -299,7 +302,15 @@ function calculateLossCount(
     MIN_CASUALTY_RATE,
     MAX_CASUALTY_RATE,
   );
-  return Math.min(defenderUnits, Math.max(1, Math.round(defenderUnits * casualtyRate)));
+  const rounded = Math.round(defenderUnits * casualtyRate);
+  return Math.min(defenderUnits, Math.max(allowZeroCasualties ? 0 : 1, rounded));
+}
+
+function isSingularFormation(roster: ArmyRoster, unitDefinitions: UnitDefinitions): boolean {
+  const entries = Object.entries(roster).filter(([, amount]) => amount > 0);
+  if (entries.length !== 1) return false;
+  const [unitTypeId, amount] = entries[0];
+  return amount === 1 && unitDefinitions[unitTypeId]?.singularFormation === true;
 }
 
 function distributeLosses(

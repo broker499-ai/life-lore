@@ -5,13 +5,14 @@ import { prototypeCities } from '@/data/cities/prototypeCities';
 import { getEffectiveCityTaxIncome } from '@/core/cities/cityTraits';
 import { orsiaSubfactionById } from '@/data/factions/orsiaSubfactions';
 import { rivalExpeditionById } from '@/data/factions/rivalExpeditions';
-import { prototypeMap } from '@/data/map/prototypeMap';
+import { getCampaignMap } from '@/core/map/extensionMap';
 import { t } from '@/i18n/t';
 import type { TranslationKey } from '@/i18n/ru';
 
 export function CitiesOverview({ state, rivalFactionId }: { state: GameState; rivalFactionId: string }) {
-  const visibilityById = getMapNodeVisibilityById(state, prototypeMap, state.playerFactionId);
-  const rows = prototypeMap.nodes
+  const campaignMap = getCampaignMap(state);
+  const visibilityById = getMapNodeVisibilityById(state, campaignMap, state.playerFactionId);
+  const rows = campaignMap.nodes
     .filter((node) => node.kind === 'city' && visibilityById[node.id] !== 'unknown')
     .map((node) => {
       const visibility = visibilityById[node.id];

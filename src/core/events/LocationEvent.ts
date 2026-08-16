@@ -1,6 +1,6 @@
 import type { ArtifactDefinitions } from '@/core/artifacts/ArtifactDefinition';
+import { acquireArtifact } from '@/core/artifacts/acquireArtifact';
 import type { GameEvent } from '@/core/commands/CommandResult';
-import { getArtifactEffectMultiplier } from '@/core/leaders/LeaderAbility';
 import type { ArmyId, GameState, NodeId } from '@/core/state/GameState';
 
 export type EventEffect =
@@ -8,7 +8,8 @@ export type EventEffect =
   | { type: 'supplies'; amount: number }
   | { type: 'specimens'; amount: number }
   | { type: 'morale'; amount: number }
-  | { type: 'artifact'; artifactId: string };
+  | { type: 'artifact'; artifactId: string }
+  | { type: 'discover_nodes'; nodeIds: NodeId[] };
 
 export type EventChoice = {
   id: string;
@@ -38,7 +39,7 @@ export type ResolveLocationEventInput = {
 
 export type EventChoiceAvailability =
   | { canChoose: true }
-  | { canChoose: false; reason: 'insufficient_money' | 'insufficient_supplies' };
+  | { canChoose: false; reason: 'insufficient_money' | 'insufficient_supplies' | 'insufficient_specimens' };
 
 export function triggerLocationEvent(
   state: GameState,
@@ -69,8 +70,10 @@ export function getEventChoiceAvailability(
   if (!faction) return { canChoose: false, reason: 'insufficient_money' };
   const moneyDelta = sumEffects(choice.effects, 'money');
   const suppliesDelta = sumEffects(choice.effects, 'supplies');
+  const specimenDelta = choice.effects.reduce((sum, effect) => sum + (effect.type === 'specimens' ? effect.amount : 0), 0);
   if (faction.resources.money + moneyDelta < 0) return { canChoose: false, reason: 'insufficient_money' };
   if (faction.resources.supplies + suppliesDelta < 0) return { canChoose: false, reason: 'insufficient_supplies' };
+  if (faction.resources.specimens + specimenDelta < 0) return { canChoose: false, reason: 'insufficient_specimens' };
   return { canChoose: true };
 }
 
@@ -94,72 +97,69 @@ export function resolveLocationEvent(
   const army = state.armies[input.armyId];
   if (!faction || !army) return { ok: false, state, error: 'actor_not_found' };
 
+  let nextState = state;
   let money = faction.resources.money;
   let supplies = faction.resources.supplies;
   let specimens = faction.resources.specimens;
+  let specimensCollected = faction.specimensCollected;
   let morale = army.morale;
-  const artifactIds = [...state.campaign.artifactIds];
+  const discoveredNodes = new Set(state.campaign.discoveredNodeIds);
   const emitted: GameEvent[] = [];
 
   for (const effect of choice.effects) {
     if (effect.type === 'money') money += effect.amount;
     if (effect.type === 'supplies') supplies = clamp(supplies + effect.amount, 0, input.supplyCap);
-    if (effect.type === 'specimens') specimens = Math.max(0, specimens + effect.amount);
+    if (effect.type === 'specimens') {
+      specimens = Math.max(0, specimens + effect.amount);
+      if (effect.amount > 0) specimensCollected += effect.amount;
+    }
     if (effect.type === 'morale') morale = clamp(morale + effect.amount, 0, input.moraleCap);
-    if (effect.type === 'artifact') {
-      if (artifactIds.includes(effect.artifactId)) continue;
-      const artifact = artifacts[effect.artifactId];
-      if (!artifact) continue;
-      artifactIds.push(effect.artifactId);
-      const multiplier = getArtifactEffectMultiplier(state, input.factionId);
-      for (const artifactEffect of artifact.effects) {
-        const amount = scaleArtifactAmount(artifactEffect.amount, multiplier);
-        if (artifactEffect.type === 'money') money += amount;
-        if (artifactEffect.type === 'supplies') supplies = clamp(supplies + amount, 0, input.supplyCap);
-        if (artifactEffect.type === 'specimens') specimens = Math.max(0, specimens + amount);
-        if (artifactEffect.type === 'morale') morale = clamp(morale + amount, 0, input.moraleCap);
-      }
-      emitted.push({ type: 'artifact_acquired', artifactId: artifact.id, multiplier });
+    if (effect.type === 'discover_nodes') {
+      for (const nodeId of effect.nodeIds) discoveredNodes.add(nodeId);
     }
   }
 
-  const nextState: GameState = {
-    ...state,
+  nextState = {
+    ...nextState,
     factions: {
-      ...state.factions,
+      ...nextState.factions,
       [faction.id]: {
         ...faction,
         resources: { money, supplies, specimens },
+        specimensCollected,
       },
     },
-    armies: {
-      ...state.armies,
-      [army.id]: { ...army, morale },
-    },
+    armies: { ...nextState.armies, [army.id]: { ...army, morale } },
     campaign: {
-      ...state.campaign,
+      ...nextState.campaign,
       pendingEventId: null,
-      resolvedEventIds: [...state.campaign.resolvedEventIds, definition.id],
-      artifactIds,
+      resolvedEventIds: [...nextState.campaign.resolvedEventIds, definition.id],
+      discoveredNodeIds: [...discoveredNodes],
     },
   };
+
+  for (const effect of choice.effects) {
+    if (effect.type !== 'artifact') continue;
+    const acquired = acquireArtifact(nextState, {
+      artifactId: effect.artifactId,
+      factionId: input.factionId,
+      armyId: input.armyId,
+      supplyCap: input.supplyCap,
+      moraleCap: input.moraleCap,
+    }, artifacts);
+    nextState = acquired.state;
+    if (acquired.event) emitted.push(acquired.event);
+  }
 
   return {
     ok: true,
     state: nextState,
-    events: [
-      ...emitted,
-      { type: 'location_event_resolved', eventId: definition.id, choiceId: choice.id },
-    ],
+    events: [...emitted, { type: 'location_event_resolved', eventId: definition.id, choiceId: choice.id }],
   };
 }
 
 function sumEffects(effects: EventEffect[], type: 'money' | 'supplies'): number {
   return effects.reduce((sum, effect) => sum + (effect.type === type ? effect.amount : 0), 0);
-}
-
-function scaleArtifactAmount(amount: number, multiplier: number): number {
-  return Math.round(amount * multiplier);
 }
 
 function clamp(value: number, min: number, max: number): number {

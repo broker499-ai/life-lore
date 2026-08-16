@@ -99,3 +99,25 @@ describe('createPrototypeGameState Stage 22 remaining Orsia traits', () => {
     expect(withFgu?.factions['orsia-fgushniki'].traits).toEqual(orsiaSubfactionById['orsia-fgushniki'].traits);
   });
 });
+
+describe('createPrototypeGameState Stage 28 extension factions', () => {
+  it('always reserves extension holdings for Profkom and Linhao', () => {
+    const state = createPrototypeGameState(901);
+    expect(state.factions['orsia-profkom']).toBeDefined();
+    expect(state.factions['orsia-linhao']).toBeDefined();
+    expect(Object.values(state.cities).some((city) => city.ownerFactionId === 'orsia-profkom')).toBe(true);
+    const linhaoCities = Object.values(state.cities).filter((city) => city.ownerFactionId === 'orsia-linhao');
+    expect(linhaoCities.length).toBeGreaterThan(0);
+    for (const city of linhaoCities) {
+      expect(city.garrison.roster).toEqual({ 'linhao-singular': 1 });
+    }
+  });
+
+  it('gives Profkom the same captured-city corruption trait as FGU', () => {
+    const state = createPrototypeGameState(902);
+    expect(state.factions['orsia-profkom'].traits).toContainEqual({
+      type: 'captured_city_income_multiplier',
+      multiplier: 0.6,
+    });
+  });
+});

@@ -1,4 +1,5 @@
 import type { LocationEventDefinitions } from '@/core/events/LocationEvent';
+import { extensionLocationIds, TRUE_ROOT_NODE_ID } from '@/core/map/extensionMap';
 
 export const prototypeEvents: LocationEventDefinitions = {
   'warehouse-inventory': {
@@ -73,7 +74,8 @@ export const prototypeEvents: LocationEventDefinitions = {
     choices: [
       {
         id: 'take-radish',
-        label: 'Снять кнопку со стены',
+        label: 'Забрать редиску',
+        description: 'Аккуратно вынести редиску вместе с инструкцией по её безопасной транспортировке.',
         effects: [{ type: 'artifact', artifactId: 'red-radish' }],
       },
       {
@@ -119,6 +121,154 @@ export const prototypeEvents: LocationEventDefinitions = {
         id: 'take-brochure',
         label: 'Взять бесплатную брошюру',
         effects: [{ type: 'specimens', amount: 1 }],
+      },
+    ],
+  },
+
+  'false-root-revelation': {
+    id: 'false-root-revelation',
+    nodeId: 'root-sanctum',
+    title: 'Не тот корень',
+    description: 'После нескольких минут торжественных измерений приходит уточнение с поверхности. Это не Корень Живознания. Перед экспедицией всего лишь зрительный корень — редкая подземная структура, которая очень убедительно выглядит корнем. Настоящий Корень находится дальше.',
+    choices: [
+      {
+        id: 'continue-deeper',
+        label: 'Идём дальше',
+        description: 'За корневой областью обнаруживается ещё один длинный маршрут в глубину Орсии.',
+        effects: [{ type: 'discover_nodes', nodeIds: [...extensionLocationIds, TRUE_ROOT_NODE_ID] }],
+      },
+    ],
+  },
+  'oven-zero-control-bake': {
+    id: 'oven-zero-control-bake',
+    nodeId: 'oven-zero',
+    title: 'Контрольная выпечка',
+    description: 'Внутри лежит небольшая котлета. Судя по журналу наблюдений, она находится там не менее 63 лет. Она всё ещё сырая.',
+    choices: [
+      {
+        id: 'take-permanent-cutlet',
+        label: 'Забрать котлету',
+        effects: [{ type: 'artifact', artifactId: 'permanent-raw-cutlet' }],
+      },
+      {
+        id: 'raise-temperature',
+        label: 'Повысить температуру',
+        description: 'Через несколько секунд из печи раздаётся стук.',
+        effects: [{ type: 'specimens', amount: 3 }, { type: 'morale', amount: -2 }],
+      },
+    ],
+  },
+  'salt-department-lecture': {
+    id: 'salt-department-lecture',
+    nodeId: 'salt-department',
+    title: 'Это лекция?',
+    description: 'В голове слышится эхо переклички.',
+    choices: [
+      {
+        id: 'you-decide',
+        label: 'Тебе решать',
+        effects: [{ type: 'artifact', artifactId: 'dancing-cow' }],
+      },
+      {
+        id: 'what-is-state',
+        label: 'Что такое государство?',
+        description: 'Часть пайков обращается в кисловатую соль.',
+        effects: [{ type: 'specimens', amount: 3 }, { type: 'supplies', amount: -1 }],
+      },
+    ],
+  },
+  'reverse-fermentation-harvest': {
+    id: 'reverse-fermentation-harvest',
+    nodeId: 'reverse-fermentation-cellar',
+    title: 'Урожай следующего года',
+    description: 'В глубине погреба найдена бутылка с датой розлива, которая наступит через 11 лет.',
+    choices: [
+      {
+        id: 'open-future-bottle',
+        label: 'Открыть бутылку',
+        description: 'Все присутствующие на несколько секунд вспоминают один и тот же пикник, которого никогда не было.',
+        effects: [{ type: 'morale', amount: 4 }, { type: 'specimens', amount: -1 }],
+      },
+      {
+        id: 'keep-bottle',
+        label: 'Не открывать',
+        effects: [{ type: 'artifact', artifactId: 'young-ancient-wine' }],
+      },
+    ],
+  },
+  'dumpling-deep-drilling': {
+    id: 'dumpling-deep-drilling',
+    nodeId: 'dumpling-mine',
+    title: 'Глубокое бурение',
+    description: 'Из породы извлечён особенно крупный экземпляр. Внутри вместо мяса обнаружена ещё одна пельмешка. Внутри неё тоже что-то есть.',
+    choices: [
+      {
+        id: 'stop-third-level',
+        label: 'Прекратить вскрытие на третьем уровне',
+        effects: [{ type: 'artifact', artifactId: 'meat-geology-matryoshka' }],
+      },
+      {
+        id: 'continue-to-end',
+        label: 'Продолжать до конца',
+        description: 'На четырнадцатом уровне содержимое становится слишком маленьким для инструментов.',
+        effects: [{ type: 'specimens', amount: 4 }],
+      },
+    ],
+  },
+  'sweet-corner-expeditions': {
+    id: 'sweet-corner-expeditions',
+    nodeId: 'sweet-corner',
+    title: 'Сколько было экспедиций?',
+    description: 'Вы никогда не видели такого красивого пышного хлеба.',
+    choices: [
+      {
+        id: 'drink-tea',
+        label: 'Выпить',
+        description: 'Чай действительно не остывает. В том числе внутри человека.',
+        effects: [{ type: 'morale', amount: 5 }],
+      },
+      {
+        id: 'take-cup',
+        label: 'Взять чашку с собой',
+        effects: [{ type: 'artifact', artifactId: 'still-hot-tea' }],
+      },
+    ],
+  },
+  'deep-freezer-soup': {
+    id: 'deep-freezer-soup',
+    nodeId: 'deep-freezer',
+    title: 'О, великий суп наварили',
+    description: 'На единственной полке стоит кастрюля. На крышке записка: «НЕ ЕШЬ, ЭТО НА ЗАВТРА». Возраст записки оценивается в 600–900 лет.',
+    choices: [
+      {
+        id: 'open-soup',
+        label: 'Открыть кастрюлю',
+        effects: [{ type: 'artifact', artifactId: 'yesterdays-soup' }],
+      },
+      {
+        id: 'respect-request',
+        label: 'Соблюсти просьбу неизвестного хозяина',
+        description: 'Экспедицию внезапно охватывает необъяснимое ощущение нравственного превосходства.',
+        effects: [{ type: 'morale', amount: 4 }],
+      },
+    ],
+  },
+  'pyroral-mandrake': {
+    id: 'pyroral-mandrake',
+    nodeId: 'pyroral-workshop',
+    title: 'Пыр-пыр',
+    description: 'Вы вырвали мандрагору и видите, что она уже набирает воздух в то, что у неё вместо лёгких.',
+    choices: [
+      {
+        id: 'limit-speech',
+        label: 'Ограничить свободу слова',
+        effects: [{ type: 'artifact', artifactId: 'oppressed-mandrake' }],
+      },
+      {
+        id: 'scream-together',
+        label: 'Вместе с мандрагорой закричать ПЫНЯВЫЙ',
+        description: 'Мандрагоры быстро высыхают, сохраняя форму и упоённую улыбку.',
+        effects: [{ type: 'specimens', amount: 4 }],
       },
     ],
   },

@@ -52,7 +52,8 @@ export type GameEvent =
     }
   | { type: 'location_event_triggered'; eventId: string; nodeId: string }
   | { type: 'location_event_resolved'; eventId: string; choiceId: string }
-  | { type: 'artifact_acquired'; artifactId: string; multiplier: number }
+  | { type: 'artifact_acquired'; artifactId: string; multiplier: number; activated: boolean }
+  | { type: 'artifact_loadout_changed'; artifactId: string; active: boolean }
   | { type: 'root_claimed'; factionId: string; nodeId: string }
   | {
       type: 'campaign_ended';

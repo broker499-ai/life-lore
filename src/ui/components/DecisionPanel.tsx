@@ -86,7 +86,7 @@ export function DecisionPanel({
   }
 
   const isCurrentNode = selectedNode.id === playerNodeId;
-  const isRootObjective = selectedNode.isCentral === true;
+  const isRootObjective = rootClaimAvailability !== null;
   const isNeighbor = neighboringNodeIds.includes(selectedNode.id);
   const isControlledCity = selectedCity?.ownerFactionId === playerFactionId;
   const isNeutralCity = selectedCity?.ownerFactionId === null;
@@ -181,8 +181,8 @@ export function DecisionPanel({
               <span className={rootClaimAvailability.progress.controlledCities >= rootClaimAvailability.progress.requiredCities ? 'root-requirement is-ready' : 'root-requirement'}>
                 Города {rootClaimAvailability.progress.controlledCities}/{rootClaimAvailability.progress.requiredCities}
               </span>
-              <span className={rootClaimAvailability.progress.specimens >= rootClaimAvailability.progress.requiredSpecimens ? 'root-requirement is-ready' : 'root-requirement'}>
-                Образцы {rootClaimAvailability.progress.specimens}/{rootClaimAvailability.progress.requiredSpecimens}
+              <span className={rootClaimAvailability.progress.specimensCollected >= rootClaimAvailability.progress.requiredSpecimensCollected ? 'root-requirement is-ready' : 'root-requirement'}>
+                Научная готовность {rootClaimAvailability.progress.specimensCollected}/{rootClaimAvailability.progress.requiredSpecimensCollected}
               </span>
               {rootClaimAvailability.progress.requiredEventId ? (
                 <span className={rootClaimAvailability.progress.requiredEventResolved ? 'root-requirement is-ready' : 'root-requirement'}>
@@ -190,7 +190,7 @@ export function DecisionPanel({
                 </span>
               ) : null}
               <span className={rootClaimAvailability.progress.controlsStagingCity && rootClaimAvailability.progress.armyAtStagingCity ? 'root-requirement is-ready' : 'root-requirement'}>
-                Корневой Предел {rootClaimAvailability.progress.controlsStagingCity && rootClaimAvailability.progress.armyAtStagingCity ? 'занят' : 'не готов'}
+                Финальный рубеж {rootClaimAvailability.progress.controlsStagingCity && rootClaimAvailability.progress.armyAtStagingCity ? 'занят' : 'не готов'}
               </span>
             </>
           ) : null}
@@ -268,7 +268,7 @@ export function StrategicActionBar({
 }) {
   const visibleSelectedNode = selectedNodeVisibility === 'visible' ? selectedNode : null;
   const isCurrentNode = visibleSelectedNode?.id === playerNodeId;
-  const isRootObjective = visibleSelectedNode?.isCentral === true;
+  const isRootObjective = rootClaimAvailability !== null;
   const isNeighbor = visibleSelectedNode ? neighboringNodeIds.includes(visibleSelectedNode.id) : false;
   const isEnemyCity = Boolean(selectedCity && selectedCity.ownerFactionId !== playerFactionId && !isCurrentNode);
   const isAttackTarget = Boolean(visibleSelectedNode && isNeighbor && isEnemyCity);

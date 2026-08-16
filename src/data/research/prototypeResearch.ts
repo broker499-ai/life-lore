@@ -56,9 +56,9 @@ export const prototypeResearch: ResearchDefinitions = {
     category: 'anomalies',
     name: 'Сигнал Корня',
     description: 'Образцы начинают реагировать друг на друга и указывать направление, которое руководство просит не называть «очевидным».',
-    cost: 4,
+    cost: 2,
     prerequisiteIds: ['anomaly-office-resonance'],
     effects: [{ type: 'root_specimen_requirement_reduction', amount: 2 }],
-    effectLabel: 'Для доступа к Корню требуется на 2 образца меньше.',
+    effectLabel: 'Для научного допуска к Корню достаточно изучить на 2 образца меньше (6 → 4).',
   },
 };

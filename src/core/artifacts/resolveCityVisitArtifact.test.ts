@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { resolveCityVisitArtifact } from '@/core/artifacts/resolveCityVisitArtifact';
 import { createPrototypeGameState } from '@/core/state/createPrototypeGameState';
+import { getMoraleDamageInflictedMultiplier } from '@/core/leaders/LeaderAbility';
 import { cityVisitArtifactByCityId } from '@/data/artifacts/cityVisitArtifacts';
 import { prototypeArtifacts } from '@/data/artifacts/prototypeArtifacts';
 import { prototypeCampaignRules } from '@/data/campaign/prototypeRules';
@@ -47,9 +48,8 @@ describe('city visit artifacts', () => {
     expect(second.state.campaign.artifactIds.filter((id) => id === 'last-word-stone')).toHaveLength(1);
   });
 
-  it('uses the normal Vlad artifact multiplier for city artifacts', () => {
+  it('auto-activates a free city artifact slot and uses the Vlad multiplier for its persistent effect', () => {
     const state = placePlayerInMossMarket('vlados');
-    state.armies['player-main'].morale = 50;
     const result = resolveCityVisitArtifact(
       state,
       {
@@ -62,6 +62,7 @@ describe('city visit artifacts', () => {
       cityVisitArtifactByCityId,
       prototypeArtifacts,
     );
-    expect(result.state.armies['player-main'].morale).toBe(59);
+    expect(result.state.campaign.activeArtifactIds).toContain('last-word-stone');
+    expect(getMoraleDamageInflictedMultiplier(result.state, state.playerFactionId)).toBeCloseTo(1.12);
   });
 });

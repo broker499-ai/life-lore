@@ -4866,3 +4866,110 @@ button:disabled {
 .map-node:hover[class*='is-orsia-'] .node-disc {
   stroke: #ffd1af;
 }
+
+/* Stage 26 — artifact loadout */
+.artifact-loadout-note {
+  margin: 3px 0 8px;
+  color: var(--paper-58);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 8.5px;
+}
+
+.artifact-card.is-active {
+  background: rgba(123, 94, 167, 0.08);
+  box-shadow: inset 2px 0 0 rgba(178, 137, 224, 0.72);
+}
+
+.artifact-card.is-active .artifact-glyph {
+  background: rgba(123, 94, 167, 0.18);
+}
+
+.artifact-card-copy {
+  min-width: 0;
+}
+
+.artifact-card-title {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.artifact-card-title > span {
+  color: var(--mute);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 7px;
+  letter-spacing: 0.08em;
+}
+
+.artifact-effect {
+  display: block;
+  margin-top: 4px;
+  color: var(--paper-76);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 8px;
+  font-style: normal;
+}
+
+.artifact-toggle {
+  margin-top: 7px;
+  min-height: 30px;
+  padding: 5px 9px;
+  font-size: 9px;
+}
+
+.artifact-toggle.is-active {
+  border-color: rgba(178, 137, 224, 0.62);
+}
+
+.specimen-counter small {
+  display: block;
+  margin-top: 2px;
+  color: var(--mute);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 7.5px;
+  font-weight: 400;
+}
+
+/* Stage 27 — location summary in POI overlays and reserved new Orsia factions */
+.event-location-summary {
+  margin: 8px 0 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(129, 214, 201, 0.18);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(129, 214, 201, 0.1), rgba(18, 28, 25, 0.58));
+}
+
+.event-location-summary strong {
+  display: block;
+  margin-bottom: 5px;
+  color: rgba(207, 246, 237, 0.95);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
+.event-location-summary p {
+  margin: 0;
+  color: rgba(226, 219, 202, 0.78);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.map-node.is-orsia-profkom .node-disc {
+  fill: #4b271f;
+  stroke: #db865c;
+}
+.map-node.is-orsia-profkom .city-owner-portrait-border {
+  stroke: #f2a07e;
+}
+
+.map-node.is-orsia-linhao .node-disc {
+  fill: #4b1f34;
+  stroke: #e45a91;
+}
+.map-node.is-orsia-linhao .city-owner-portrait-border {
+  stroke: #f47aae;
+}
+
+.city-ledger-row.is-orsia.orsia-profkom .city-ledger-owner { color: #f2a07e; }
+.city-ledger-row.is-orsia.orsia-linhao .city-ledger-owner { color: #f47aae; }

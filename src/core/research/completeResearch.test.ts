@@ -10,6 +10,7 @@ describe('completeResearch', () => {
   it('spends specimens, adds permanent traits, and does not consume the strategic action', () => {
     const state = createPrototypeGameState(42);
     state.factions.expedition.resources.specimens = 5;
+    state.factions.expedition.specimensCollected = 5;
 
     const before = getAttackCityAvailability(state, prototypeMap, {
       armyId: 'player-main',
@@ -27,6 +28,7 @@ describe('completeResearch', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.state.factions.expedition.resources.specimens).toBe(3);
+    expect(result.state.factions.expedition.specimensCollected).toBe(5);
     expect(result.state.factions.expedition.strategicActionSpent).toBe(false);
     expect(result.state.campaign.completedResearchIds).toContain('flora-field-rations');
     expect(result.state.factions.expedition.traits).toContainEqual({
