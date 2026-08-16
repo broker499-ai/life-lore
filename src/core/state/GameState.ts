@@ -1,0 +1,62 @@
+import type { FactionTrait } from '@/core/leaders/LeaderAbility';
+import type { RngStreamsState } from '@/core/rng/RngState';
+
+export type FactionId = string;
+export type CityId = string;
+export type ArmyId = string;
+export type NodeId = string;
+export type LeaderId = string;
+export type UnitTypeId = string;
+export type StrategicActionKind = 'move' | 'attack' | 'recruit' | 'rest';
+
+export type ResourcesState = {
+  money: number;
+  supplies: number;
+  specimens: number;
+};
+
+export type FactionState = {
+  id: FactionId;
+  superFactionId: string | null;
+  resources: ResourcesState;
+  strategicActionSpent: boolean;
+  lastStrategicAction: StrategicActionKind | null;
+  leaderAbilityLastUsedTurn: number | null;
+  traits: FactionTrait[];
+};
+
+export type ArmyRoster = Record<UnitTypeId, number>;
+
+export type CityGarrisonState = {
+  roster: ArmyRoster;
+  morale: number;
+};
+
+export type CityState = {
+  id: CityId;
+  ownerFactionId: FactionId | null;
+  garrison: CityGarrisonState;
+};
+
+export type ArmyState = {
+  id: ArmyId;
+  factionId: FactionId;
+  nodeId: NodeId;
+  morale: number;
+  roster: ArmyRoster;
+};
+
+export type CampaignState = {
+  rootObtainedByFactionId: FactionId | null;
+};
+
+export type GameState = {
+  turn: number;
+  playerFactionId: FactionId;
+  selectedLeaderId: LeaderId;
+  factions: Record<FactionId, FactionState>;
+  cities: Record<CityId, CityState>;
+  armies: Record<ArmyId, ArmyState>;
+  campaign: CampaignState;
+  rng: RngStreamsState;
+};

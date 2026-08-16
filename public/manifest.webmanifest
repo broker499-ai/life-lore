@@ -1,0 +1,14 @@
+{
+  "name": "Корень Живознания",
+  "short_name": "Живознание",
+  "description": "Стратегическая экспедиция в подземную Орссию",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0c100d",
+  "theme_color": "#111711",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
