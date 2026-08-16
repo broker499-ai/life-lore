@@ -1,6 +1,17 @@
 import { getRosterTotalUnits } from '@/core/armies/armyStats';
+import type { CityDefinitions } from '@/core/cities/CityDefinition';
+import { getCityDefenderUnitPowerMultiplier } from '@/core/cities/cityTraits';
 import { areFactionsAllied, areFactionsHostile } from '@/core/factions/factionRelations';
-import { getMoraleDamageInflictedMultiplier } from '@/core/leaders/LeaderAbility';
+import {
+  getBattleMoraleLossTakenMultiplier,
+  getBattleUnitPowerMultiplier,
+  getCapturedCityIncomeMultiplier,
+  getFactionDefeatReaction,
+  getIncomingCasualtyMultiplier,
+  getMoraleDamageInflictedMultiplier,
+  getRandomBattleMoraleGain,
+  getSupplyActionCostMultiplier,
+} from '@/core/leaders/LeaderAbility';
 import type { UnitDefinitions } from '@/core/armies/UnitDefinition';
 import type {
   BattleResult,
@@ -14,6 +25,7 @@ import {
   getShortestPathDistance,
   type MapGraph,
 } from '@/core/map/MapGraph';
+import { synchronizePlayerMapKnowledge } from '@/core/map/MapVisibility';
 import type { ArmyId, ArmyState, CityId, GameState } from '@/core/state/GameState';
 import { getSupplyAdjustedActionCost, getSupplyStatus, type SupplyStatus } from '@/core/supply/Supply';
 
@@ -37,6 +49,7 @@ export type AttackCityInput = {
 export type AttackCityDependencies = {
   unitDefinitions: UnitDefinitions;
   battleRules: BattleRules;
+  cityDefinitions: CityDefinitions;
 };
 
 export type AttackCityAvailability =
@@ -52,6 +65,7 @@ export type AttackCitySuccess = {
     | { type: 'battle_fought'; battleId: string; winnerFactionId: string | null }
     | { type: 'city_captured'; cityId: string; factionId: string }
     | { type: 'army_retreated'; armyId: string; fromNodeId: string; toNodeId: string | null }
+    | { type: 'faction_defeat_event_triggered'; eventId: string; factionId: string; beneficiaryFactionId: string }
   >;
 };
 
@@ -91,7 +105,10 @@ export function getAttackCityAvailability(
     return { canAttack: false, reason: 'strategic_action_spent' };
   }
   const supplyStatus = getSupplyStatus(state, graph, army.factionId, army.nodeId);
-  const supplyCost = getSupplyAdjustedActionCost(input.supplyCost, supplyStatus);
+  const supplyCost = Math.max(0, Math.round(
+    getSupplyAdjustedActionCost(input.supplyCost, supplyStatus) *
+      getSupplyActionCostMultiplier(state, army.factionId),
+  ));
   if (faction.resources.supplies < supplyCost) {
     return { canAttack: false, reason: 'insufficient_supplies' };
   }
@@ -147,7 +164,10 @@ export function attackCity(
   if (availability.defenderUnits === 0) {
     return {
       ok: true,
-      state: captureCityWithoutBattle(stateWithCost, input.armyId, input.cityId),
+      state: synchronizePlayerMapKnowledge(
+        captureCityWithoutBattle(stateWithCost, input.armyId, input.cityId),
+        graph,
+      ),
       battle: null,
       captured: true,
       events: [{ type: 'city_captured', cityId: city.id, factionId: army.factionId }],
@@ -169,6 +189,10 @@ export function attackCity(
         morale: army.morale,
         tactic: input.tactic,
         moraleDamageInflictedMultiplier: getMoraleDamageInflictedMultiplier(state, army.factionId),
+        moraleLossTakenMultiplier: getBattleMoraleLossTakenMultiplier(state, army.factionId),
+        casualtyTakenMultiplier: getIncomingCasualtyMultiplier(state, army.factionId, 'cautious'),
+        unitPowerMultiplier: getBattleUnitPowerMultiplier(state, army.factionId),
+        randomMoraleGain: getRandomBattleMoraleGain(state, army.factionId) ?? undefined,
       },
       sideB: {
         factionId: defenderFactionId,
@@ -176,6 +200,12 @@ export function attackCity(
         morale: defenderMorale,
         tactic: 'cautious',
         moraleDamageInflictedMultiplier: getMoraleDamageInflictedMultiplier(state, defenderFactionId),
+        moraleLossTakenMultiplier: getBattleMoraleLossTakenMultiplier(state, defenderFactionId),
+        casualtyTakenMultiplier: getIncomingCasualtyMultiplier(state, defenderFactionId, input.tactic),
+        unitPowerMultiplier:
+          getBattleUnitPowerMultiplier(state, defenderFactionId) *
+          getCityDefenderUnitPowerMultiplier(dependencies.cityDefinitions[city.id]),
+        randomMoraleGain: getRandomBattleMoraleGain(state, defenderFactionId) ?? undefined,
       },
     },
     state.rng.battles,
@@ -237,6 +267,10 @@ export function attackCity(
             ...city,
             ownerFactionId: army.factionId,
             garrison: { roster: {}, morale: 0 },
+            incomeMultiplier: Math.min(
+              city.incomeMultiplier ?? 1,
+              getCapturedCityIncomeMultiplier(state, city.ownerFactionId ?? NEUTRAL_DEFENDER_FACTION_ID),
+            ),
           }
         : defendingArmy
           ? city
@@ -265,7 +299,51 @@ export function attackCity(
     events.push({ type: 'city_captured', cityId: city.id, factionId: army.factionId });
   }
 
-  return { ok: true, state: nextState, battle, captured: attackerWon, events };
+  const reaction = attackerWon
+    ? queueFactionDefeatReaction(nextState, defenderFactionId, army.factionId)
+    : battle.winnerSide === 'B'
+      ? queueFactionDefeatReaction(nextState, army.factionId, defenderFactionId)
+      : { state: nextState, event: null };
+  if (reaction.event) events.push(reaction.event);
+
+  return {
+    ok: true,
+    state: synchronizePlayerMapKnowledge(reaction.state, graph),
+    battle,
+    captured: attackerWon,
+    events,
+  };
+}
+
+function queueFactionDefeatReaction(
+  state: GameState,
+  defeatedFactionId: string,
+  beneficiaryFactionId: string,
+): {
+  state: GameState;
+  event: { type: 'faction_defeat_event_triggered'; eventId: string; factionId: string; beneficiaryFactionId: string } | null;
+} {
+  const trait = getFactionDefeatReaction(state, defeatedFactionId);
+  if (!trait) return { state, event: null };
+  if (trait.triggerOpponent === 'player' && beneficiaryFactionId !== state.playerFactionId) {
+    return { state, event: null };
+  }
+  if (state.campaign.pendingFactionEvent || state.campaign.resolvedFactionEventIds.includes(trait.eventId)) {
+    return { state, event: null };
+  }
+
+  const pendingFactionEvent = {
+    eventId: trait.eventId,
+    factionId: defeatedFactionId,
+    beneficiaryFactionId,
+  };
+  return {
+    state: {
+      ...state,
+      campaign: { ...state.campaign, pendingFactionEvent },
+    },
+    event: { type: 'faction_defeat_event_triggered', ...pendingFactionEvent },
+  };
 }
 
 export function chooseBattleScale(totalUnits: number): BattleScale {
@@ -289,6 +367,7 @@ function captureCityWithoutBattle(state: GameState, armyId: ArmyId, cityId: City
         ...city,
         ownerFactionId: army.factionId,
         garrison: { roster: {}, morale: 0 },
+        incomeMultiplier: Math.min(city.incomeMultiplier ?? 1, getCapturedCityIncomeMultiplier(state, city.ownerFactionId ?? NEUTRAL_DEFENDER_FACTION_ID)),
       },
     },
   };

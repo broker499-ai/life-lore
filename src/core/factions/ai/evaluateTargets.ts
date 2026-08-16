@@ -1,7 +1,13 @@
 import { getArmySummary, getRosterTotalUnits } from '@/core/armies/armyStats';
 import { areFactionsAllied, areFactionsHostile } from '@/core/factions/factionRelations';
+import { getCapturedCityIncomeMultiplier } from '@/core/leaders/LeaderAbility';
 import type { UnitDefinitions } from '@/core/armies/UnitDefinition';
 import type { CityDefinitions } from '@/core/cities/CityDefinition';
+import {
+  getCityDefenderUnitPowerMultiplier,
+  getEffectiveCityRecruitmentOffers,
+  getEffectiveCityTaxIncome,
+} from '@/core/cities/cityTraits';
 import { getAttackCityAvailability } from '@/core/cities/attackCity';
 import { getMoveArmyAvailability } from '@/core/map/moveArmy';
 import {
@@ -43,6 +49,8 @@ export function evaluateAiActions(state: GameState, input: AiEvaluationInput): A
     : null;
 
   for (const neighborId of getNeighborNodeIds(input.graph, army.nodeId)) {
+    // The central Root is resolved by the campaign objective layer, not by ordinary movement.
+    if (centralNodeId && neighborId === centralNodeId) continue;
     const distanceAfter = centralNodeId
       ? getShortestPathDistance(input.graph, neighborId, centralNodeId)
       : null;
@@ -77,14 +85,22 @@ export function evaluateAiActions(state: GameState, input: AiEvaluationInput): A
     const defendingArmy = Object.values(state.armies).find(
       (candidate) => candidate.nodeId === city.id && areFactionsHostile(state, candidate.factionId, input.factionId),
     );
-    const defenderPower = defendingArmy
+    const cityDefinition = input.cityDefinitions[city.id];
+    const cityDefenseMultiplier = getCityDefenderUnitPowerMultiplier(cityDefinition);
+    const defenderPower = (defendingArmy
       ? estimateArmyPower(defendingArmy, input.unitDefinitions)
-      : estimateRosterPower(city.garrison.roster, city.garrison.morale, input.unitDefinitions);
+      : estimateRosterPower(city.garrison.roster, city.garrison.morale, input.unitDefinitions)) * cityDefenseMultiplier;
     const attackerPower = estimateArmyPower(army, input.unitDefinitions);
     const strengthRatio = defenderPower <= 0 ? 99 : attackerPower / defenderPower;
     if (strengthRatio < MIN_ATTACK_STRENGTH_RATIO) continue;
 
-    const taxValue = input.cityDefinitions[city.id]?.taxIncome ?? 0;
+    const captureIncomeMultiplier = city.ownerFactionId
+      ? getCapturedCityIncomeMultiplier(state, city.ownerFactionId)
+      : 1;
+    const expectedIncomeMultiplier = Math.min(city.incomeMultiplier ?? 1, captureIncomeMultiplier);
+    const taxValue = cityDefinition
+      ? getEffectiveCityTaxIncome(cityDefinition) * expectedIncomeMultiplier
+      : 0;
     const riskPenalty = strengthRatio >= 1 ? 0 : (1 - strengthRatio) * 55;
     const supplyPenalty = (100 - attackAvailability.supplyStatus.percent) * 0.14;
     const enemyBonus = city.ownerFactionId === null ? 0 : 10;
@@ -105,7 +121,7 @@ export function evaluateAiActions(state: GameState, input: AiEvaluationInput): A
     currentDefinition &&
     totalUnits < RECRUIT_TARGET_SIZE
   ) {
-    for (const offer of currentDefinition.recruitment) {
+    for (const offer of getEffectiveCityRecruitmentOffers(currentDefinition)) {
       if (faction.resources.money < offer.cost) continue;
       const score = 96 + Math.max(0, RECRUIT_TARGET_SIZE - totalUnits) * 2 + offer.amount;
       actions.push({

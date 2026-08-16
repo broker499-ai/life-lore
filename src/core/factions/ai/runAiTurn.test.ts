@@ -21,6 +21,8 @@ const input = {
   battleRules: prototypeBattleRules,
   moveSupplyCost: prototypeCampaignRules.moveSupplyCost,
   attackSupplyCost: prototypeCampaignRules.attackSupplyCost,
+  recruitMoraleRestore: prototypeCampaignRules.recruitMoraleRestore,
+  moraleCap: prototypeCampaignRules.moraleCap,
 };
 
 describe('AI turn', () => {

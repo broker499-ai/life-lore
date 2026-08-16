@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { createPrototypeGameState } from '@/core/state/createPrototypeGameState';
+import { createPrototypeGameState, RIVAL_FACTION_ID } from '@/core/state/createPrototypeGameState';
 import { prototypeUnits } from '@/data/units/prototypeUnits';
+import { prototypeCities } from '@/data/cities/prototypeCities';
 import { payArmyUpkeep } from './payArmyUpkeep';
 
 describe('payArmyUpkeep', () => {
@@ -8,11 +9,23 @@ describe('payArmyUpkeep', () => {
     const result = payArmyUpkeep(createPrototypeGameState(), prototypeUnits);
 
     expect(result.state.factions.expedition.resources.money).toBe(113);
-    expect(result.state.factions['meridian-company'].resources.money).toBe(110.5);
+    expect(result.state.factions[RIVAL_FACTION_ID].resources.money).toBe(110.5);
     expect(result.events).toEqual([
       { type: 'army_upkeep_paid', factionId: 'expedition', amount: 7, unpaid: 0 },
-      { type: 'army_upkeep_paid', factionId: 'meridian-company', amount: 7.5, unpaid: 0 },
+      { type: 'army_upkeep_paid', factionId: RIVAL_FACTION_ID, amount: 7.5, unpaid: 0 },
     ]);
+  });
+
+
+  it('applies upkeep reductions from controlled city properties', () => {
+    const result = payArmyUpkeep(createPrototypeGameState(), prototypeUnits, prototypeCities);
+
+    expect(result.events[0]).toEqual({
+      type: 'army_upkeep_paid',
+      factionId: 'expedition',
+      amount: 6.3,
+      unpaid: 0,
+    });
   });
 
   it('never pushes treasury below zero and reports unpaid upkeep', () => {

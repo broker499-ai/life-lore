@@ -15,7 +15,7 @@ export function endTurn(
   input: EndTurnInput,
 ): CommandSuccess<GameState, GameEvent> {
   const income = collectCityIncome(state, input.cityDefinitions);
-  const upkeep = payArmyUpkeep(income.state, input.unitDefinitions);
+  const upkeep = payArmyUpkeep(income.state, input.unitDefinitions, input.cityDefinitions);
   const factions = Object.fromEntries(
     Object.entries(upkeep.state.factions).map(([factionId, faction]) => [
       factionId,

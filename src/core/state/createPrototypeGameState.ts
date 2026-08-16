@@ -1,11 +1,14 @@
 import { randomInt, createRngStreams } from '@/core/rng/seededRandom';
 import type { RngState } from '@/core/rng/RngState';
+import { synchronizePlayerMapKnowledge } from '@/core/map/MapVisibility';
 import type { CityState, FactionState, GameState } from '@/core/state/GameState';
-import { DEFAULT_LEADER_ID, prototypeLeaderById } from '@/data/leaders/prototypeLeader';
-import { ORSIA_SUPER_FACTION_ID, orsiaSubfactions } from '@/data/factions/orsiaSubfactions';
+import { DEFAULT_LEADER_ID, prototypeLeaderById, prototypeLeaders } from '@/data/leaders/prototypeLeader';
+import { ORSIA_SUPER_FACTION_ID, orsiaSubfactionById, orsiaSubfactions } from '@/data/factions/orsiaSubfactions';
+import { RIVAL_FACTION_ID, rivalExpeditions } from '@/data/factions/rivalExpeditions';
+import { prototypeMap } from '@/data/map/prototypeMap';
 
 export const PLAYER_FACTION_ID = 'expedition';
-export const RIVAL_FACTION_ID = 'meridian-company';
+export { RIVAL_FACTION_ID };
 export const PLAYER_ARMY_ID = 'player-main';
 export const RIVAL_ARMY_ID = 'rival-main';
 
@@ -41,6 +44,7 @@ function orsiaCity(
       },
       morale,
     },
+    incomeMultiplier: 1,
   };
 }
 
@@ -50,8 +54,15 @@ export function createPrototypeGameState(
 ): GameState {
   const leader = prototypeLeaderById[selectedLeaderId] ?? prototypeLeaderById[DEFAULT_LEADER_ID];
   let rng = createRngStreams(seed);
+
+  const rivalIdentity = chooseRivalIdentity(leader.id, rng.campaign);
+  rng = { ...rng, campaign: rivalIdentity.rngState };
+
   const distribution = distributeOrsiaCities(rng.campaign);
   rng = { ...rng, campaign: distribution.rngState };
+
+  const rivalLeader = prototypeLeaderById[rivalIdentity.leaderId];
+  if (!rivalLeader) throw new Error(`Missing rival leader definition ${rivalIdentity.leaderId}`);
 
   const factions: Record<string, FactionState> = {
     [PLAYER_FACTION_ID]: {
@@ -70,7 +81,7 @@ export function createPrototypeGameState(
       strategicActionSpent: false,
       lastStrategicAction: null,
       leaderAbilityLastUsedTurn: null,
-      traits: [],
+      traits: rivalLeader.traits.map((trait) => ({ ...trait })),
     },
   };
 
@@ -82,7 +93,7 @@ export function createPrototypeGameState(
       strategicActionSpent: false,
       lastStrategicAction: null,
       leaderAbilityLastUsedTurn: null,
-      traits: [],
+      traits: orsiaSubfactionById[factionId]?.traits.map((trait) => ({ ...trait })) ?? [],
     };
   }
 
@@ -91,19 +102,43 @@ export function createPrototypeGameState(
       id: 'outer-post',
       ownerFactionId: PLAYER_FACTION_ID,
       garrison: { roster: {}, morale: 80 },
+      incomeMultiplier: 1,
     },
     'rival-post': {
       id: 'rival-post',
       ownerFactionId: RIVAL_FACTION_ID,
       garrison: { roster: {}, morale: 78 },
+      incomeMultiplier: 1,
     },
   };
 
   for (const [id, guards, slingers, morale] of ORSIA_CITY_CONFIGS) {
-    cities[id] = orsiaCity(id, distribution.cityOwners[id], guards, slingers, morale);
+    const ownerFactionId = distribution.cityOwners[id];
+    const factionDefinition = orsiaSubfactionById[ownerFactionId];
+    const moraleFloor = factionDefinition?.traits
+      .filter((trait) => trait.type === 'initial_garrison_morale_floor')
+      .reduce((highest, trait) => Math.max(highest, trait.value), 0) ?? 0;
+    const sizeRange = factionDefinition?.traits.find(
+      (trait) => trait.type === 'initial_garrison_size_multiplier_range',
+    );
+    let sizeMultiplier = 1;
+    if (sizeRange?.type === 'initial_garrison_size_multiplier_range') {
+      const minPercent = Math.round(sizeRange.minMultiplier * 100);
+      const maxPercent = Math.round(sizeRange.maxMultiplier * 100);
+      const roll = randomInt(rng.campaign, minPercent, maxPercent);
+      rng = { ...rng, campaign: roll.state };
+      sizeMultiplier = roll.value / 100;
+    }
+    cities[id] = orsiaCity(
+      id,
+      ownerFactionId,
+      Math.max(0, Math.round(guards * sizeMultiplier)),
+      Math.max(0, Math.round(slingers * sizeMultiplier)),
+      Math.max(morale, moraleFloor),
+    );
   }
 
-  return {
+  const initialState: GameState = {
     turn: 1,
     playerFactionId: PLAYER_FACTION_ID,
     selectedLeaderId: leader.id,
@@ -131,8 +166,50 @@ export function createPrototypeGameState(
         },
       },
     },
-    campaign: { rootObtainedByFactionId: null },
+    campaign: {
+      rootObtainedByFactionId: null,
+      pendingEventId: null,
+      resolvedEventIds: [],
+      artifactIds: [],
+      cityArtifactClaimedIds: [],
+      pendingBriefingId: null,
+      resolvedBriefingIds: [],
+      discoveredNodeIds: [],
+      completedResearchIds: [],
+      pendingFactionEvent: null,
+      resolvedFactionEventIds: [],
+      rivalOrganizationId: rivalIdentity.organizationId,
+      rivalLeaderId: rivalIdentity.leaderId,
+      status: 'active',
+      endingReason: null,
+      endedTurn: null,
+    },
     rng,
+  };
+
+  return synchronizePlayerMapKnowledge(initialState, prototypeMap);
+}
+
+export type RivalIdentitySelection = {
+  organizationId: string;
+  leaderId: string;
+  rngState: RngState;
+};
+
+export function chooseRivalIdentity(selectedLeaderId: string, initialRng: RngState): RivalIdentitySelection {
+  let rng = initialRng;
+  const organizationPick = randomInt(rng, 0, rivalExpeditions.length - 1);
+  rng = organizationPick.state;
+
+  const availableLeaders = prototypeLeaders.filter((candidate) => candidate.id !== selectedLeaderId);
+  if (availableLeaders.length === 0) throw new Error('No unselected leader is available for the rival expedition');
+  const leaderPick = randomInt(rng, 0, availableLeaders.length - 1);
+  rng = leaderPick.state;
+
+  return {
+    organizationId: rivalExpeditions[organizationPick.value].id,
+    leaderId: availableLeaders[leaderPick.value].id,
+    rngState: rng,
   };
 }
 

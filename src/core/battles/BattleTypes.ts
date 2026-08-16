@@ -13,6 +13,10 @@ export type BattleSideInput = {
   morale: number;
   tactic: BattleTacticId;
   moraleDamageInflictedMultiplier?: number;
+  moraleLossTakenMultiplier?: number;
+  casualtyTakenMultiplier?: number;
+  unitPowerMultiplier?: number;
+  randomMoraleGain?: { chancePercent: number; minGain: number; maxGain: number };
 };
 
 export type BattleInput = {
@@ -33,12 +37,17 @@ export type BattleTacticRule = {
   defenseMultiplier: number;
   moraleLossMultiplier: number;
   casualtyInflictedMultiplier: number;
+  casualtyTakenAtParityMultiplier: number;
+  casualtyTakenAtSuperiorMultiplier: number;
+  prolongedMoraleLossStartRound?: number;
+  prolongedMoraleLossMultiplier?: number;
   roleAttackMultipliers?: Partial<Record<UnitRole, number>>;
 };
 
 export type BattleRules = {
   scale: Record<BattleScale, BattleScaleRule>;
   tactics: Record<BattleTacticId, BattleTacticRule>;
+  superiorityFullEffectRatio: number;
   breakMoraleThreshold: number;
   routRemainingRatio: number;
   pyrrhicLossRatio: number;

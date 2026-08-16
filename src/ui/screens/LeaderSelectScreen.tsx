@@ -35,8 +35,13 @@ export function LeaderSelectScreen({
               className={`leader-card leader-choice${selected ? ' is-selected' : ''}`}
               onClick={() => setSelectedLeaderId(leader.id)}
             >
-              <div className="portrait-placeholder" aria-hidden="true">
-                <span>{leader.name.slice(0, 2).toUpperCase()}</span>
+              <div className="portrait-placeholder leader-portrait-shell" aria-hidden="true">
+                <img
+                  className="leader-portrait-image"
+                  src={leader.portraitSrc}
+                  alt=""
+                  draggable={false}
+                />
               </div>
               <div className="leader-choice-copy">
                 <h2>{leader.name}</h2>

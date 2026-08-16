@@ -126,7 +126,7 @@ Unit definitions — data-driven: роль, атака, защита и upkeep �
 
 ## 9.3. ИИ и полный ход
 
-`core/factions/ai` отвечает только за оценку и выбор намерения. Само действие выполняется общими командами ядра. `advanceTurn()` оркестрирует порядок: AI turns → income → upkeep → increment turn → reset faction action budgets.
+`core/factions/ai` отвечает только за оценку и выбор намерения. Само действие выполняется общими командами ядра. `advanceTurn()` оркестрирует порядок: проверка terminal Root condition для AI → AI turns → проверка terminal defeat → supply pressure → income → upkeep → increment turn → reset faction action budgets.
 
 Первый AI использует локальную one-step оценку соседних целей: ценность города, риск боя и сокращение BFS-distance к центральному узлу. Многоходовое планирование намеренно отсутствует до доказательства MVP-0.
 
@@ -134,7 +134,7 @@ Unit definitions — data-driven: роль, атака, защита и upkeep �
 
 Файл сейва всегда обёрнут в `{ version, state }`. Любое несовместимое изменение состояния требует миграции версии.
 
-Текущая версия: v8. Миграции v1–v7→v8 поддерживают старые prototype saves. v6 переносит action economy из CampaignState в отдельные FactionState; v7 добавляет новые Stage 12 города; v8 добавляет superFaction/traits/leader action metadata и заменяет нейтральное владение орсийскими городами на seeded распределение между внутренними группами, сохраняя уже захваченные города. Владение городами хранится только в `CityState.ownerFactionId`; дублирующий `FactionState.controlledCityIds` удалён. Legacy `ArmyState.totalUnits` мигрирует в roster пехоты без изменения общей численности. Старые сейвы, где гарнизонов ещё не существовало, получают пустой legacy-safe garrison вместо выдуманного состава.
+Текущая версия: v14. Миграции v1–v13→v14 поддерживают старые prototype saves. v6 переносит action economy из CampaignState в отдельные FactionState; v7 добавляет новые Stage 12 города; v8 добавляет superFaction/traits/leader action metadata и заменяет нейтральное владение орсийскими городами на seeded распределение между внутренними группами, сохраняя уже захваченные города; v9 добавляет pending/resolved location events и коллекцию artifact ids; v10 добавляет identity конкурирующей экспедиции и состояние завершения кампании, а legacy `meridian-company` мигрирует в `rival-expedition`; v11 добавляет persistent `campaign.discoveredNodeIds` для fog of war; v12 добавляет `completedResearchIds`, pending/resolved faction events и миграционно подключает новые data-driven traits внутренних фракций Орсии. v13 добавляет persistent `CityState.incomeMultiplier` и миграционно подключает новые traits Орков, Гоблинов и ФГУшников. v14 добавляет `campaign.cityArtifactClaimedIds`, `pendingBriefingId` и `resolvedBriefingIds`; миграция также переводит старые Stage 17 artifact/event ids на актуальные Stage 23 соответствия. Владение городами хранится только в `CityState.ownerFactionId`; дублирующий `FactionState.controlledCityIds` удалён. Legacy `ArmyState.totalUnits` мигрирует в roster пехоты без изменения общей численности. Старые сейвы, где гарнизонов ещё не существовало, получают пустой legacy-safe garrison вместо выдуманного состава.
 
 ## 11. События
 
@@ -188,6 +188,105 @@ Supply status не сериализуется: смена владельца г�
 
 ## 16. Strategic camera and location dock (Stage 13)
 
-Map camera (`zoom/centerX/centerY`) хранится локально в `SvgWorldMap`. Реальный граф остаётся в координатах 0..100, а камера изменяет только SVG `viewBox`. Zoom/pan не являются GameState.
+Map camera (`zoom/centerX/centerY`) хранится локально в `SvgWorldMap`. Реальный граф использует стабильные world-координаты внутри текущего SVG world bounds (примерно −8..108), а камера изменяет только SVG `viewBox`. Zoom/pan не являются GameState.
 
 Location dock использует bounded scroll: information zone может вертикально прокручиваться, action strip — горизонтально. Это защищает map-first layout от длинных descriptions, recruitment lists и feedback.
+## 17. Character movement presentation (Stage 17.3)
+
+Портреты и ходьба лидеров относятся только к presentation layer. `LeaderDefinition` хранит ссылки на `portraitSrc` и data-driven `walkFrameSrcs`, но игровое ядро не знает о PNG и длительности анимации.
+
+Для обычного перемещения порядок теперь такой:
+
+```text
+UI command
+→ moveArmy(GameState)
+→ successful CommandOutcome хранится как pending UI result
+→ SvgWorldMap проигрывает локальную React/requestAnimationFrame анимацию
+→ animation complete
+→ pending result коммитится в GameState
+→ triggerLocationEvent()
+```
+
+Критическое ограничение: анимация не пересчитывает движение, стоимость припасов, trait Лайоша, RNG или события. Она только задерживает визуальный commit уже рассчитанного `CommandOutcome`. Pending movement не сериализуется и не является частью save format.
+
+Ходьба использует три PNG-кадра на лидера и отражает их по X при движении влево. Статическое состояние на узле использует отдельный прозрачный портрет.
+
+
+
+## 18. Campaign finale and rival identity (Stage 18)
+
+`CampaignState` хранит выбранную seeded identity конкурента (`rivalOrganizationId`, `rivalLeaderId`) и состояние завершения (`status`, `endingReason`, `endedTurn`). Внутренний faction id конкурента стабилен: `rival-expedition`. Название организации не является simulation branch.
+
+`core/campaign/rootObjective.ts` — единственный владелец правил доступа к Корню. Центральный узел не обрабатывается обычным `moveArmy`; UI и AI используют `getRootClaimAvailability()` и `claimRoot()`. `advanceTurn()` проверяет возможность AI забрать Корень до обычного action.
+
+`core/campaign/campaignOutcome.ts` содержит минимальные terminal conditions, независимые от renderer. Stage 18 завершает кампанию при получении Корня одной из экспедиций или при уничтожении основной армии игрока.
+
+Battle leader portraits не входят в BattleResult/BattleTimeline. `BattleViewer` получает GameState как read-only identity context; отсутствие art для внутренних групп Орсии закрывается presentation placeholders.
+
+## 19. Local campaign persistence and presentation-gated assaults (Stage 19)
+
+`services/saves/CampaignStorage.ts` является внешним persistence adapter поверх `core/saves/saveFile.ts`. Он не вводит второй игровой state: в localStorage записывается строка `serializeGame(GameState)` плюс безопасный UI snapshot. Основной слот имеет один previous-state backup; UI-only updates не ротируют backup.
+
+Загрузка всегда проходит через `deserializeGame()`, поэтому migration chain v1→v14 остаётся единственным механизмом совместимости GameState. Повреждение primary slot не блокирует valid backup.
+
+Walking animation штурма является presentation gate: `attackCity()` рассчитывает `AttackCitySuccess` до анимации, но React применяет рассчитанный state после визуального подхода к цели. Таким образом SVG не может изменить winner/casualties/retreat и не входит в simulation layer.
+
+
+## 20. Fog of war and map knowledge (Stage 20)
+
+`core/map/MapVisibility.ts` является единственным правилом стратегической видимости. Он различает `unknown`, `explored` и `visible`. Текущее наблюдение выводится из положения армий игрока и контролируемых городов; историческое знание хранится в `CampaignState.discoveredNodeIds`.
+
+`map_revealed` остаётся обычным faction trait. Поэтому Илиеш не проверяется по `leaderId`: `factionKnowsFullMap()` заставляет visibility layer вернуть `visible` для всех узлов и при создании/миграции кампании записывает всю карту в map knowledge.
+
+Renderer не имеет права использовать скрытые данные для принятия решений. `SvgWorldMap`, `CitiesOverview`, `DecisionPanel` и `RaceIndicator` получают/вычисляют visibility и не показывают актуального владельца, гарнизон, rival army position или точную rival army strength за пределами текущего наблюдения. Разведанный ранее узел сохраняет статические название/тип/описание, но динамические сведения считаются устаревшими.
+
+Fog knowledge меняет сериализуемый GameState, поэтому Stage 20 поднимает save format до v11. v10→v11 начинает со стартовой области текущей армии; для `map_revealed` миграция сразу открывает все 21 узел.
+
+
+## 21. Specimen research and faction traits (Stage 21)
+
+`core/research/completeResearch.ts` — единственная команда покупки исследований. `data/research/prototypeResearch.ts` содержит декларативные definition: стоимость в образцах, prerequisites и массив обычных `FactionTrait`. Исследование не тратит strategic action; оно изменяет один сериализуемый `GameState` и добавляет permanent traits игроку.
+
+Новые эффекты не должны ветвиться по research id. Supply costs, map vision, upkeep, city income, battle morale и Root requirements читают агрегированные faction traits через `core/leaders/LeaderAbility.ts`.
+
+Внутренние группы Орсии также используют тот же trait contract. Нацболы получают `initial_garrison_morale_floor` и `defeat_reaction`; Тираниды — `incoming_casualty_multiplier_by_enemy_tactic`. `attackCity()` передаёт универсальные casualty/morale multipliers в `simulateBattle()`, поэтому BattleSimulator не знает конкретных faction ids.
+
+`campaign.pendingFactionEvent` — сериализуемый simulation state. Modal Лимоненко является presentation layer: кнопка вызывает `resolveFactionDefeatEvent()`, а уже core переводит оставшиеся города, удаляет армии/фракцию и помечает событие разрешённым.
+
+Battle tactics теперь имеют два casualty-risk anchors: parity и strong superiority. `simulateBattle()` интерполирует между ними по отношению текущей round power сторон. Это позволяет Натиску быть рискованным при паритете, но экономным при явном превосходстве; Осторожности — наоборот. Prolonged morale penalty Натиска также принадлежит BattleRules и применяется только если бой дожил до заданного раунда.
+
+Recruitment rest реализован в общей `recruitAtCity()` через `moraleRestore/moraleCap`. Команда меняет morale и деньги/roster, но намеренно не меняет supplies.
+
+
+## 22. Remaining Orsia traits and city action UI (Stage 22)
+
+Оставшиеся группы Орсии используют тот же `FactionTrait` contract, без прямых проверок faction id в BattleSimulator. Орки получают `random_battle_morale_gain`; все проверки шанса и величины подъёма используют battle RNG stream. Гоблины получают `initial_garrison_size_multiplier_range` при seeded создании кампании и `battle_unit_power_multiplier`, который масштабирует их attack/defense contribution и final-strength resolution. ФГУшники получают `captured_city_income_multiplier`: при захвате их города core записывает permanent penalty в `CityState.incomeMultiplier`, а `collectCityIncome()` читает его вместе с обычными faction-wide income modifiers.
+
+`CityState.incomeMultiplier` принадлежит конкретному городу и не вычисляется UI. Штраф не умножается повторно при последующих перезахватах: capture orchestration сохраняет минимальный уже накопленный multiplier. v12→v13 выставляет старым городам `1` и добавляет активным орсийским фракциям отсутствующие Stage 22 traits. Исторического бывшего владельца старого v12 save восстановить нельзя, поэтому уже захваченные до миграции города получают нейтральный multiplier `1`; новые захваты после миграции работают по v13 правилам.
+
+`DecisionPanel` теперь read-only location information: описание, владелец, гарнизон, налог, supply context и trait summary. Командные кнопки вынесены в `StrategicActionBar`. Отдых и найм вычисляются от фактического `playerNodeId`, поэтому доступны в текущем контролируемом городе без необходимости сначала выбирать его на карте. Движение/штурм/финальная операция зависят от выбранной цели, а `Завершить ход` остаётся отдельным persistent campaign control. UI только вызывает core commands и не меняет GameState самостоятельно.
+
+## 23. Map content synchronization, city artifacts and surface briefings (Stage 23)
+
+Актуальная таблица карты снова является содержательным source of truth для 21 узла. Стабильные internal node ids не переименовываются ради save compatibility: например `quiet-scream` теперь отображается как «Убежище 103», `temporary-outpost` — как «Неестественные джунгли», `rival-post` — как «Канцелярские Копи». Имена/описания остаются presentation data, а topology графа не меняется.
+
+Шесть POI-событий остаются data-driven в `data/events/prototypeEvents.ts`. Их актуальные находки используют новые canonical artifact ids. v13→v14 мигрирует старые artifact ids (`warehouse-one-seal`, `temporary-key` и т. п.) и legacy event `temporary-pass` в новые Stage 23 ids, не переигрывая уже применённые численные эффекты.
+
+Городской артефакт оформлен отдельной core-командой `resolveCityVisitArtifact()`. UI вызывает её только после фактически завершённого перехода или успешного захвата. Команда проверяет реальную позицию армии, один раз записывает city id в `campaign.cityArtifactClaimedIds` и применяет artifact effects через общий `acquireArtifact()`. Поэтому повторный вход в город не фармит артефакты, а Владос получает тот же ×1,5 multiplier, что и для POI-находок. Текущая таблица `cityVisitArtifactByCityId` — временное фиксированное распределение, однажды перемешанное при разработке; runtime RNG для него не используется.
+
+Сюжетные сообщения с поверхности реализованы через `core/story/SurfaceBriefing.ts` + `data/story/prototypeSurfaceBriefings.ts`. `CampaignState` хранит только pending/resolved ids; React-overlay является чистой presentation. Первые пять сообщений идут строго последовательно: первое требует минимум один артефакт, следующие привязаны к росту числа контролируемых городов и разрешению `almost-root-shop`. Финальное сообщение `surface-root-priority` является manual-only и ставится в pending state при попытке открыть финальную операцию; только после подтверждения UI открывает обычный `RootFinaleOverlay`.
+
+«Убежище 103» использует существующую recruitment system без special-case UI: городская definition предлагает `student-103`, а сам юнит является обычным ranged UnitDefinition с усиленными характеристиками относительно базовых следопытов.
+
+
+## 25. Strategic city properties and faction ownership map (Stage 25)
+
+`CityDefinition.special` хранит декларативное название, описание и массив `CityTrait`. Simulation не ветвится по city id: `core/cities/cityTraits.ts` агрегирует локальные множители для налогов, отдыха, найма, faction-wide upkeep, defender power и финальной стоимости Root operation.
+
+Все consumers используют effective values из core. `collectCityIncome()` комбинирует локальное свойство с persistent `CityState.incomeMultiplier`, поэтому коррупция ФГУшников и уникальность конкретного города не конфликтуют. `restAtCity()`, recruitment UI/core, `payArmyUpkeep()`, `attackCity()` и `rootObjective.ts` читают соответствующие resolver'ы. AI target evaluation также использует effective tax/defense/recruitment, поэтому городские свойства не являются player-only бонусами.
+
+Карта владельцев остаётся presentation layer. `SvgWorldMap` получает уже известные identity assets и рисует портрет владельца внутри видимого city node: player leader, rival leader или leader конкретной Orsia group. Owner identity по-прежнему проходит через `MapVisibility`; для `explored`, но не `visible` города renderer не должен раскрывать актуального владельца портретом.
+
+Faction palette является CSS/presentation metadata: игрок — зелёный, rival — синий, группы Орсии — различные оттенки красного/оранжевого/розового. Это не меняет `superFactionId = orsia` и не превращает внутренние группы в воюющие государства.
+
+Stage 25 не добавляет сериализуемых полей. Save format остаётся v14; migration не требуется.

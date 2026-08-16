@@ -8,10 +8,11 @@ import {
 } from '@/core/leaders/LeaderAbility';
 import { createPrototypeGameState } from '@/core/state/createPrototypeGameState';
 import { prototypeBattleRules } from '@/data/battles/prototypeBattleRules';
+import { prototypeCities } from '@/data/cities/prototypeCities';
 import { prototypeMap } from '@/data/map/prototypeMap';
 import { prototypeUnits } from '@/data/units/prototypeUnits';
 
-const deps = { unitDefinitions: prototypeUnits, battleRules: prototypeBattleRules };
+const deps = { unitDefinitions: prototypeUnits, battleRules: prototypeBattleRules, cityDefinitions: prototypeCities };
 
 describe('leader abilities', () => {
   it('Artemios ignores supply costs for movement and attacks', () => {

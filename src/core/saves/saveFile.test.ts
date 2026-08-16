@@ -1,19 +1,49 @@
 import { describe, expect, it } from 'vitest';
-import { createPrototypeGameState } from '@/core/state/createPrototypeGameState';
+import { createPrototypeGameState, RIVAL_FACTION_ID } from '@/core/state/createPrototypeGameState';
 import { CURRENT_SAVE_VERSION, deserializeGame, serializeGame } from './saveFile';
+import { prototypeMap } from '@/data/map/prototypeMap';
+
+const LEGACY_RIVAL_FACTION_ID = 'meridian-company';
+
+function withLegacyRival(state: ReturnType<typeof createPrototypeGameState>) {
+  const factions = { ...state.factions } as Record<string, any>;
+  const rival = factions[RIVAL_FACTION_ID];
+  delete factions[RIVAL_FACTION_ID];
+  if (rival) factions[LEGACY_RIVAL_FACTION_ID] = { ...rival, id: LEGACY_RIVAL_FACTION_ID, traits: [] };
+
+  const cities = Object.fromEntries(
+    Object.entries(state.cities).map(([id, city]) => [
+      id,
+      city.ownerFactionId === RIVAL_FACTION_ID
+        ? { ...city, ownerFactionId: LEGACY_RIVAL_FACTION_ID }
+        : city,
+    ]),
+  );
+  const armies = Object.fromEntries(
+    Object.entries(state.armies).map(([id, army]) => [
+      id,
+      army.factionId === RIVAL_FACTION_ID
+        ? { ...army, factionId: LEGACY_RIVAL_FACTION_ID }
+        : army,
+    ]),
+  );
+
+  return { ...state, factions, cities, armies };
+}
 
 function toLegacyV5(state: ReturnType<typeof createPrototypeGameState>) {
+  const old = withLegacyRival(state);
   const factions = Object.fromEntries(
-    Object.entries(state.factions).map(([id, faction]) => {
-      const { strategicActionSpent: _spent, ...legacyFaction } = faction;
+    Object.entries(old.factions).map(([id, faction]) => {
+      const { strategicActionSpent: _spent, lastStrategicAction: _last, leaderAbilityLastUsedTurn: _used, traits: _traits, superFactionId: _super, ...legacyFaction } = faction as any;
       return [id, legacyFaction];
     }),
   );
   return {
-    ...state,
+    ...old,
     factions,
     campaign: {
-      ...state.campaign,
+      rootObtainedByFactionId: old.campaign.rootObtainedByFactionId,
       strategicActionSpent: state.factions[state.playerFactionId].strategicActionSpent,
     },
   };
@@ -25,7 +55,7 @@ function stripGarrisons(state: ReturnType<typeof createPrototypeGameState>) {
     ...legacyV5,
     cities: Object.fromEntries(
       Object.entries(legacyV5.cities).map(([id, city]) => {
-        const { garrison: _garrison, ...legacyCity } = city;
+        const { garrison: _garrison, ...legacyCity } = city as any;
         return [id, legacyCity];
       }),
     ),
@@ -33,17 +63,159 @@ function stripGarrisons(state: ReturnType<typeof createPrototypeGameState>) {
 }
 
 describe('save file', () => {
-  it('round-trips v8 including expanded map cities and battle RNG cursor', () => {
+  it('round-trips v14 including research, story state, city artifacts, fog knowledge, rival identity and battle RNG cursor', () => {
     const state = createPrototypeGameState(99);
     state.rng.battles.cursor = 7;
-    state.factions['meridian-company'].strategicActionSpent = true;
+    state.factions[RIVAL_FACTION_ID].strategicActionSpent = true;
+    state.campaign.artifactIds = ['apple-skeleton'];
+    state.campaign.cityArtifactClaimedIds = ['moss-market'];
+    state.campaign.resolvedBriefingIds = ['surface-artifact-directive'];
+    state.campaign.resolvedEventIds = ['warehouse-inventory'];
+    state.campaign.completedResearchIds = ['flora-field-rations'];
+    state.factions.expedition.traits.push({ type: 'supply_action_cost_multiplier', multiplier: 0.9 });
 
     const restored = deserializeGame(serializeGame(state));
 
     expect(restored).toEqual(state);
-    expect(restored.cities['moss-market'].garrison.roster['orssian-guard']).toBe(8);
+    expect(restored.cities['moss-market'].incomeMultiplier).toBe(1);
     expect(restored.rng.battles.cursor).toBe(7);
+    expect(restored.campaign.rivalOrganizationId).toBe(state.campaign.rivalOrganizationId);
+    expect(restored.campaign.rivalLeaderId).toBe(state.campaign.rivalLeaderId);
     expect(JSON.parse(serializeGame(state)).version).toBe(CURRENT_SAVE_VERSION);
+  });
+
+
+  it('migrates v13 map artifacts and initializes Stage 23 city/story state', () => {
+    const current = createPrototypeGameState(84);
+    const { cityArtifactClaimedIds: _cityArtifacts, pendingBriefingId: _pendingBriefing, resolvedBriefingIds: _resolvedBriefings, ...legacyCampaign } = current.campaign;
+    const legacy = {
+      version: 13,
+      state: {
+        ...current,
+        campaign: {
+          ...legacyCampaign,
+          pendingEventId: 'temporary-pass',
+          resolvedEventIds: ['warehouse-inventory'],
+          artifactIds: ['warehouse-one-seal', 'temporary-key'],
+        },
+      },
+    };
+
+    const restored = deserializeGame(JSON.stringify(legacy));
+
+    expect(restored.campaign.pendingEventId).toBe('jungle-foraging');
+    expect(restored.campaign.artifactIds).toEqual(['apple-skeleton', 'vanilla-cartilage']);
+    expect(restored.campaign.cityArtifactClaimedIds).toEqual([]);
+    expect(restored.campaign.pendingBriefingId).toBeNull();
+    expect(restored.campaign.resolvedBriefingIds).toEqual([]);
+  });
+
+
+  it('migrates v12 saves by adding Stage 22 traits and city income multipliers', () => {
+    const current = createPrototypeGameState(83);
+    const legacyFactions = Object.fromEntries(
+      Object.entries(current.factions).map(([id, faction]) => [
+        id,
+        id.startsWith('orsia-') ? { ...faction, traits: faction.traits.filter((trait) => ![
+          'random_battle_morale_gain',
+          'battle_unit_power_multiplier',
+          'initial_garrison_size_multiplier_range',
+          'captured_city_income_multiplier',
+        ].includes(trait.type)) } : faction,
+      ]),
+    );
+    const legacyCities = Object.fromEntries(
+      Object.entries(current.cities).map(([id, city]) => {
+        const { incomeMultiplier: _incomeMultiplier, ...legacyCity } = city;
+        return [id, legacyCity];
+      }),
+    );
+    const restored = deserializeGame(JSON.stringify({
+      version: 12,
+      state: { ...current, factions: legacyFactions, cities: legacyCities },
+    }));
+
+    for (const city of Object.values(restored.cities)) expect(city.incomeMultiplier).toBe(1);
+    if (restored.factions['orsia-orcs']) {
+      expect(restored.factions['orsia-orcs'].traits.some((trait) => trait.type === 'random_battle_morale_gain')).toBe(true);
+    }
+    if (restored.factions['orsia-goblins']) {
+      expect(restored.factions['orsia-goblins'].traits.some((trait) => trait.type === 'battle_unit_power_multiplier')).toBe(true);
+    }
+    if (restored.factions['orsia-fgushniki']) {
+      expect(restored.factions['orsia-fgushniki'].traits.some((trait) => trait.type === 'captured_city_income_multiplier')).toBe(true);
+    }
+  });
+
+
+
+  it('migrates v11 saves by initializing Stage 21 research and faction-event state', () => {
+    const current = createPrototypeGameState(61);
+    const { completedResearchIds: _research, pendingFactionEvent: _pendingFaction, resolvedFactionEventIds: _resolvedFaction, ...legacyCampaign } = current.campaign;
+    const legacyFactions = Object.fromEntries(
+      Object.entries(current.factions).map(([id, faction]) => [
+        id,
+        id === 'orsia-nazbols' || id === 'orsia-tyranids'
+          ? { ...faction, traits: [] }
+          : faction,
+      ]),
+    );
+    const legacy = {
+      version: 11,
+      state: { ...current, factions: legacyFactions, campaign: legacyCampaign },
+    };
+
+    const restored = deserializeGame(JSON.stringify(legacy));
+
+    expect(restored.campaign.completedResearchIds).toEqual([]);
+    expect(restored.campaign.pendingFactionEvent).toBeNull();
+    expect(restored.campaign.resolvedFactionEventIds).toEqual([]);
+    if (restored.factions['orsia-nazbols']) {
+      expect(restored.factions['orsia-nazbols'].traits.some((trait) => trait.type === 'defeat_reaction')).toBe(true);
+      const cities = Object.values(restored.cities).filter((city) => city.ownerFactionId === 'orsia-nazbols');
+      for (const city of cities) expect(city.garrison.morale).toBeGreaterThanOrEqual(94);
+    }
+    if (restored.factions['orsia-tyranids']) {
+      expect(restored.factions['orsia-tyranids'].traits.some((trait) => trait.type === 'incoming_casualty_multiplier_by_enemy_tactic')).toBe(true);
+    }
+  });
+
+  it('migrates v10 saves by initializing Stage 20 map knowledge', () => {
+    const current = createPrototypeGameState(31, 'vlados');
+    const { discoveredNodeIds: _fog, ...legacyCampaign } = current.campaign;
+    const legacy = { version: 10, state: { ...current, campaign: legacyCampaign } };
+
+    const restored = deserializeGame(JSON.stringify(legacy));
+
+    expect(restored.campaign.discoveredNodeIds).toContain(restored.armies['player-main'].nodeId);
+    expect(restored.campaign.discoveredNodeIds.length).toBeGreaterThan(1);
+    expect(restored.campaign.discoveredNodeIds.length).toBeLessThan(prototypeMap.nodes.length);
+  });
+
+  it('migrates v9 Meridian into the Stage 18 rival faction and assigns an unselected leader', () => {
+    const current = createPrototypeGameState(23, 'artemios');
+    const old = withLegacyRival(current);
+    const legacy = {
+      version: 9,
+      state: {
+        ...old,
+        campaign: {
+          rootObtainedByFactionId: null,
+          pendingEventId: null,
+          resolvedEventIds: ['warehouse-inventory'],
+          artifactIds: ['warehouse-one-seal'],
+        },
+      },
+    };
+
+    const restored = deserializeGame(JSON.stringify(legacy));
+
+    expect(restored.factions[RIVAL_FACTION_ID]).toBeDefined();
+    expect(restored.factions[LEGACY_RIVAL_FACTION_ID]).toBeUndefined();
+    expect(restored.armies['rival-main'].factionId).toBe(RIVAL_FACTION_ID);
+    expect(restored.campaign.rivalOrganizationId).toBe('gospol');
+    expect(restored.campaign.rivalLeaderId).not.toBe(restored.selectedLeaderId);
+    expect(restored.campaign.status).toBe('active');
   });
 
   it('migrates v5 global player action into the player faction action budget', () => {
@@ -54,7 +226,7 @@ describe('save file', () => {
     const restored = deserializeGame(JSON.stringify(legacy));
 
     expect(restored.factions.expedition.strategicActionSpent).toBe(true);
-    expect(restored.factions['meridian-company'].strategicActionSpent).toBe(false);
+    expect(restored.factions[RIVAL_FACTION_ID].strategicActionSpent).toBe(false);
     expect('strategicActionSpent' in restored.campaign).toBe(false);
   });
 
@@ -94,17 +266,49 @@ describe('save file', () => {
     expect('totalUnits' in restored.armies['player-main']).toBe(false);
   });
 
-  it('migrates v6 saves by adding new Stage 12 cities without overwriting old city state', () => {
+  it('migrates v6 saves by adding later cities without overwriting old city state', () => {
     const state = createPrototypeGameState(15);
-    state.cities['moss-market'].ownerFactionId = 'expedition';
-    const { ['underfountain']: _newCity, ...legacyCities } = state.cities;
-    const legacy = { version: 6, state: { ...state, cities: legacyCities } };
+    const legacyBase = toLegacyV5(state);
+    legacyBase.cities['moss-market'].ownerFactionId = 'expedition';
+    const { ['underfountain']: _newCity, ...legacyCities } = legacyBase.cities;
+    const legacyFactions = Object.fromEntries(
+      Object.entries(legacyBase.factions).map(([id, faction]) => [
+        id,
+        { ...faction, strategicActionSpent: false },
+      ]),
+    );
+    const legacy = {
+      version: 6,
+      state: {
+        ...legacyBase,
+        factions: legacyFactions,
+        cities: legacyCities,
+        campaign: { rootObtainedByFactionId: null },
+      },
+    };
 
     const restored = deserializeGame(JSON.stringify(legacy));
 
     expect(restored.cities['moss-market'].ownerFactionId).toBe('expedition');
     expect(restored.cities['underfountain']).toBeDefined();
     expect(restored.cities['root-limit']).toBeDefined();
+  });
+
+  it('migrates v8 saves with an empty Stage 17 event/artifact state', () => {
+    const current = withLegacyRival(createPrototypeGameState(23));
+    const legacy = {
+      version: 8,
+      state: {
+        ...current,
+        campaign: { rootObtainedByFactionId: null },
+      },
+    };
+
+    const restored = deserializeGame(JSON.stringify(legacy));
+
+    expect(restored.campaign.pendingEventId).toBeNull();
+    expect(restored.campaign.resolvedEventIds).toEqual([]);
+    expect(restored.campaign.artifactIds).toEqual([]);
   });
 
   it('rejects unsupported versions', () => {

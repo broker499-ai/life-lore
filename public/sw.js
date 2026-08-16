@@ -1,4 +1,4 @@
-const CACHE = 'koren-zhivoznaniya-stage3-v1';
+const CACHE = 'koren-zhivoznaniya-stage17-3-v1';
 const APP_SHELL = ['/', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 self.addEventListener('install', (event) => {

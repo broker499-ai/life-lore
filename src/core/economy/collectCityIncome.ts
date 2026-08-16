@@ -1,5 +1,7 @@
 import type { CommandSuccess } from '@/core/commands/CommandResult';
 import type { CityDefinitions } from '@/core/cities/CityDefinition';
+import { getEffectiveCityTaxIncome } from '@/core/cities/cityTraits';
+import { getCityIncomeMultiplier } from '@/core/leaders/LeaderAbility';
 import type { GameState } from '@/core/state/GameState';
 
 export function getFactionCityIncome(
@@ -7,12 +9,13 @@ export function getFactionCityIncome(
   cityDefinitions: CityDefinitions,
   factionId: string,
 ): number {
-  return Object.values(state.cities).reduce((total, city) => {
+  const base = Object.values(state.cities).reduce((total, city) => {
     if (city.ownerFactionId !== factionId) return total;
     const definition = cityDefinitions[city.id];
     if (!definition) throw new Error(`Missing CityDefinition for ${city.id}`);
-    return total + definition.taxIncome;
+    return total + getEffectiveCityTaxIncome(definition) * (city.incomeMultiplier ?? 1);
   }, 0);
+  return Math.round(base * getCityIncomeMultiplier(state, factionId) * 100) / 100;
 }
 
 export function collectCityIncome(

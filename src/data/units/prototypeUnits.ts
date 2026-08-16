@@ -21,6 +21,16 @@ export const prototypeUnits: UnitDefinitions = {
     upkeepPerUnit: 0.5,
     description: 'Лёгкие стрелки и разведчики. Бьют сильнее, но хуже держат прямое давление.',
   },
+  'student-103': {
+    id: 'student-103',
+    name: 'Студенты 103',
+    shortName: 'Студенты 103',
+    role: 'ranged',
+    attack: 9,
+    defense: 5,
+    upkeepPerUnit: 0.55,
+    description: 'Усиленный вариант разведчиков из легендарной группы 103. Чуть сильнее следопытов и заметно увереннее в том, что знает короткую дорогу.',
+  },
   'orssian-guard': {
     id: 'orssian-guard',
     name: 'Страж Орсии',

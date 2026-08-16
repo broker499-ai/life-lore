@@ -7,7 +7,13 @@ export type ArmyId = string;
 export type NodeId = string;
 export type LeaderId = string;
 export type UnitTypeId = string;
-export type StrategicActionKind = 'move' | 'attack' | 'recruit' | 'rest';
+export type StrategicActionKind = 'move' | 'attack' | 'recruit' | 'rest' | 'claim_root';
+
+export type PendingFactionEventState = {
+  eventId: string;
+  factionId: FactionId;
+  beneficiaryFactionId: FactionId;
+};
 
 export type ResourcesState = {
   money: number;
@@ -36,6 +42,7 @@ export type CityState = {
   id: CityId;
   ownerFactionId: FactionId | null;
   garrison: CityGarrisonState;
+  incomeMultiplier?: number;
 };
 
 export type ArmyState = {
@@ -46,8 +53,26 @@ export type ArmyState = {
   roster: ArmyRoster;
 };
 
+export type CampaignStatus = 'active' | 'victory' | 'defeat';
+export type CampaignEndingReason = 'root_claimed' | 'rival_root_claimed' | 'army_destroyed';
+
 export type CampaignState = {
   rootObtainedByFactionId: FactionId | null;
+  pendingEventId: string | null;
+  resolvedEventIds: string[];
+  artifactIds: string[];
+  cityArtifactClaimedIds: CityId[];
+  pendingBriefingId: string | null;
+  resolvedBriefingIds: string[];
+  discoveredNodeIds: NodeId[];
+  completedResearchIds: string[];
+  pendingFactionEvent: PendingFactionEventState | null;
+  resolvedFactionEventIds: string[];
+  rivalOrganizationId: string;
+  rivalLeaderId: LeaderId;
+  status: CampaignStatus;
+  endingReason: CampaignEndingReason | null;
+  endedTurn: number | null;
 };
 
 export type GameState = {

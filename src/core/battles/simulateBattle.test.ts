@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { simulateBattle } from '@/core/battles/simulateBattle';
+import { getTacticalCasualtyTakenMultiplier, getTacticalMoraleLossMultiplier, simulateBattle } from '@/core/battles/simulateBattle';
 import { createRngState } from '@/core/rng/seededRandom';
 import { prototypeBattleRules } from '@/data/battles/prototypeBattleRules';
 import { prototypeUnits } from '@/data/units/prototypeUnits';
@@ -85,6 +85,31 @@ describe('simulateBattle', () => {
     expect(result.timeline.some((event) => event.type === 'casualties')).toBe(true);
     expect(result.timeline.some((event) => event.type === 'morale_change')).toBe(true);
   });
+
+  it('reverses own-casualty risk by tactic as superiority grows', () => {
+    const parity = { own: 100, enemy: 100 };
+    const superiority = { own: 180, enemy: 100 };
+
+    const parityAssault = getTacticalCasualtyTakenMultiplier('assault', parity.own, parity.enemy, prototypeBattleRules);
+    const parityBalanced = getTacticalCasualtyTakenMultiplier('balanced', parity.own, parity.enemy, prototypeBattleRules);
+    const parityCautious = getTacticalCasualtyTakenMultiplier('cautious', parity.own, parity.enemy, prototypeBattleRules);
+    expect(parityAssault).toBeGreaterThan(parityBalanced);
+    expect(parityBalanced).toBeGreaterThan(parityCautious);
+
+    const superiorAssault = getTacticalCasualtyTakenMultiplier('assault', superiority.own, superiority.enemy, prototypeBattleRules);
+    const superiorBalanced = getTacticalCasualtyTakenMultiplier('balanced', superiority.own, superiority.enemy, prototypeBattleRules);
+    const superiorCautious = getTacticalCasualtyTakenMultiplier('cautious', superiority.own, superiority.enemy, prototypeBattleRules);
+    expect(superiorAssault).toBeLessThan(superiorBalanced);
+    expect(superiorBalanced).toBeLessThan(superiorCautious);
+  });
+
+  it('increases assault morale loss from round three when the battle drags on', () => {
+    const assault = prototypeBattleRules.tactics.assault;
+    expect(getTacticalMoraleLossMultiplier(assault, 2)).toBeCloseTo(1.04, 6);
+    expect(getTacticalMoraleLossMultiplier(assault, 3)).toBeCloseTo(1.04 * 1.38, 6);
+    expect(getTacticalMoraleLossMultiplier(prototypeBattleRules.tactics.balanced, 4)).toBeCloseTo(1, 6);
+  });
+
   it('matches the fixed golden result for seed 42', () => {
     const result = simulateBattle(
       baseBattle,
@@ -110,8 +135,8 @@ describe('simulateBattle', () => {
       sideALosses: { 'expedition-infantry': 4 },
       sideAMorale: 65,
       sideBOutcome: 'retreat',
-      sideBLosses: { 'orssian-guard': 4, 'orssian-slingers': 2 },
-      sideBMorale: 44,
+      sideBLosses: { 'orssian-guard': 4 },
+      sideBMorale: 51,
       rngCursor: 8,
     });
   });
@@ -148,14 +173,14 @@ describe('simulateBattle', () => {
         scale: 'battle',
         sideA: {
           factionId: 'expedition',
-          roster: { 'expedition-infantry': 30, 'expedition-rangers': 10 },
-          morale: 35,
-          tactic: 'cautious',
+          roster: { 'expedition-infantry': 16 },
+          morale: 40,
+          tactic: 'assault',
         },
         sideB: {
           factionId: 'orssia-neutral',
-          roster: { 'orssian-guard': 20, 'orssian-slingers': 6 },
-          morale: 70,
+          roster: { 'orssian-guard': 12 },
+          morale: 45,
           tactic: 'balanced',
         },
       },
@@ -166,4 +191,64 @@ describe('simulateBattle', () => {
     expect(pyrrhic.sides.A.outcome).toBe('pyrrhic_victory');
   });
 
+});
+
+describe('Stage 22 faction battle effects', () => {
+  it('can raise morale during battle through a seeded random morale gain effect', () => {
+    const result = simulateBattle(
+      {
+        battleId: 'orc-morale-surge',
+        scale: 'battle',
+        sideA: {
+          factionId: 'orsia-orcs',
+          roster: { 'orssian-guard': 20 },
+          morale: 55,
+          tactic: 'balanced',
+          randomMoraleGain: { chancePercent: 100, minGain: 10, maxGain: 10 },
+        },
+        sideB: {
+          factionId: 'expedition',
+          roster: { 'expedition-infantry': 20 },
+          morale: 55,
+          tactic: 'balanced',
+        },
+      },
+      { seed: 123, cursor: 0 },
+      prototypeUnits,
+      prototypeBattleRules,
+    );
+
+    const moraleEvents = result.timeline.filter(
+      (event) => event.type === 'morale_change' && event.side === 'A',
+    );
+    expect(moraleEvents.some((event) => event.type === 'morale_change' && event.after > event.before)).toBe(true);
+  });
+
+  it('applies a unit power multiplier to both combat and final-strength resolution', () => {
+    const result = simulateBattle(
+      {
+        battleId: 'weak-goblins',
+        scale: 'battle',
+        sideA: {
+          factionId: 'orsia-goblins',
+          roster: { 'orssian-guard': 40 },
+          morale: 75,
+          tactic: 'balanced',
+          unitPowerMultiplier: 0.45,
+        },
+        sideB: {
+          factionId: 'expedition',
+          roster: { 'expedition-infantry': 20 },
+          morale: 75,
+          tactic: 'balanced',
+        },
+      },
+      { seed: 456, cursor: 0 },
+      prototypeUnits,
+      prototypeBattleRules,
+    );
+
+    expect(result.sides.A.totalLosses).toBeGreaterThan(0);
+    expect(result.winnerFactionId).toBe('expedition');
+  });
 });

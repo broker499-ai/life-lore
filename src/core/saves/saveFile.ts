@@ -1,24 +1,50 @@
 import type {
   ArmyId,
   ArmyState,
-  CampaignState,
   CityId,
   CityState,
+  CampaignState,
   FactionId,
   GameState,
+  NodeId,
   ResourcesState,
 } from '@/core/state/GameState';
 import { createPrototypeGameState } from '@/core/state/createPrototypeGameState';
-import { DEFAULT_LEADER_ID, prototypeLeaderById } from '@/data/leaders/prototypeLeader';
+import { synchronizePlayerMapKnowledge } from '@/core/map/MapVisibility';
+import { DEFAULT_LEADER_ID, prototypeLeaderById, prototypeLeaders } from '@/data/leaders/prototypeLeader';
+import { RIVAL_FACTION_ID } from '@/data/factions/rivalExpeditions';
+import { orsiaSubfactionById } from '@/data/factions/orsiaSubfactions';
+import { prototypeMap } from '@/data/map/prototypeMap';
 
-export const CURRENT_SAVE_VERSION = 8 as const;
+export const CURRENT_SAVE_VERSION = 14 as const;
 const LEGACY_DEFAULT_UNIT_TYPE_ID = 'expedition-infantry';
+const LEGACY_RIVAL_FACTION_ID = 'meridian-company';
 
+// Previous stages are kept as explicit legacy shapes so save migrations remain readable.
 type LegacyFactionStateV1 = { id: FactionId; controlledCityIds: string[] };
 type LegacyFactionStateV2 = LegacyFactionStateV1 & { resources: ResourcesState };
 type LegacyFactionStateV5 = { id: FactionId; resources: ResourcesState };
 type LegacyFactionStateV6 = LegacyFactionStateV5 & { strategicActionSpent: boolean };
-type LegacyCampaignStateV5 = CampaignState & { strategicActionSpent: boolean };
+type LegacyCampaignStateV5 = { rootObtainedByFactionId: FactionId | null; strategicActionSpent: boolean };
+type LegacyCampaignStateV8 = { rootObtainedByFactionId: FactionId | null };
+type LegacyCampaignStateV9 = LegacyCampaignStateV8 & {
+  pendingEventId: string | null;
+  resolvedEventIds: string[];
+  artifactIds: string[];
+};
+type LegacyCampaignStateV10 = {
+  rootObtainedByFactionId: FactionId | null;
+  pendingEventId: string | null;
+  resolvedEventIds: string[];
+  artifactIds: string[];
+  rivalOrganizationId: string;
+  rivalLeaderId: string;
+  status: CampaignState['status'];
+  endingReason: CampaignState['endingReason'];
+  endedTurn: number | null;
+};
+type LegacyCampaignStateV11 = LegacyCampaignStateV10 & { discoveredNodeIds: NodeId[] };
+type LegacyCampaignStateV13 = Omit<CampaignState, 'cityArtifactClaimedIds' | 'pendingBriefingId' | 'resolvedBriefingIds'>;
 type LegacyCityStateV4 = Omit<CityState, 'garrison'>;
 type LegacyArmyStateV3 = {
   id: ArmyId;
@@ -28,7 +54,12 @@ type LegacyArmyStateV3 = {
   totalUnits: number;
 };
 
-type LegacyGameStateV7 = Omit<GameState, 'factions'> & {
+type LegacyGameStateV13 = Omit<GameState, 'campaign'> & { campaign: LegacyCampaignStateV13 };
+type LegacyGameStateV11 = Omit<LegacyGameStateV13, 'campaign'> & { campaign: LegacyCampaignStateV11 };
+type LegacyGameStateV10 = Omit<LegacyGameStateV11, 'campaign'> & { campaign: LegacyCampaignStateV10 };
+type LegacyGameStateV9 = Omit<LegacyGameStateV10, 'campaign'> & { campaign: LegacyCampaignStateV9 };
+type LegacyGameStateV8 = Omit<LegacyGameStateV9, 'campaign'> & { campaign: LegacyCampaignStateV8 };
+type LegacyGameStateV7 = Omit<LegacyGameStateV8, 'factions'> & {
   factions: Record<FactionId, LegacyFactionStateV6>;
 };
 type LegacyGameStateV5 = Omit<LegacyGameStateV7, 'factions' | 'campaign'> & {
@@ -56,11 +87,31 @@ export type SaveFileV4 = { version: 4; state: LegacyGameStateV4 };
 export type SaveFileV5 = { version: 5; state: LegacyGameStateV5 };
 export type SaveFileV6 = { version: 6; state: LegacyGameStateV7 };
 export type SaveFileV7 = { version: 7; state: LegacyGameStateV7 };
-export type SaveFileV8 = { version: typeof CURRENT_SAVE_VERSION; state: GameState };
-export type SaveFile = SaveFileV1 | SaveFileV2 | SaveFileV3 | SaveFileV4 | SaveFileV5 | SaveFileV6 | SaveFileV7 | SaveFileV8;
+export type SaveFileV8 = { version: 8; state: LegacyGameStateV8 };
+export type SaveFileV9 = { version: 9; state: LegacyGameStateV9 };
+export type SaveFileV10 = { version: 10; state: LegacyGameStateV10 };
+export type SaveFileV11 = { version: 11; state: LegacyGameStateV11 };
+export type SaveFileV12 = { version: 12; state: LegacyGameStateV13 };
+export type SaveFileV13 = { version: 13; state: LegacyGameStateV13 };
+export type SaveFileV14 = { version: typeof CURRENT_SAVE_VERSION; state: GameState };
+export type SaveFile =
+  | SaveFileV1
+  | SaveFileV2
+  | SaveFileV3
+  | SaveFileV4
+  | SaveFileV5
+  | SaveFileV6
+  | SaveFileV7
+  | SaveFileV8
+  | SaveFileV9
+  | SaveFileV10
+  | SaveFileV11
+  | SaveFileV12
+  | SaveFileV13
+  | SaveFileV14;
 
 export function serializeGame(state: GameState): string {
-  const save: SaveFileV8 = { version: CURRENT_SAVE_VERSION, state };
+  const save: SaveFileV14 = { version: CURRENT_SAVE_VERSION, state };
   return JSON.stringify(save);
 }
 
@@ -71,25 +122,206 @@ export function deserializeGame(serialized: string): GameState {
   }
 
   if (parsed.version === CURRENT_SAVE_VERSION) return parsed.state as GameState;
-  if (parsed.version === 7) return migrateV7ToV8(parsed.state as LegacyGameStateV7);
-  if (parsed.version === 6) return migrateV7ToV8(migrateV6ToV7(parsed.state as LegacyGameStateV7));
-  if (parsed.version === 5) return migrateV7ToV8(migrateV6ToV7(migrateV5ToV6(parsed.state as LegacyGameStateV5)));
-  if (parsed.version === 4) return migrateV7ToV8(migrateV6ToV7(migrateV5ToV6(migrateV4ToV5(parsed.state as LegacyGameStateV4))));
-  if (parsed.version === 3) return migrateV7ToV8(migrateV6ToV7(migrateV5ToV6(migrateV4ToV5(migrateV3ToV4(parsed.state as LegacyGameStateV3)))));
-  if (parsed.version === 2) return migrateV7ToV8(migrateV6ToV7(migrateV5ToV6(migrateV4ToV5(migrateV3ToV4(migrateV2ToV3(parsed.state as LegacyGameStateV2))))));
-  if (parsed.version === 1) return migrateV7ToV8(migrateV6ToV7(migrateV5ToV6(migrateV4ToV5(migrateV3ToV4(migrateV1ToV3(parsed.state as LegacyGameStateV1))))));
+  if (parsed.version === 13) return migrateV13ToV14(parsed.state as LegacyGameStateV13);
+  if (parsed.version === 12) return migrateV13ToV14(migrateV12ToV13(parsed.state as LegacyGameStateV13));
+  if (parsed.version === 11) return migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(parsed.state as LegacyGameStateV11)));
+  if (parsed.version === 10) return migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(parsed.state as LegacyGameStateV10))));
+  if (parsed.version === 9) return migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(migrateV9ToV10(parsed.state as LegacyGameStateV9)))));
+  if (parsed.version === 8) return migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(migrateV9ToV10(migrateV8ToV9(parsed.state as LegacyGameStateV8))))));
+  if (parsed.version === 7) return migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(migrateV9ToV10(migrateV8ToV9(migrateV7ToV8(parsed.state as LegacyGameStateV7)))))));
+  if (parsed.version === 6) return migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(migrateV9ToV10(migrateV8ToV9(migrateV7ToV8(migrateV6ToV7(parsed.state as LegacyGameStateV7))))))));
+  if (parsed.version === 5) return migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(migrateV9ToV10(migrateV8ToV9(migrateV7ToV8(migrateV6ToV7(migrateV5ToV6(parsed.state as LegacyGameStateV5)))))))));
+  if (parsed.version === 4) return migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(migrateV9ToV10(migrateV8ToV9(migrateV7ToV8(migrateV6ToV7(migrateV5ToV6(migrateV4ToV5(parsed.state as LegacyGameStateV4))))))))));
+  if (parsed.version === 3) return migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(migrateV9ToV10(migrateV8ToV9(migrateV7ToV8(migrateV6ToV7(migrateV5ToV6(migrateV4ToV5(migrateV3ToV4(parsed.state as LegacyGameStateV3)))))))))));
+  if (parsed.version === 2) return migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(migrateV9ToV10(migrateV8ToV9(migrateV7ToV8(migrateV6ToV7(migrateV5ToV6(migrateV4ToV5(migrateV3ToV4(migrateV2ToV3(parsed.state as LegacyGameStateV2))))))))))));
+  if (parsed.version === 1) return migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(migrateV9ToV10(migrateV8ToV9(migrateV7ToV8(migrateV6ToV7(migrateV5ToV6(migrateV4ToV5(migrateV3ToV4(migrateV1ToV3(parsed.state as LegacyGameStateV1))))))))))));
+
 
   throw new Error('Unsupported or invalid save file');
 }
 
-function migrateV7ToV8(state: LegacyGameStateV7): GameState {
+
+function migrateV13ToV14(state: LegacyGameStateV13): GameState {
+  const artifactIdMap: Record<string, string> = {
+    'warehouse-one-seal': 'apple-skeleton',
+    'normal-water-flask': 'normal-juice-flask',
+    'yesterday-appointment-slip': 'uboynastoyka',
+    'unlabeled-red-button': 'red-radish',
+    'temporary-key': 'vanilla-cartilage',
+    'almost-root-souvenir': 'almost-grass',
+  };
+  const mapEventId = (eventId: string) => eventId === 'temporary-pass' ? 'jungle-foraging' : eventId;
+  const artifactIds = Array.from(new Set(state.campaign.artifactIds.map((artifactId) => artifactIdMap[artifactId] ?? artifactId)));
+  return synchronizePlayerMapKnowledge({
+    ...state,
+    campaign: {
+      ...state.campaign,
+      pendingEventId: state.campaign.pendingEventId ? mapEventId(state.campaign.pendingEventId) : null,
+      resolvedEventIds: Array.from(new Set(state.campaign.resolvedEventIds.map(mapEventId))),
+      artifactIds,
+      cityArtifactClaimedIds: [],
+      pendingBriefingId: null,
+      resolvedBriefingIds: [],
+    },
+  }, prototypeMap);
+}
+
+function migrateV12ToV13(state: LegacyGameStateV13): LegacyGameStateV13 {
+  const factions = { ...state.factions };
+  for (const [factionId, definition] of Object.entries(orsiaSubfactionById)) {
+    const faction = factions[factionId];
+    if (!faction) continue;
+    const existingTypes = new Set(faction.traits.map((trait) => trait.type));
+    factions[factionId] = {
+      ...faction,
+      traits: [
+        ...faction.traits,
+        ...definition.traits.filter((trait) => !existingTypes.has(trait.type)).map((trait) => ({ ...trait })),
+      ],
+    };
+  }
+
+  const cities = Object.fromEntries(
+    Object.entries(state.cities).map(([cityId, city]) => [
+      cityId,
+      { ...city, incomeMultiplier: city.incomeMultiplier ?? 1 },
+    ]),
+  ) as GameState['cities'];
+
+  return { ...state, factions, cities };
+}
+
+function migrateV11ToV12(state: LegacyGameStateV11): LegacyGameStateV13 {
+  const factions = { ...state.factions };
+  for (const [factionId, definition] of Object.entries(orsiaSubfactionById)) {
+    const faction = factions[factionId];
+    if (!faction) continue;
+    const existingTypes = new Set(faction.traits.map((trait) => trait.type));
+    factions[factionId] = {
+      ...faction,
+      traits: [
+        ...faction.traits,
+        ...definition.traits.filter((trait) => !existingTypes.has(trait.type)).map((trait) => ({ ...trait })),
+      ],
+    };
+  }
+
+  const nazbolFloor = orsiaSubfactionById['orsia-nazbols']?.traits
+    .filter((trait) => trait.type === 'initial_garrison_morale_floor')
+    .reduce((highest, trait) => Math.max(highest, trait.value), 0) ?? 0;
+  const cities = Object.fromEntries(
+    Object.entries(state.cities).map(([cityId, city]) => [
+      cityId,
+      city.ownerFactionId === 'orsia-nazbols' && city.garrison.morale > 0
+        ? { ...city, garrison: { ...city.garrison, morale: Math.max(city.garrison.morale, nazbolFloor) } }
+        : city,
+    ]),
+  ) as GameState['cities'];
+
+  return {
+    ...state,
+    factions,
+    cities,
+    campaign: {
+      ...state.campaign,
+      completedResearchIds: [],
+      pendingFactionEvent: null,
+      resolvedFactionEventIds: [],
+    },
+  };
+}
+
+function migrateV10ToV11(state: LegacyGameStateV10): LegacyGameStateV11 {
+  const migrated: LegacyGameStateV11 = {
+    ...state,
+    campaign: {
+      ...state.campaign,
+      discoveredNodeIds: [],
+    },
+  };
+  return migrated;
+}
+
+function migrateV9ToV10(state: LegacyGameStateV9): LegacyGameStateV10 {
+  const rivalLeader = prototypeLeaders.find((leader) => leader.id !== state.selectedLeaderId) ?? prototypeLeaders[0];
+  const oldRival = state.factions[LEGACY_RIVAL_FACTION_ID];
+  const factions = { ...state.factions } as GameState['factions'];
+  delete factions[LEGACY_RIVAL_FACTION_ID];
+  if (oldRival) {
+    factions[RIVAL_FACTION_ID] = {
+      ...oldRival,
+      id: RIVAL_FACTION_ID,
+      superFactionId: null,
+      lastStrategicAction: null,
+      leaderAbilityLastUsedTurn: null,
+      traits: rivalLeader.traits.map((trait) => ({ ...trait })),
+    };
+  } else if (!factions[RIVAL_FACTION_ID]) {
+    const defaults = createPrototypeGameState(state.rng.campaign.seed, state.selectedLeaderId);
+    factions[RIVAL_FACTION_ID] = defaults.factions[RIVAL_FACTION_ID];
+  }
+
+  const cities = Object.fromEntries(
+    Object.entries(state.cities).map(([cityId, city]) => [
+      cityId,
+      city.ownerFactionId === LEGACY_RIVAL_FACTION_ID
+        ? { ...city, ownerFactionId: RIVAL_FACTION_ID }
+        : city,
+    ]),
+  ) as GameState['cities'];
+
+  const armies = Object.fromEntries(
+    Object.entries(state.armies).map(([armyId, army]) => [
+      armyId,
+      army.factionId === LEGACY_RIVAL_FACTION_ID
+        ? { ...army, factionId: RIVAL_FACTION_ID }
+        : army,
+    ]),
+  ) as GameState['armies'];
+
+  const rootOwner = state.campaign.rootObtainedByFactionId === LEGACY_RIVAL_FACTION_ID
+    ? RIVAL_FACTION_ID
+    : state.campaign.rootObtainedByFactionId;
+  const status = rootOwner === state.playerFactionId ? 'victory' : rootOwner === RIVAL_FACTION_ID ? 'defeat' : 'active';
+
+  return {
+    ...state,
+    factions,
+    cities,
+    armies,
+    campaign: {
+      ...state.campaign,
+      rootObtainedByFactionId: rootOwner,
+      rivalOrganizationId: 'gospol',
+      rivalLeaderId: rivalLeader.id,
+      status,
+      endingReason: status === 'victory' ? 'root_claimed' : status === 'defeat' ? 'rival_root_claimed' : null,
+      endedTurn: status === 'active' ? null : state.turn,
+    },
+  };
+}
+
+function migrateV8ToV9(state: LegacyGameStateV8): LegacyGameStateV9 {
+  return {
+    ...state,
+    campaign: {
+      ...state.campaign,
+      pendingEventId: null,
+      resolvedEventIds: [],
+      artifactIds: [],
+    },
+  };
+}
+
+function migrateV7ToV8(state: LegacyGameStateV7): LegacyGameStateV8 {
   const selectedLeaderId = prototypeLeaderById[state.selectedLeaderId]
     ? state.selectedLeaderId
     : DEFAULT_LEADER_ID;
-  const defaults = createPrototypeGameState(state.rng.campaign.seed, selectedLeaderId);
+  const currentDefaults = createPrototypeGameState(state.rng.campaign.seed, selectedLeaderId);
+  const defaults = convertCurrentDefaultsToLegacyRival(currentDefaults);
   const factions = { ...defaults.factions };
 
-  for (const factionId of [state.playerFactionId, 'meridian-company']) {
+  for (const factionId of [state.playerFactionId, LEGACY_RIVAL_FACTION_ID]) {
     const legacy = state.factions[factionId];
     const current = factions[factionId];
     if (!legacy || !current) continue;
@@ -125,7 +357,7 @@ function migrateV7ToV8(state: LegacyGameStateV7): GameState {
 }
 
 function migrateV6ToV7(state: LegacyGameStateV7): LegacyGameStateV7 {
-  const defaults = createPrototypeGameState(state.rng.campaign.seed, state.selectedLeaderId);
+  const defaults = convertCurrentDefaultsToLegacyRival(createPrototypeGameState(state.rng.campaign.seed, state.selectedLeaderId));
   return { ...state, cities: { ...defaults.cities, ...state.cities } };
 }
 
@@ -183,6 +415,34 @@ function migrateV1ToV3(state: LegacyGameStateV1): LegacyGameStateV3 {
     ]),
   ) as Record<FactionId, LegacyFactionStateV5>;
   return { ...rest, factions };
+}
+
+function convertCurrentDefaultsToLegacyRival(state: GameState): LegacyGameStateV8 {
+  const factions = { ...state.factions } as Record<string, any>;
+  const rival = factions[RIVAL_FACTION_ID];
+  delete factions[RIVAL_FACTION_ID];
+  if (rival) factions[LEGACY_RIVAL_FACTION_ID] = { ...rival, id: LEGACY_RIVAL_FACTION_ID };
+
+  const cities = Object.fromEntries(
+    Object.entries(state.cities).map(([cityId, city]) => [
+      cityId,
+      city.ownerFactionId === RIVAL_FACTION_ID ? { ...city, ownerFactionId: LEGACY_RIVAL_FACTION_ID } : city,
+    ]),
+  );
+  const armies = Object.fromEntries(
+    Object.entries(state.armies).map(([armyId, army]) => [
+      armyId,
+      army.factionId === RIVAL_FACTION_ID ? { ...army, factionId: LEGACY_RIVAL_FACTION_ID } : army,
+    ]),
+  );
+
+  return {
+    ...state,
+    factions,
+    cities,
+    armies,
+    campaign: { rootObtainedByFactionId: state.campaign.rootObtainedByFactionId },
+  } as LegacyGameStateV8;
 }
 
 function stripControlledCities(faction: LegacyFactionStateV2): LegacyFactionStateV5 {

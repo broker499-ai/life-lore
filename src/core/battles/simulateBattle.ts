@@ -69,19 +69,35 @@ export function simulateBattle(
 
     const unitsBeforeA = getRosterTotal(sideA.roster);
     const unitsBeforeB = getRosterTotal(sideB.roster);
+    const tacticalCasualtyTakenA = getTacticalCasualtyTakenMultiplier(
+      sideA.input.tactic,
+      getPowerMagnitude(powerA),
+      getPowerMagnitude(powerB),
+      rules,
+    );
+    const tacticalCasualtyTakenB = getTacticalCasualtyTakenMultiplier(
+      sideB.input.tactic,
+      getPowerMagnitude(powerB),
+      getPowerMagnitude(powerA),
+      rules,
+    );
     const lossesToA = calculateLossCount(
       unitsBeforeA,
       powerB.attack,
       powerA.defense,
       scaleRule.baseCasualtyRate,
-      rules.tactics[sideB.input.tactic].casualtyInflictedMultiplier,
+      rules.tactics[sideB.input.tactic].casualtyInflictedMultiplier *
+        tacticalCasualtyTakenA *
+        (sideA.input.casualtyTakenMultiplier ?? 1),
     );
     const lossesToB = calculateLossCount(
       unitsBeforeB,
       powerA.attack,
       powerB.defense,
       scaleRule.baseCasualtyRate,
-      rules.tactics[sideA.input.tactic].casualtyInflictedMultiplier,
+      rules.tactics[sideA.input.tactic].casualtyInflictedMultiplier *
+        tacticalCasualtyTakenB *
+        (sideB.input.casualtyTakenMultiplier ?? 1),
     );
 
     const lossesRosterA = distributeLosses(sideA.roster, lossesToA, unitDefinitions);
@@ -118,6 +134,8 @@ export function simulateBattle(
       powerA.attack,
       rules.tactics[sideA.input.tactic],
       sideB.input.moraleDamageInflictedMultiplier ?? 1,
+      sideA.input.moraleLossTakenMultiplier ?? 1,
+      round,
     );
     sideB.morale = applyMoraleLoss(
       sideB,
@@ -127,7 +145,16 @@ export function simulateBattle(
       powerB.attack,
       rules.tactics[sideB.input.tactic],
       sideA.input.moraleDamageInflictedMultiplier ?? 1,
+      sideB.input.moraleLossTakenMultiplier ?? 1,
+      round,
     );
+
+    const moraleGainA = applyRandomMoraleGain(sideA, rng);
+    rng = moraleGainA.rngState;
+    sideA.morale = moraleGainA.morale;
+    const moraleGainB = applyRandomMoraleGain(sideB, rng);
+    rng = moraleGainB.rngState;
+    sideB.morale = moraleGainB.morale;
 
     timeline.push(
       {
@@ -210,10 +237,52 @@ function getRoundPower(
   const moraleMultiplier = 0.65 + side.morale * 0.0035;
   const rollMultiplier = 0.82 + roll * 0.018;
 
+  const unitPowerMultiplier = side.input.unitPowerMultiplier ?? 1;
   return {
-    attack: rawAttack * tactic.attackMultiplier * moraleMultiplier * rollMultiplier,
-    defense: rawDefense * tactic.defenseMultiplier * moraleMultiplier,
+    attack: rawAttack * tactic.attackMultiplier * moraleMultiplier * rollMultiplier * unitPowerMultiplier,
+    defense: rawDefense * tactic.defenseMultiplier * moraleMultiplier * unitPowerMultiplier,
   };
+}
+
+export function getTacticalCasualtyTakenMultiplier(
+  tacticId: BattleSideInput['tactic'],
+  ownPower: number,
+  enemyPower: number,
+  rules: BattleRules,
+): number {
+  const tactic = rules.tactics[tacticId];
+  const ratio = ownPower / Math.max(1, enemyPower);
+  const superiorityProgress = clamp(
+    (ratio - 1) / Math.max(0.01, rules.superiorityFullEffectRatio - 1),
+    0,
+    1,
+  );
+  return lerp(
+    tactic.casualtyTakenAtParityMultiplier,
+    tactic.casualtyTakenAtSuperiorMultiplier,
+    superiorityProgress,
+  );
+}
+
+
+export function getTacticalMoraleLossMultiplier(
+  tactic: BattleTacticRule,
+  round: number,
+): number {
+  const prolongedMultiplier =
+    tactic.prolongedMoraleLossStartRound !== undefined &&
+    round >= tactic.prolongedMoraleLossStartRound
+      ? tactic.prolongedMoraleLossMultiplier ?? 1
+      : 1;
+  return tactic.moraleLossMultiplier * prolongedMultiplier;
+}
+
+function getPowerMagnitude(power: RoundPower): number {
+  return power.attack + power.defense;
+}
+
+function lerp(from: number, to: number, amount: number): number {
+  return from + (to - from) * amount;
 }
 
 function calculateLossCount(
@@ -296,14 +365,33 @@ function applyMoraleLoss(
   ownAttack: number,
   tactic: BattleTacticRule,
   moraleDamageInflictedMultiplier: number,
+  moraleLossTakenMultiplier: number,
+  round: number,
 ): number {
   const lossFraction = unitsBefore <= 0 ? 1 : losses / unitsBefore;
   const pressurePenalty = Math.max(0, enemyAttack / Math.max(1, ownAttack) - 1) * 4;
   const rawLoss =
     (2 + lossFraction * 35 + pressurePenalty) *
-    tactic.moraleLossMultiplier *
-    moraleDamageInflictedMultiplier;
+    getTacticalMoraleLossMultiplier(tactic, round) *
+    moraleDamageInflictedMultiplier *
+    moraleLossTakenMultiplier;
   return clamp(Math.round(side.morale - rawLoss), 0, 100);
+}
+
+
+function applyRandomMoraleGain(side: MutableSide, rngState: RngState): { morale: number; rngState: RngState } {
+  const effect = side.input.randomMoraleGain;
+  if (!effect || effect.chancePercent <= 0 || side.morale >= 100) {
+    return { morale: side.morale, rngState };
+  }
+  const chanceRoll = randomInt(rngState, 1, 100);
+  if (chanceRoll.value > effect.chancePercent) {
+    return { morale: side.morale, rngState: chanceRoll.state };
+  }
+  const minGain = Math.max(0, Math.round(effect.minGain));
+  const maxGain = Math.max(minGain, Math.round(effect.maxGain));
+  const gainRoll = randomInt(chanceRoll.state, minGain, maxGain);
+  return { morale: clamp(side.morale + gainRoll.value, 0, 100), rngState: gainRoll.state };
 }
 
 function isBroken(side: MutableSide, rules: BattleRules): boolean {
@@ -343,7 +431,7 @@ function getFinalStrength(side: MutableSide, unitDefinitions: UnitDefinitions): 
     if (!unit) throw new Error(`Missing UnitDefinition for ${unitTypeId}`);
     raw += amount * (unit.attack + unit.defense);
   }
-  return raw * (0.55 + side.morale * 0.0045);
+  return raw * (0.55 + side.morale * 0.0045) * (side.input.unitPowerMultiplier ?? 1);
 }
 
 function buildSideResult(
@@ -422,6 +510,18 @@ function validateSide(
     throw new Error('Battle morale must be between 0 and 100');
   }
   if (!rules.tactics[side.tactic]) throw new Error(`Missing tactic rule: ${side.tactic}`);
+  if (side.unitPowerMultiplier !== undefined && (!Number.isFinite(side.unitPowerMultiplier) || side.unitPowerMultiplier <= 0)) {
+    throw new Error('Battle unit power multiplier must be a finite positive number');
+  }
+  if (side.randomMoraleGain) {
+    const { chancePercent, minGain, maxGain } = side.randomMoraleGain;
+    if (!Number.isFinite(chancePercent) || chancePercent < 0 || chancePercent > 100) {
+      throw new Error('Random morale gain chance must be between 0 and 100');
+    }
+    if (![minGain, maxGain].every(Number.isFinite) || minGain < 0 || maxGain < minGain) {
+      throw new Error('Random morale gain range is invalid');
+    }
+  }
   const total = getRosterTotal(side.roster);
   if (total <= 0) throw new Error('Battle side must contain at least one unit');
   for (const unitTypeId of Object.keys(side.roster)) {

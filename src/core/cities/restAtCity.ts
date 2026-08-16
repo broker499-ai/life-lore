@@ -1,5 +1,6 @@
 import type { CommandOutcome } from '@/core/commands/CommandResult';
 import type { CityDefinition } from '@/core/cities/CityDefinition';
+import { getEffectiveCityRest } from '@/core/cities/cityTraits';
 import type { ArmyId, CityId, GameState } from '@/core/state/GameState';
 
 export type RestAtCityError =
@@ -49,11 +50,12 @@ export function getRestAtCityAvailability(
   }
   if (input.city.id !== city.id) throw new Error(`City definition mismatch for ${city.id}`);
 
+  const rest = getEffectiveCityRest(input.city);
   const nextSupplies = Math.min(
     input.supplyCap,
-    faction.resources.supplies + input.city.rest.suppliesRestore,
+    faction.resources.supplies + rest.suppliesRestore,
   );
-  const nextMorale = Math.min(input.moraleCap, army.morale + input.city.rest.moraleRestore);
+  const nextMorale = Math.min(input.moraleCap, army.morale + rest.moraleRestore);
 
   if (nextSupplies === faction.resources.supplies && nextMorale === army.morale) {
     return { canRest: false, reason: 'nothing_to_restore' };
@@ -85,11 +87,12 @@ export function restAtCity(
   const faction = state.factions[army.factionId];
   if (!faction) throw new Error(`Army ${army.id} references missing faction ${army.factionId}`);
 
+  const rest = getEffectiveCityRest(input.city);
   const nextSupplies = Math.min(
     input.supplyCap,
-    faction.resources.supplies + input.city.rest.suppliesRestore,
+    faction.resources.supplies + rest.suppliesRestore,
   );
-  const nextMorale = Math.min(input.moraleCap, army.morale + input.city.rest.moraleRestore);
+  const nextMorale = Math.min(input.moraleCap, army.morale + rest.moraleRestore);
   const suppliesRestored = nextSupplies - faction.resources.supplies;
   const moraleRestored = nextMorale - army.morale;
 

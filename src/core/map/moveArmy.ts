@@ -1,7 +1,8 @@
 import type { CommandOutcome } from '@/core/commands/CommandResult';
 import { areFactionsAllied } from '@/core/factions/factionRelations';
-import { canUseRiverDoubleMove } from '@/core/leaders/LeaderAbility';
+import { canUseRiverDoubleMove, getSupplyActionCostMultiplier } from '@/core/leaders/LeaderAbility';
 import { areNodesAdjacent, hasMapNode, type MapGraph } from '@/core/map/MapGraph';
+import { synchronizePlayerMapKnowledge } from '@/core/map/MapVisibility';
 import type { ArmyId, GameState, NodeId } from '@/core/state/GameState';
 import { getProjectedMoveSupplyStatus, getSupplyAdjustedActionCost, type SupplyStatus } from '@/core/supply/Supply';
 
@@ -56,7 +57,10 @@ export function getMoveArmyAvailability(
   }
 
   const supplyStatus = getProjectedMoveSupplyStatus(state, graph, army.factionId, input.toNodeId);
-  const supplyCost = getSupplyAdjustedActionCost(input.supplyCost, supplyStatus);
+  const supplyCost = Math.max(0, Math.round(
+    getSupplyAdjustedActionCost(input.supplyCost, supplyStatus) *
+      getSupplyActionCostMultiplier(state, army.factionId),
+  ));
   if (faction.resources.supplies < supplyCost) {
     return { canMove: false, reason: 'insufficient_supplies' };
   }
@@ -114,7 +118,7 @@ export function moveArmy(
 
   return {
     ok: true,
-    state: nextState,
+    state: synchronizePlayerMapKnowledge(nextState, graph),
     events: [
       {
         type: 'army_moved',

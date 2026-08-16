@@ -2156,3 +2156,2713 @@ button:disabled {
   stroke-width: 1.15;
   transform: scale(1.12);
 }
+
+/* Stage 17 — location events, artifacts and persistent campaign controls */
+.campaign-shell {
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+  position: relative;
+}
+
+.map-node {
+  cursor: pointer;
+}
+
+.map-frame.is-zoomed .map-node,
+.map-frame.is-zoomed .map-node * {
+  cursor: pointer;
+}
+
+.player-location-highlight {
+  pointer-events: none;
+}
+
+.player-location-halo {
+  fill: rgba(211, 240, 164, 0.08);
+  stroke: rgba(206, 239, 154, 0.55);
+  stroke-width: 0.7;
+  stroke-dasharray: 1.2 0.75;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: player-location-pulse 1.9s ease-in-out infinite;
+}
+
+.player-location-ring {
+  fill: none;
+  stroke: #e3f6b7;
+  stroke-width: 0.9;
+  filter: drop-shadow(0 0 1.3px rgba(206, 239, 154, 0.9));
+}
+
+.player-here-badge rect {
+  fill: #d6eea8;
+  stroke: #11170f;
+  stroke-width: 0.28;
+}
+
+.player-here-badge text {
+  fill: #11170f;
+  font-size: 1.25px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+}
+
+@keyframes player-location-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(0.96); }
+  50% { opacity: 1; transform: scale(1.07); }
+}
+
+.persistent-turn-bar {
+  display: flex;
+  min-height: 50px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 2px;
+  border-top: 1px solid #263128;
+  background: #0d130e;
+}
+
+.persistent-turn-bar > div {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.persistent-turn-bar span {
+  color: #879684;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.persistent-turn-bar strong {
+  overflow: hidden;
+  color: #cad7c0;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.persistent-end-turn {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 7px 14px;
+  border-radius: 11px;
+  font-size: 11px;
+}
+
+.artifact-toolbar-chip {
+  padding: 3px 7px;
+  border: 1px solid #5a5140;
+  border-radius: 999px;
+  background: #211d15;
+  color: #dec98d;
+  white-space: nowrap;
+}
+
+.army-area {
+  overflow: hidden;
+}
+
+.army-scroll {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 3px;
+  scrollbar-width: thin;
+  scrollbar-color: #465647 transparent;
+}
+
+.artifact-inventory {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #3a4032;
+  border-radius: 16px;
+  background: rgba(25, 25, 18, 0.76);
+}
+
+.artifact-inventory h3 {
+  margin: 2px 0 8px;
+  font-size: 16px;
+}
+
+.artifact-empty {
+  margin: 0;
+  font-size: 11px;
+}
+
+.artifact-list {
+  display: grid;
+  gap: 8px;
+}
+
+.artifact-card {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 9px;
+  padding: 8px;
+  border: 1px solid #47412d;
+  border-radius: 12px;
+  background: #18180f;
+}
+
+.artifact-glyph {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid #756b45;
+  border-radius: 8px;
+  color: #e0ca82;
+}
+
+.artifact-card strong {
+  display: block;
+  color: #e8dfbd;
+  font-size: 11px;
+}
+
+.artifact-card p {
+  margin: 2px 0 0;
+  color: #9ea394;
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.event-overlay {
+  position: absolute;
+  z-index: 40;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: max(18px, env(safe-area-inset-top)) 14px max(18px, env(safe-area-inset-bottom));
+  background: rgba(3, 6, 4, 0.76);
+  backdrop-filter: blur(5px);
+}
+
+.event-card {
+  width: min(100%, 430px);
+  max-height: min(82dvh, 650px);
+  overflow-y: auto;
+  padding: 18px;
+  border: 1px solid #64714f;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 80% 0%, rgba(178, 199, 126, 0.1), transparent 14rem),
+    #121813;
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.55);
+}
+
+.event-card h2 {
+  margin: 4px 0 8px;
+  font-size: 22px;
+}
+
+.event-card > p {
+  margin-bottom: 12px;
+  color: #c0c9ba;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.event-leader-bonus {
+  margin-bottom: 12px;
+  padding: 7px 9px;
+  border: 1px solid #78693f;
+  border-radius: 10px;
+  background: #221e13;
+  color: #e5d494;
+  font-size: 10px;
+}
+
+.event-choice-list {
+  display: grid;
+  gap: 8px;
+}
+
+.event-choice {
+  display: grid;
+  width: 100%;
+  min-height: 58px;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid #435043;
+  border-radius: 13px;
+  background: #19211a;
+  color: #e7ece2;
+  cursor: pointer;
+  text-align: left;
+}
+
+.event-choice:hover:not(:disabled) {
+  border-color: #80966e;
+  background: #202b21;
+}
+
+.event-choice strong {
+  font-size: 12px;
+}
+
+.event-choice span {
+  color: #aab5a7;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.event-choice small {
+  color: #cdbd83;
+  font-size: 9px;
+  line-height: 1.3;
+}
+
+@media (max-height: 700px) {
+  .persistent-turn-bar {
+    min-height: 44px;
+    padding-block: 4px;
+  }
+
+  .persistent-end-turn {
+    min-height: 34px;
+  }
+
+  .location-dock,
+  .location-dock.is-attack {
+    max-height: min(28dvh, 185px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-location-halo {
+    animation: none;
+  }
+}
+
+/* Stage 17 design update — «Орсийский экспедиционный журнал» */
+:root {
+  --ink-0: #12100c;
+  --ink-1: #1c1813;
+  --ink-2: #262019;
+  --ink-deep: #0d0b09;
+  --paper: #e8dfc8;
+  --paper-75: rgba(232, 223, 200, 0.75);
+  --paper-58: rgba(232, 223, 200, 0.58);
+  --paper-32: rgba(232, 223, 200, 0.32);
+  --line: rgba(232, 223, 200, 0.14);
+  --line-strong: rgba(232, 223, 200, 0.30);
+  --exp: #8fae7f;
+  --mrd: #6d8fb8;
+  --orsia: #b4623a;
+  --root: #c9a24a;
+  --stamp: #a8352b;
+  --mute: #8a8172;
+  --supply: #5c6b63;
+  --anomaly: #7b5ea7;
+  font-family: 'Old Standard TT', Georgia, 'Times New Roman', serif;
+  color: var(--paper);
+  background: #171310;
+}
+
+html,
+body,
+#root {
+  background: #171310;
+}
+
+body {
+  color: var(--paper);
+  background:
+    radial-gradient(90% 60% at 50% 0%, rgba(201, 162, 74, 0.05), transparent 42rem),
+    #171310;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+button:focus-visible,
+[role='button']:focus-visible {
+  outline: 1px solid var(--root);
+  outline-offset: 2px;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: 'Old Standard TT', Georgia, serif;
+  letter-spacing: 0;
+}
+
+h1 {
+  font-family: 'Ruslan Display', 'Old Standard TT', Georgia, serif;
+}
+
+p {
+  color: var(--paper-58);
+}
+
+.screen,
+.campaign-shell {
+  width: min(100%, 540px);
+  color: var(--paper);
+  background-color: var(--ink-0);
+  background-image:
+    linear-gradient(rgba(232, 223, 200, 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(232, 223, 200, 0.028) 1px, transparent 1px);
+  background-size: 26px 26px;
+  box-shadow: 0 0 60px rgba(0, 0, 0, 0.38);
+}
+
+.screen {
+  padding-left: max(18px, env(safe-area-inset-left));
+  padding-right: max(18px, env(safe-area-inset-right));
+}
+
+/* Menu and leader selection inherit the journal rather than the old rounded app shell. */
+.menu-screen {
+  position: relative;
+  border-inline: 1px solid var(--line);
+}
+
+.brand-block {
+  margin-top: 16vh;
+  padding-top: 18px;
+  border-top: 2px solid var(--root);
+}
+
+.brand-mark {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(201, 162, 74, 0.62);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--root);
+  font-family: 'Ruslan Display', serif;
+  font-size: 28px;
+  font-weight: 400;
+}
+
+.brand-block h1 {
+  margin-bottom: 7px;
+  color: var(--paper);
+  font-size: clamp(31px, 8vw, 44px);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.brand-block p {
+  max-width: 380px;
+  font-style: italic;
+}
+
+.primary-button,
+.secondary-button,
+.text-button,
+.nav-button {
+  border-radius: 2px;
+}
+
+.primary-button {
+  border: 1px solid var(--root);
+  background: var(--root);
+  color: #171310;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.primary-button:hover:not(:disabled) {
+  background: #e0b85c;
+}
+
+.secondary-button {
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--paper);
+}
+
+.secondary-button:hover:not(:disabled) {
+  border-color: var(--root);
+  color: var(--root);
+}
+
+.text-button {
+  color: var(--mute);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+button:disabled {
+  opacity: 0.32;
+}
+
+.screen-heading {
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.screen-heading h1 {
+  color: var(--paper);
+  font-weight: 400;
+}
+
+.leader-list {
+  gap: 0;
+  border-top: 1px solid var(--line);
+}
+
+.leader-card {
+  grid-template-columns: 66px minmax(0, 1fr);
+  gap: 14px;
+  padding: 13px 4px;
+  border: 0;
+  border-bottom: 1px solid rgba(232, 223, 200, 0.10);
+  border-radius: 0;
+  background: rgba(18, 16, 12, 0.78);
+}
+
+.leader-choice.is-selected {
+  border-color: rgba(232, 223, 200, 0.10);
+  background: linear-gradient(90deg, rgba(201, 162, 74, 0.14), transparent 82%);
+  box-shadow: inset 3px 0 var(--root);
+}
+
+.portrait-placeholder {
+  border: 1px solid rgba(232, 223, 200, 0.22);
+  border-radius: 2px;
+  background:
+    linear-gradient(rgba(232, 223, 200, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(232, 223, 200, 0.035) 1px, transparent 1px),
+    var(--ink-1);
+  background-size: 8px 8px;
+  color: var(--root);
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.leader-choice-copy h2 {
+  color: var(--paper);
+  font-size: 17px;
+  font-weight: 400;
+}
+
+.leader-choice-copy strong {
+  color: var(--root);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.leader-choice-copy p {
+  color: var(--paper-58);
+  font-family: 'Old Standard TT', serif;
+  font-style: italic;
+}
+
+.leader-start-button {
+  min-height: 46px;
+  margin-top: 10px;
+}
+
+/* Main campaign layout. */
+.campaign-shell {
+  position: relative;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  min-height: 620px;
+  padding-left: max(12px, env(safe-area-inset-left));
+  padding-right: max(12px, env(safe-area-inset-right));
+  border-inline: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.top-status {
+  gap: 0;
+  padding: 11px 2px 9px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(18, 16, 12, 0.94);
+}
+
+.status-item {
+  display: grid;
+  gap: 2px;
+  place-items: center;
+  padding: 0 4px;
+}
+
+.status-item + .status-item {
+  border-left: 1px solid rgba(232, 223, 200, 0.10);
+}
+
+.status-item span {
+  color: var(--mute);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 8px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.status-item strong {
+  color: var(--paper);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.status-item:nth-child(2) strong {
+  color: var(--root);
+}
+
+.status-item:nth-child(4) strong {
+  color: var(--exp);
+}
+
+.status-item:nth-child(5) strong {
+  color: var(--anomaly);
+}
+
+.map-area {
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  padding: 0;
+}
+
+.map-area:has(.race-indicator) {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.campaign-toolbar {
+  min-height: 72px;
+  gap: 10px;
+  padding: 10px 4px 9px;
+  border-bottom: 1px solid var(--line);
+}
+
+.campaign-toolbar > div:first-child {
+  min-width: 0;
+}
+
+.campaign-toolbar > div:first-child > strong {
+  display: block;
+  overflow: hidden;
+  color: var(--paper);
+  font-family: 'Ruslan Display', 'Old Standard TT', serif;
+  font-size: 23px;
+  font-weight: 400;
+  line-height: 1.02;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eyebrow {
+  color: var(--mute);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 8.5px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.leader-toolbar-skill {
+  margin-top: 4px;
+  color: var(--exp);
+  font-family: 'Old Standard TT', serif;
+  font-size: 11px;
+  font-style: italic;
+}
+
+.toolbar-meta {
+  display: flex;
+  flex: 0 0 auto;
+  max-width: 49%;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
+  flex-direction: column;
+  color: var(--mute);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.07em;
+}
+
+.toolbar-meta > span:first-child {
+  color: var(--paper-75);
+}
+
+.toolbar-meta .text-button {
+  min-height: auto;
+  padding: 0;
+  color: var(--mute);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.supply-toolbar-chip,
+.supply-toolbar-chip.is-ignored {
+  padding: 3px 7px;
+  border: 1px solid rgba(92, 107, 99, 0.72);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--supply);
+  white-space: nowrap;
+}
+
+.supply-toolbar-chip.is-ignored {
+  border-color: rgba(109, 143, 184, 0.72);
+  color: #8eadd0;
+}
+
+.artifact-toolbar-chip {
+  display: none;
+}
+
+.race-indicator {
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 7px;
+  margin: 0;
+  padding: 8px 4px 9px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: rgba(21, 18, 9, 0.58);
+}
+
+.race-side {
+  gap: 1px;
+}
+
+.race-side strong {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.race-side.is-player strong {
+  color: var(--exp);
+}
+
+.race-side.is-rival strong {
+  color: var(--mrd);
+}
+
+.race-side span,
+.race-divider {
+  color: var(--paper-58);
+  font-family: 'Old Standard TT', serif;
+  font-size: 10px;
+}
+
+.race-divider {
+  align-self: center;
+  color: var(--mute);
+  font-style: italic;
+}
+
+/* Map: strict survey sheet, faction color carries the semantics. */
+.map-frame {
+  position: relative;
+  min-height: 0;
+  margin: 8px 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background:
+    linear-gradient(rgba(232, 223, 200, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(232, 223, 200, 0.035) 1px, transparent 1px),
+    radial-gradient(120% 80% at 50% 8%, #1a1610 0%, #100e0a 60%, #0b0908 100%);
+  background-size: 38px 38px, 38px 38px, auto;
+  box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.62);
+}
+
+.world-map {
+  min-height: 310px;
+  touch-action: none;
+}
+
+.map-bg {
+  fill: rgba(13, 11, 9, 0.72);
+}
+
+.map-region {
+  opacity: 0.24;
+  stroke-width: 0.34;
+}
+
+.map-region.is-rim {
+  fill: rgba(232, 223, 200, 0.025);
+  stroke: rgba(232, 223, 200, 0.12);
+}
+
+.map-region.is-moss {
+  fill: rgba(60, 112, 76, 0.14);
+  stroke: rgba(143, 174, 127, 0.28);
+}
+
+.map-region.is-echo {
+  fill: rgba(76, 103, 128, 0.10);
+  stroke: rgba(109, 143, 184, 0.24);
+}
+
+.map-region.is-fungal {
+  fill: rgba(137, 125, 66, 0.08);
+  stroke: rgba(201, 162, 74, 0.20);
+}
+
+.map-region.is-root {
+  fill: rgba(201, 162, 74, 0.10);
+  stroke: rgba(201, 162, 74, 0.27);
+}
+
+.cave-contour {
+  stroke: rgba(232, 223, 200, 0.10);
+  stroke-width: 0.42;
+  stroke-dasharray: 2 3;
+}
+
+.fungal-decor circle {
+  fill: rgba(201, 162, 74, 0.24);
+}
+
+.map-edge {
+  stroke: rgba(232, 223, 200, 0.15);
+  stroke-width: 1.0;
+  stroke-linecap: round;
+}
+
+.map-edge.is-local-route {
+  stroke: rgba(201, 162, 74, 0.54);
+  stroke-width: 1.45;
+}
+
+.map-edge.is-supply-route {
+  stroke: var(--supply);
+  stroke-width: 1.3;
+  stroke-dasharray: 4.6 4.6;
+  animation: orsia-dash-flow 2.4s linear infinite;
+}
+
+.map-camera-controls {
+  top: 10px;
+  left: 10px;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid rgba(232, 223, 200, 0.22);
+  border-radius: 2px;
+  background: rgba(18, 16, 12, 0.91);
+  box-shadow: none;
+}
+
+.map-camera-controls button {
+  width: 34px;
+  height: 31px;
+  min-width: 0;
+  border: 0;
+  border-right: 1px solid rgba(232, 223, 200, 0.14);
+  border-radius: 0;
+  background: transparent;
+  color: var(--paper);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 14px;
+}
+
+.map-camera-controls button:last-child {
+  border-right: 0;
+  color: var(--root);
+}
+
+.map-camera-controls .camera-zoom-toggle {
+  width: 55px;
+  color: var(--mute);
+  font-size: 10px;
+}
+
+.map-node .node-disc {
+  fill: var(--ink-2);
+  stroke: rgba(232, 223, 200, 0.40);
+  stroke-width: 0.78;
+}
+
+.map-node:hover .node-disc,
+.map-node.is-selected .node-disc {
+  fill: #31291f;
+  stroke: var(--root);
+  stroke-width: 1.05;
+  transform: scale(1.10);
+}
+
+.map-node.is-neutral .node-disc {
+  fill: #24211e;
+  stroke: #777164;
+}
+
+.map-node.is-owned .node-disc {
+  fill: #243024;
+  stroke: var(--exp);
+}
+
+.map-node.is-rival-owned .node-disc {
+  fill: #242c35;
+  stroke: var(--mrd);
+}
+
+.map-node.is-central .node-disc {
+  fill: #3d341d;
+  stroke: var(--root);
+  stroke-width: 1.0;
+}
+
+.map-node.is-poi .node-disc {
+  fill: #24202e;
+  stroke: #9584ad;
+}
+
+.central-glow {
+  fill: rgba(201, 162, 74, 0.22);
+}
+
+.city-mark,
+.root-mark,
+.poi-mark {
+  stroke: var(--paper);
+}
+
+.root-mark {
+  stroke: #e5c96e;
+}
+
+.poi-mark {
+  fill: none;
+  stroke: #b3a7c2;
+  stroke-width: 0.68;
+}
+
+.ownership-ring {
+  stroke: var(--exp);
+  stroke-width: 0.42;
+  stroke-dasharray: 1.0 0.8;
+}
+
+.map-node.is-orsia-orcs .node-disc {
+  fill: #493022;
+  stroke: #bd744c;
+}
+
+.map-node.is-orsia-goblins .node-disc {
+  fill: #2d3a26;
+  stroke: #83aa68;
+}
+
+.map-node.is-orsia-nazbols .node-disc {
+  fill: #41252d;
+  stroke: #b96b7d;
+}
+
+.map-node.is-orsia-tyranids .node-disc {
+  fill: #302742;
+  stroke: #9279bd;
+}
+
+.map-node.is-orsia-fgushniki .node-disc {
+  fill: #293336;
+  stroke: #789aa3;
+}
+
+.map-node.is-attackable[class*='is-orsia-'] .node-disc,
+.map-node.is-attackable .node-disc {
+  stroke: #d2705f;
+  stroke-width: 1.12;
+}
+
+.map-node.is-movable .node-disc {
+  stroke: var(--root);
+  stroke-width: 1.05;
+}
+
+.map-node.is-unavailable:not(.is-selected) .node-disc {
+  opacity: 0.52;
+  stroke-dasharray: 1.4 1.2;
+}
+
+.reachability-pulse {
+  fill: none;
+  stroke: var(--root);
+  stroke-width: 0.50;
+  transform-box: fill-box;
+  transform-origin: center;
+  pointer-events: none;
+  animation: orsia-node-pulse 2.0s ease-out infinite;
+}
+
+.reachability-pulse.is-attack {
+  stroke: #d2705f;
+}
+
+.player-location-halo {
+  fill: rgba(201, 162, 74, 0.07);
+  stroke: rgba(201, 162, 74, 0.56);
+  stroke-width: 0.62;
+  stroke-dasharray: 1.2 0.8;
+}
+
+.player-location-ring {
+  stroke: var(--root);
+  stroke-width: 0.85;
+  filter: drop-shadow(0 0 1.2px rgba(201, 162, 74, 0.72));
+}
+
+.player-here-badge rect {
+  fill: var(--root);
+  stroke: #171310;
+  stroke-width: 0.25;
+  rx: 0;
+}
+
+.player-here-badge text {
+  fill: #171310;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 1.25px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.player-token-bg {
+  fill: var(--exp);
+  stroke: #171310;
+}
+
+.rival-token-bg {
+  fill: #26313d;
+  stroke: var(--mrd);
+}
+
+.rival-token path {
+  fill: #a8bfd7;
+}
+
+.garrison-badge circle {
+  fill: #171310;
+  stroke: #d49b68;
+}
+
+.map-node .garrison-badge text {
+  fill: #f0c99c;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 2.15px;
+  font-weight: 600;
+}
+
+.map-node text.node-label {
+  fill: rgba(232, 223, 200, 0.82);
+  stroke: rgba(11, 9, 8, 0.96);
+  stroke-width: 1.0px;
+  font-family: 'Old Standard TT', Georgia, serif;
+  font-size: 3.05px;
+  font-weight: 400;
+}
+
+@keyframes orsia-dash-flow {
+  to { stroke-dashoffset: -18; }
+}
+
+@keyframes orsia-node-pulse {
+  0% { opacity: 0.78; transform: scale(0.92); }
+  72% { opacity: 0; transform: scale(1.55); }
+  100% { opacity: 0; transform: scale(1.55); }
+}
+
+/* Selected location + external end-turn control. */
+.campaign-command-deck {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 132px;
+  min-height: 82px;
+  border-top: 1px solid var(--line);
+  background: rgba(18, 16, 12, 0.96);
+}
+
+.campaign-command-deck .decision-panel {
+  min-width: 0;
+  max-height: min(27dvh, 190px);
+  border: 0;
+  background: transparent;
+}
+
+.decision-panel.is-compact,
+.decision-panel.is-expanded,
+.decision-panel.is-city,
+.decision-panel.is-attack,
+.location-dock,
+.location-dock.is-attack {
+  min-height: 82px;
+  max-height: min(27dvh, 190px);
+  padding: 9px 10px 8px 4px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.location-dock {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 5px;
+}
+
+.location-copy {
+  min-height: 0;
+  padding-right: 3px;
+  overflow-y: auto;
+}
+
+.location-title-row {
+  margin-bottom: 3px;
+}
+
+.location-title-row h2 {
+  margin: 0;
+  color: var(--paper);
+  font-family: 'Old Standard TT', serif;
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.08;
+}
+
+.location-close {
+  width: 24px;
+  height: 24px;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--mute);
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.location-description {
+  margin: 3px 0 5px;
+  color: var(--paper-58);
+  font-family: 'Old Standard TT', serif;
+  font-size: 11px;
+  font-style: italic;
+  line-height: 1.38;
+}
+
+.location-meta-row {
+  display: flex;
+  gap: 9px;
+  margin: 4px 0 2px;
+  overflow-x: auto;
+  color: var(--mute);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 8.5px;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.location-meta-row span {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.location-meta-row .garrison-pill {
+  color: #d2705f !important;
+}
+
+.location-meta-row .supply-pill {
+  color: var(--supply) !important;
+}
+
+.dock-feedback {
+  margin-top: 3px;
+  color: var(--exp);
+  font-family: 'Old Standard TT', serif;
+  font-size: 10px;
+  line-height: 1.25;
+}
+
+.action-strip {
+  display: flex;
+  min-height: 34px;
+  gap: 6px;
+  padding: 0 0 1px;
+  overflow-x: auto;
+  background: transparent;
+}
+
+.action-strip .action-button,
+.action-strip .tactic-chip,
+.recruit-button {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 7px 10px;
+  border-radius: 2px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+}
+
+.tactic-chip {
+  border: 1px solid rgba(232, 223, 200, 0.22);
+  background: transparent;
+  color: var(--mute);
+}
+
+.tactic-chip.is-active {
+  border-color: var(--root);
+  background: rgba(201, 162, 74, 0.10);
+  color: var(--root);
+}
+
+.attack-button {
+  border: 1px solid rgba(168, 53, 43, 0.62);
+  background: rgba(168, 53, 43, 0.16);
+  color: #d2705f;
+}
+
+.attack-button:hover:not(:disabled) {
+  background: rgba(168, 53, 43, 0.28);
+  color: #e28a77;
+}
+
+.battle-result-strip,
+.battle-result-strip.compact-result {
+  margin-top: 5px;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--ink-1);
+}
+
+.persistent-turn-bar {
+  display: flex;
+  min-width: 0;
+  min-height: 82px;
+  align-items: stretch;
+  justify-content: center;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px;
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: rgba(13, 11, 9, 0.82);
+}
+
+.persistent-turn-bar > div {
+  gap: 1px;
+}
+
+.persistent-turn-bar span {
+  color: var(--mute);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 8px;
+  letter-spacing: 0.10em;
+}
+
+.persistent-turn-bar strong {
+  color: var(--paper-75);
+  font-family: 'Old Standard TT', serif;
+  font-size: 10px;
+  font-weight: 400;
+  white-space: normal;
+}
+
+.persistent-end-turn {
+  width: 100%;
+  min-height: 38px;
+  padding: 7px 8px;
+  border-radius: 2px;
+  font-size: 9.5px;
+  line-height: 1.2;
+  white-space: normal;
+}
+
+.bottom-nav {
+  gap: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+  background: var(--ink-deep);
+}
+
+.nav-button {
+  min-height: 48px;
+  border: 0;
+  border-top: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: #514b41;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.nav-button.is-active {
+  border-top-color: var(--root);
+  background: rgba(38, 32, 25, 0.46);
+  color: var(--root);
+}
+
+/* Army and artifact sheets. */
+.army-area {
+  overflow: hidden;
+}
+
+.army-scroll {
+  padding: 8px 4px 12px;
+}
+
+.army-overview,
+.cities-overview {
+  padding: 7px 0 14px;
+}
+
+.army-hero,
+.ledger-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0 12px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+}
+
+.army-hero h2,
+.ledger-heading h2 {
+  margin: 2px 0 0;
+  color: var(--paper);
+  font-family: 'Ruslan Display', 'Old Standard TT', serif;
+  font-size: 21px;
+  font-weight: 400;
+}
+
+.army-hero p {
+  max-width: 330px;
+  margin-top: 5px;
+  color: var(--paper-58);
+  font-family: 'Old Standard TT', serif;
+  font-size: 11px;
+  font-style: italic;
+}
+
+.morale-badge,
+.ledger-summary {
+  min-width: 68px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--ink-1);
+  text-align: center;
+}
+
+.morale-badge span,
+.ledger-summary span {
+  color: var(--mute);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.morale-badge strong,
+.ledger-summary strong {
+  color: var(--paper);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 20px;
+}
+
+.ledger-summary small {
+  display: block;
+  color: var(--root);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 8px;
+}
+
+.army-summary-grid {
+  gap: 0;
+  margin: 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.army-summary-stat {
+  padding: 9px 5px;
+  border: 0;
+  border-right: 1px solid rgba(232, 223, 200, 0.08);
+  border-radius: 0;
+  background: transparent;
+}
+
+.army-summary-stat:last-child {
+  border-right: 0;
+}
+
+.army-summary-stat span {
+  color: var(--mute);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 8px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.army-summary-stat strong {
+  color: var(--paper);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+}
+
+.unit-list {
+  gap: 0;
+  border-top: 1px solid var(--line);
+}
+
+.unit-card {
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px 0;
+  border: 0;
+  border-bottom: 1px solid rgba(232, 223, 200, 0.09);
+  border-radius: 0;
+  background: transparent;
+}
+
+.unit-glyph {
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(232, 223, 200, 0.16);
+  border-radius: 2px;
+  background: var(--ink-1);
+}
+
+.unit-glyph i {
+  background: var(--exp);
+  box-shadow: none;
+  transform: scale(0.72);
+  transform-origin: top left;
+}
+
+.unit-card-heading strong {
+  color: var(--paper);
+  font-family: 'Old Standard TT', serif;
+  font-size: 15px;
+  font-weight: 400;
+}
+
+.unit-card-heading span {
+  color: var(--mute);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+}
+
+.unit-card-heading b {
+  color: var(--exp);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 15px;
+}
+
+.unit-card p {
+  color: var(--paper-58);
+  font-family: 'Old Standard TT', serif;
+  font-size: 10.5px;
+  font-style: italic;
+}
+
+.unit-stat-row span {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--mute);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 8.5px;
+}
+
+.artifact-inventory {
+  margin-top: 10px;
+  padding: 11px 0 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+}
+
+.artifact-inventory h3 {
+  color: var(--paper);
+  font-family: 'Ruslan Display', 'Old Standard TT', serif;
+  font-size: 18px;
+  font-weight: 400;
+}
+
+.artifact-list {
+  gap: 0;
+  border-top: 1px solid rgba(232, 223, 200, 0.08);
+}
+
+.artifact-card {
+  grid-template-columns: 30px 1fr;
+  gap: 9px;
+  padding: 9px 0;
+  border: 0;
+  border-bottom: 1px solid rgba(232, 223, 200, 0.08);
+  border-radius: 0;
+  background: transparent;
+}
+
+.artifact-glyph {
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(123, 94, 167, 0.62);
+  border-radius: 2px;
+  color: var(--anomaly);
+}
+
+.artifact-card strong {
+  color: var(--paper);
+  font-family: 'Old Standard TT', serif;
+  font-size: 12px;
+}
+
+.artifact-card p,
+.artifact-empty {
+  color: var(--paper-58);
+  font-family: 'Old Standard TT', serif;
+  font-size: 10px;
+  font-style: italic;
+}
+
+/* Cities ledger from the new design reference. */
+.city-ledger-head,
+.city-ledger-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px 44px minmax(72px, auto);
+  gap: 8px;
+  align-items: baseline;
+}
+
+.city-ledger-head {
+  padding: 8px 0 6px;
+  border-bottom: 1px solid var(--line);
+  color: var(--mute);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 7.5px;
+  font-weight: 500;
+  letter-spacing: 0.10em;
+}
+
+.city-ledger-head span:not(:first-child) {
+  text-align: right;
+}
+
+.city-ledger-list {
+  min-height: 0;
+}
+
+.city-ledger-row {
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(232, 223, 200, 0.075);
+}
+
+.city-ledger-row strong {
+  color: var(--paper-75);
+  font-family: 'Old Standard TT', serif;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.city-ledger-row > span {
+  color: var(--paper-75);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  text-align: right;
+}
+
+.city-ledger-row .city-ledger-tax {
+  color: var(--root);
+}
+
+.city-ledger-row .city-ledger-owner {
+  overflow: hidden;
+  color: var(--mute);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.city-ledger-row.is-player strong,
+.city-ledger-row.is-player .city-ledger-owner {
+  color: var(--exp);
+}
+
+.city-ledger-row.is-rival strong,
+.city-ledger-row.is-rival .city-ledger-owner {
+  color: var(--mrd);
+}
+
+.city-ledger-row.is-orsia .city-ledger-owner {
+  color: var(--orsia);
+}
+
+.ledger-note {
+  margin: 12px 0 0;
+  padding-left: 9px;
+  border-left: 1px solid rgba(232, 223, 200, 0.20);
+  color: rgba(232, 223, 200, 0.46);
+  font-family: 'Old Standard TT', serif;
+  font-size: 11px;
+  font-style: italic;
+  line-height: 1.45;
+}
+
+/* Events become dossier sheets, not floating glass cards. */
+.event-overlay {
+  background: rgba(7, 6, 5, 0.84);
+  backdrop-filter: blur(3px);
+}
+
+.event-card {
+  width: min(100%, 430px);
+  padding: 17px;
+  border: 1px solid rgba(232, 223, 200, 0.24);
+  border-radius: 3px;
+  background:
+    linear-gradient(rgba(232, 223, 200, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(232, 223, 200, 0.025) 1px, transparent 1px),
+    var(--ink-1);
+  background-size: 22px 22px;
+}
+
+.event-card h2 {
+  color: var(--paper);
+  font-family: 'Ruslan Display', 'Old Standard TT', serif;
+  font-weight: 400;
+}
+
+.event-card > p {
+  color: var(--paper-75);
+  font-family: 'Old Standard TT', serif;
+}
+
+.event-leader-bonus {
+  border: 1px solid rgba(201, 162, 74, 0.45);
+  border-radius: 2px;
+  background: rgba(201, 162, 74, 0.08);
+  color: var(--root);
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.event-choice-list {
+  gap: 6px;
+}
+
+.event-choice {
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+  background: rgba(18, 16, 12, 0.78);
+}
+
+.event-choice:hover:not(:disabled) {
+  border-color: var(--root);
+  background: rgba(201, 162, 74, 0.07);
+}
+
+.event-choice strong {
+  color: var(--paper);
+  font-family: 'Old Standard TT', serif;
+  font-size: 13px;
+}
+
+.event-choice span,
+.event-choice small {
+  font-family: 'Old Standard TT', serif;
+}
+
+/* Battle screen keeps its simulator/viewer intact, only the skin changes. */
+.battle-viewer-header h2,
+.battle-side-score > strong {
+  color: var(--paper);
+  font-family: 'Old Standard TT', serif;
+}
+
+.battle-scoreboard,
+.battle-field,
+.battle-controls,
+.battle-scrubber,
+.battle-timeline {
+  border-color: var(--line) !important;
+  border-radius: 2px !important;
+  background-color: rgba(18, 16, 12, 0.88) !important;
+}
+
+.battle-clock strong,
+.battle-score-values b {
+  color: var(--root);
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+@media (max-width: 410px) {
+  .campaign-shell {
+    padding-left: max(8px, env(safe-area-inset-left));
+    padding-right: max(8px, env(safe-area-inset-right));
+  }
+
+  .campaign-toolbar {
+    min-height: 68px;
+  }
+
+  .campaign-toolbar > div:first-child > strong {
+    font-size: 21px;
+  }
+
+  .toolbar-meta {
+    max-width: 48%;
+  }
+
+  .race-side span,
+  .race-divider {
+    font-size: 9px;
+  }
+
+  .world-map {
+    min-height: 250px;
+  }
+
+  .campaign-command-deck {
+    grid-template-columns: minmax(0, 1fr) 108px;
+  }
+
+  .persistent-turn-bar {
+    padding: 7px;
+  }
+
+  .persistent-turn-bar > div {
+    display: none;
+  }
+
+  .persistent-end-turn {
+    min-height: 46px;
+  }
+
+  .decision-panel.is-compact,
+  .decision-panel.is-expanded,
+  .decision-panel.is-city,
+  .decision-panel.is-attack,
+  .location-dock,
+  .location-dock.is-attack {
+    max-height: min(25dvh, 172px);
+    padding-right: 7px;
+  }
+
+  .city-ledger-head,
+  .city-ledger-row {
+    grid-template-columns: minmax(0, 1fr) 38px 38px 66px;
+    gap: 5px;
+  }
+
+  .city-ledger-row strong {
+    font-size: 12px;
+  }
+
+  .city-ledger-row > span {
+    font-size: 8px;
+  }
+}
+
+@media (max-height: 700px) {
+  .top-status {
+    padding-block: 8px 6px;
+  }
+
+  .campaign-toolbar {
+    min-height: 60px;
+    padding-block: 7px 6px;
+  }
+
+  .race-indicator {
+    padding-block: 6px;
+  }
+
+  .map-frame {
+    margin-block: 5px;
+  }
+
+  .world-map {
+    min-height: 220px;
+  }
+
+  .campaign-command-deck,
+  .persistent-turn-bar,
+  .decision-panel.is-compact,
+  .decision-panel.is-expanded,
+  .decision-panel.is-city,
+  .decision-panel.is-attack,
+  .location-dock,
+  .location-dock.is-attack {
+    min-height: 72px;
+  }
+
+  .campaign-command-deck .decision-panel,
+  .decision-panel.is-compact,
+  .decision-panel.is-expanded,
+  .decision-panel.is-city,
+  .decision-panel.is-attack,
+  .location-dock,
+  .location-dock.is-attack {
+    max-height: 150px;
+  }
+
+  .bottom-nav .nav-button {
+    min-height: 42px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map-edge.is-supply-route,
+  .reachability-pulse {
+    animation: none;
+  }
+}
+
+/* Final conflict fixes for legacy Stage 13/17 selectors. */
+.map-camera-controls {
+  padding: 0;
+  backdrop-filter: none;
+}
+
+.map-camera-controls button:hover:not(:disabled) {
+  background: rgba(201, 162, 74, 0.08);
+  color: var(--root);
+}
+
+.action-strip {
+  min-width: 0;
+}
+
+.action-strip::-webkit-scrollbar,
+.location-meta-row::-webkit-scrollbar {
+  height: 3px;
+}
+
+.action-strip::-webkit-scrollbar-thumb,
+.location-meta-row::-webkit-scrollbar-thumb,
+.location-copy::-webkit-scrollbar-thumb {
+  border-radius: 0;
+  background: rgba(232, 223, 200, 0.20);
+}
+
+
+/* Stage 17.3 — final leader portraits + map walking animation. */
+.portrait-placeholder.leader-portrait-shell {
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(201, 162, 74, 0.13), transparent 66%),
+    #17130f;
+  border-color: rgba(232, 223, 200, 0.24);
+  box-shadow: inset 0 -1px rgba(201, 162, 74, 0.14);
+}
+
+.leader-portrait-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center bottom;
+  image-rendering: pixelated;
+  user-select: none;
+  pointer-events: none;
+}
+
+.player-portrait-token {
+  pointer-events: none;
+}
+
+.player-portrait-bg {
+  fill: #17130f;
+  stroke: #6f5b35;
+  stroke-width: 0.55;
+}
+
+.player-portrait-image {
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+
+.player-portrait-border {
+  fill: none;
+  stroke: #d2b568;
+  stroke-width: 0.38;
+  pointer-events: none;
+}
+
+.player-movement-sprite,
+.player-movement-sprite * {
+  pointer-events: none;
+}
+
+.player-movement-shadow {
+  fill: rgba(8, 6, 5, 0.56);
+}
+
+.player-walk-frame {
+  image-rendering: pixelated;
+}
+
+.movement-progress-panel {
+  border-left: 3px solid var(--root);
+  background: linear-gradient(90deg, rgba(201, 162, 74, 0.10), rgba(18, 16, 12, 0.96) 54%);
+}
+
+.movement-progress-panel strong {
+  color: var(--root);
+}
+
+/* Stage 18 — complete campaign objective, expanded map and faction-leader battle identities. */
+.world-map {
+  min-height: 360px;
+}
+
+.root-requirement {
+  border-color: rgba(210, 112, 95, 0.52) !important;
+  color: #df9d91 !important;
+}
+
+.root-requirement.is-ready {
+  border-color: rgba(143, 174, 127, 0.52) !important;
+  color: #a8c29a !important;
+}
+
+.root-operation-button {
+  border-color: #d2b568;
+  background: linear-gradient(180deg, #d2b568, #a98538);
+  color: #17130f;
+}
+
+.root-finale-card {
+  border-top: 3px solid var(--root);
+}
+
+.root-finale-card h2 {
+  color: var(--root);
+}
+
+.root-finale-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.root-finale-summary span {
+  padding: 4px 7px;
+  border: 1px solid var(--line-strong);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: var(--paper-78);
+}
+
+.root-finale-warning {
+  padding: 9px 10px;
+  border-left: 2px solid var(--root);
+  background: rgba(201, 162, 74, 0.06);
+}
+
+.root-finale-actions .secondary-button {
+  width: 100%;
+}
+
+.battle-side-identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-bottom: 3px;
+}
+
+.battle-side-score.side-b .battle-side-identity {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+.battle-side-identity > div:last-child {
+  min-width: 0;
+}
+
+.battle-side-identity strong {
+  display: block;
+  overflow: hidden;
+  color: var(--paper);
+  font-family: 'Old Standard TT', serif;
+  font-size: 13px;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.battle-side-identity small {
+  display: block;
+  overflow: hidden;
+  margin-top: 1px;
+  color: var(--paper-58);
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.battle-leader-portrait {
+  display: block;
+  flex: 0 0 58px;
+  width: 58px;
+  height: 58px;
+  object-fit: contain;
+  object-position: center bottom;
+  padding: 2px;
+  border: 1px solid rgba(201, 162, 74, 0.42);
+  border-radius: 2px;
+  background: #17130f;
+  image-rendering: pixelated;
+}
+
+.battle-side-identity {
+  min-height: 60px;
+}
+
+.battle-leader-portrait.is-placeholder {
+  display: grid;
+  place-items: center;
+  color: rgba(232, 223, 200, 0.48);
+  font-family: 'Ruslan Display', 'Old Standard TT', serif;
+  font-size: 16px;
+  background:
+    linear-gradient(135deg, rgba(232, 223, 200, 0.05), transparent 55%),
+    #1d1914;
+}
+
+.campaign-end-screen {
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+  padding: 22px max(18px, env(safe-area-inset-left)) max(22px, env(safe-area-inset-bottom));
+}
+
+.campaign-end-card {
+  width: min(100%, 470px);
+  padding: 24px 20px;
+  border: 1px solid var(--line-strong);
+  border-top: 3px solid var(--root);
+  background: rgba(18, 16, 12, 0.96);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.48);
+}
+
+.campaign-end-screen.is-defeat .campaign-end-card {
+  border-top-color: #b86459;
+}
+
+.campaign-end-card h1 {
+  margin: 7px 0 10px;
+  color: var(--paper);
+  font-size: clamp(28px, 8vw, 42px);
+  line-height: 0.98;
+}
+
+.campaign-end-screen.is-victory .campaign-end-card h1 {
+  color: var(--root);
+}
+
+.campaign-end-lead {
+  margin-bottom: 18px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.campaign-end-rivals {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.campaign-end-rivals > div,
+.campaign-end-stat {
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  background: rgba(232, 223, 200, 0.025);
+}
+
+.campaign-end-rivals span,
+.campaign-end-stat span {
+  display: block;
+  color: var(--paper-58);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.campaign-end-rivals strong {
+  display: block;
+  margin-top: 2px;
+  font-family: 'Old Standard TT', serif;
+  font-size: 15px;
+}
+
+.campaign-end-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 18px;
+}
+
+.campaign-end-stat strong {
+  display: block;
+  margin-top: 2px;
+  color: var(--root);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 19px;
+}
+
+.campaign-end-exit {
+  width: 100%;
+  min-height: 48px;
+}
+
+@media (max-width: 410px) {
+  .world-map {
+    min-height: 300px;
+  }
+
+  .battle-leader-portrait {
+    flex-basis: 46px;
+    width: 46px;
+    height: 46px;
+  }
+
+  .battle-side-identity {
+    min-height: 48px;
+    gap: 5px;
+  }
+
+  .battle-side-identity strong {
+    font-size: 11px;
+  }
+
+  .battle-side-identity small {
+    max-width: 86px;
+    font-size: 7px;
+  }
+
+  .campaign-end-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-height: 700px) {
+  .world-map {
+    min-height: 240px;
+  }
+}
+
+/* Stage 19 — resilient map viewport and local campaign saves. */
+/* The Stage 18 minimum SVG height could exceed the grid row and be clipped by
+   .map-frame. Let the SVG fit the actual visible map row instead. */
+.map-frame {
+  min-height: 0;
+}
+
+.world-map {
+  height: 100%;
+  min-height: 0;
+}
+
+.campaign-save-button {
+  color: var(--root);
+}
+
+.continue-save-note {
+  display: grid;
+  gap: 2px;
+  margin-top: -4px;
+  padding: 8px 10px;
+  border-left: 2px solid var(--root);
+  background: rgba(201, 162, 74, 0.055);
+}
+
+.continue-save-note strong,
+.continue-save-note span,
+.continue-save-note small {
+  display: block;
+}
+
+.continue-save-note strong {
+  color: var(--paper-75);
+  font-family: 'Old Standard TT', Georgia, serif;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.continue-save-note span,
+.continue-save-note small {
+  color: var(--mute);
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 8px;
+  line-height: 1.35;
+}
+
+.continue-save-note.is-backup {
+  border-left-color: var(--orsia);
+  background: rgba(180, 98, 58, 0.055);
+}
+
+.continue-save-note.is-error {
+  border-left-color: var(--stamp);
+  background: rgba(168, 53, 43, 0.07);
+}
+
+@media (max-width: 410px), (max-height: 700px) {
+  .world-map {
+    min-height: 0;
+  }
+}
+
+/* Stage 20 — fog of war + warmer portrait plates. */
+.map-fog-unknown {
+  fill: #070605;
+  opacity: 0.92;
+  pointer-events: none;
+}
+
+.map-edge.is-explored {
+  opacity: 0.32;
+  stroke: rgba(196, 185, 158, 0.22);
+  stroke-dasharray: 1.4 1.5;
+}
+
+.map-node.is-explored {
+  opacity: 0.58;
+}
+
+.map-node.is-explored .node-disc,
+.map-node.is-explored.is-central .node-disc,
+.map-node.is-explored.is-poi .node-disc {
+  fill: #1c1915;
+  stroke: #716b5e;
+  stroke-width: 0.65;
+}
+
+.map-node.is-explored .city-mark,
+.map-node.is-explored .root-mark,
+.map-node.is-explored .poi-mark {
+  stroke: #898173;
+}
+
+.map-node.is-explored text.node-label {
+  fill: rgba(211, 201, 177, 0.56);
+}
+
+.location-dock.is-fog-memory {
+  border-left: 3px solid #746e61;
+  background: linear-gradient(90deg, rgba(116, 110, 97, 0.09), rgba(18, 16, 12, 0.96) 58%);
+}
+
+.fog-intel-pill {
+  border-color: rgba(151, 142, 124, 0.34) !important;
+  color: #9c9588 !important;
+  font-style: italic;
+}
+
+.city-ledger-row.is-fog-memory {
+  opacity: 0.62;
+}
+
+.city-ledger-row.is-fog-memory .city-ledger-owner {
+  color: var(--mute);
+  font-style: italic;
+}
+
+/* The source leader PNGs have a few pale fringe pixels from background removal.
+   A warm expedition-photo plate makes that fringe visually continuous instead
+   of showing as a hard white halo, without altering the source assets. */
+.portrait-placeholder.leader-portrait-shell {
+  background:
+    radial-gradient(circle at 50% 38%, #cbbb92 0%, #a28c64 43%, #5d4b32 72%, #211910 100%);
+  border-color: rgba(211, 181, 104, 0.48);
+  box-shadow:
+    inset 0 0 0 1px rgba(29, 22, 14, 0.40),
+    inset 0 -9px 16px rgba(30, 21, 12, 0.24);
+}
+
+.player-portrait-bg {
+  fill: #b9a477;
+  stroke: #5e4928;
+  stroke-width: 0.62;
+}
+
+.player-portrait-border {
+  stroke: #d9bd70;
+  stroke-width: 0.42;
+}
+
+.battle-leader-portrait:not(.is-placeholder) {
+  background:
+    radial-gradient(circle at 50% 38%, #cbbb92 0%, #9a835d 48%, #4b3b28 78%, #1a130d 100%);
+  border-color: rgba(211, 181, 104, 0.56);
+  box-shadow: inset 0 0 0 1px rgba(24, 18, 12, 0.34);
+}
+
+/* Stage 21 — specimens research and faction defeat events. */
+.bottom-nav {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.bottom-nav .nav-button {
+  min-width: 0;
+  padding-inline: 4px;
+  font-size: 9px;
+  letter-spacing: 0.075em;
+}
+
+.research-scroll {
+  overflow-y: auto;
+}
+
+.research-sheet {
+  padding: 8px 0 18px;
+}
+
+.research-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.research-header h2 {
+  margin: 3px 0 5px;
+  color: var(--paper);
+  font-family: 'Old Standard TT', serif;
+  font-size: 23px;
+}
+
+.research-header p {
+  max-width: 620px;
+  margin: 0;
+  color: var(--paper-58);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.specimen-counter {
+  min-width: 76px;
+  padding: 7px 9px;
+  border: 1px solid rgba(211, 181, 104, 0.38);
+  background: rgba(211, 181, 104, 0.06);
+  text-align: center;
+}
+
+.specimen-counter span {
+  display: block;
+  color: var(--paper-58);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 7px;
+  letter-spacing: 0.12em;
+}
+
+.specimen-counter strong {
+  display: block;
+  margin-top: 2px;
+  color: var(--root);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 25px;
+}
+
+.research-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px 8px 0;
+}
+
+.research-category {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--line);
+  background: rgba(232, 223, 200, 0.018);
+}
+
+.research-category h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  color: var(--paper-75);
+  font-family: 'Old Standard TT', serif;
+  font-size: 16px;
+}
+
+.research-category h3 span {
+  color: var(--root);
+}
+
+.research-card-list {
+  display: grid;
+  gap: 7px;
+}
+
+.research-card {
+  display: grid;
+  gap: 5px;
+  padding: 8px;
+  border: 1px solid rgba(196, 185, 158, 0.16);
+  background: rgba(9, 8, 6, 0.5);
+}
+
+.research-card.is-completed {
+  border-color: rgba(139, 164, 113, 0.38);
+  background: rgba(93, 121, 69, 0.055);
+}
+
+.research-card-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 7px;
+}
+
+.research-card-title strong {
+  color: var(--paper);
+  font-size: 12px;
+}
+
+.research-card-title span {
+  flex: 0 0 auto;
+  color: var(--root);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 7.5px;
+}
+
+.research-card p {
+  margin: 0;
+  color: var(--paper-58);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.research-card small {
+  color: #a9bc92;
+  font-size: 9px;
+  line-height: 1.3;
+}
+
+.research-card em {
+  color: #a68e67;
+  font-size: 8.5px;
+}
+
+.research-button {
+  min-height: 31px;
+  margin-top: 2px;
+  font-size: 8.5px;
+}
+
+.faction-defeat-card {
+  max-width: 520px;
+}
+
+.faction-defeat-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.faction-defeat-heading h2 {
+  margin: 2px 0 3px;
+}
+
+.faction-defeat-heading strong {
+  color: var(--root);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+}
+
+.faction-defeat-portrait {
+  width: 72px;
+  height: 72px;
+  flex: 0 0 72px;
+  overflow: hidden;
+  border: 1px solid rgba(211, 181, 104, 0.5);
+  background: radial-gradient(circle at 50% 38%, #baa275 0%, #695238 72%, #21170f 100%);
+}
+
+.faction-defeat-portrait img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.faction-defeat-consequence {
+  margin: 12px 0;
+  padding: 9px 10px;
+  border-left: 2px solid var(--root);
+  background: rgba(211, 181, 104, 0.055);
+  color: var(--paper-75);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.faction-defeat-button {
+  width: 100%;
+}
+
+@media (max-width: 720px) {
+  .research-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .research-header {
+    align-items: flex-start;
+  }
+
+  .bottom-nav .nav-button {
+    font-size: 8px;
+    letter-spacing: 0.035em;
+  }
+}
+
+.tactic-dynamic-hint {
+  flex-basis: 100%;
+  color: #c4b891;
+  font-size: 8.5px;
+  line-height: 1.25;
+}
+
+/* Stage 22 — location card is read-only; strategic controls stay outside it. */
+.campaign-command-main {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  max-height: min(30dvh, 218px);
+  overflow: hidden;
+}
+
+.campaign-command-main .decision-panel,
+.campaign-command-main .location-dock,
+.campaign-command-main .location-dock.is-attack {
+  min-height: 0;
+  max-height: none;
+  padding-bottom: 5px;
+}
+
+.campaign-command-main .location-dock {
+  display: block;
+}
+
+.strategic-action-panel {
+  min-width: 0;
+  padding: 5px 10px 7px 4px;
+  border-top: 1px solid rgba(232, 223, 200, 0.10);
+  background: rgba(11, 9, 8, 0.22);
+}
+
+.strategic-action-bar {
+  display: flex;
+  min-width: 0;
+  min-height: 32px;
+  gap: 6px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
+}
+
+.strategic-action-bar .action-button,
+.strategic-action-bar .tactic-chip {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 7px 10px;
+  border-radius: 2px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+}
+
+.strategic-action-hint {
+  align-self: center;
+  color: var(--mute);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 8.5px;
+  letter-spacing: 0.04em;
+}
+
+.strategic-action-feedback {
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--exp);
+  font-family: 'Old Standard TT', serif;
+  font-size: 10px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.location-meta-row .corruption-pill {
+  color: #c89062 !important;
+}
+
+@media (max-width: 410px) {
+  .campaign-command-main {
+    max-height: min(29dvh, 202px);
+  }
+
+  .strategic-action-panel {
+    padding-right: 7px;
+  }
+}
+
+@media (max-height: 700px) {
+  .campaign-command-main {
+    max-height: 176px;
+  }
+
+  .strategic-action-feedback {
+    display: none;
+  }
+}
+.location-meta-row .faction-trait-pill {
+  color: var(--paper-75) !important;
+}
+
+/* Stage 23 · short surface directives */
+.surface-briefing-card {
+  max-width: 560px;
+}
+
+.surface-briefing-copy {
+  display: grid;
+  gap: 12px;
+  margin: 14px 0 20px;
+}
+
+.surface-briefing-copy p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.surface-briefing-button {
+  width: 100%;
+}
+
+/* Stage 25 — strategic city identities and warm Orsia faction palette. */
+.city-special-pill {
+  flex-basis: 100%;
+  border-color: rgba(201, 162, 74, 0.32) !important;
+  background: rgba(201, 162, 74, 0.08) !important;
+  color: #e0c98e !important;
+  line-height: 1.35;
+  white-space: normal !important;
+}
+
+.city-ledger-name {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.city-ledger-name strong,
+.city-ledger-name small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.city-ledger-name small {
+  margin-top: 2px;
+  color: rgba(232, 223, 200, 0.48);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 8px;
+  font-weight: 400;
+  letter-spacing: 0.025em;
+}
+
+.city-owner-portrait {
+  pointer-events: none;
+  filter: saturate(0.88) contrast(1.04);
+}
+
+.city-owner-portrait-border {
+  fill: none;
+  stroke-width: 0.62;
+  pointer-events: none;
+}
+
+.map-node.is-owned .city-owner-portrait-border {
+  stroke: #86b878;
+}
+
+.map-node.is-rival-owned .city-owner-portrait-border {
+  stroke: #78a9db;
+}
+
+/* All Orsia groups deliberately stay in a red–orange–pink family,
+   while remaining separable from player green and rival blue. */
+.map-node.is-orsia-orcs .node-disc {
+  fill: #512718;
+  stroke: #df713d;
+}
+.map-node.is-orsia-orcs .city-owner-portrait-border {
+  stroke: #f08a4b;
+}
+
+.map-node.is-orsia-goblins .node-disc {
+  fill: #54211f;
+  stroke: #e95f55;
+}
+.map-node.is-orsia-goblins .city-owner-portrait-border {
+  stroke: #f17970;
+}
+
+.map-node.is-orsia-nazbols .node-disc {
+  fill: #4b1d29;
+  stroke: #d94862;
+}
+.map-node.is-orsia-nazbols .city-owner-portrait-border {
+  stroke: #ee667e;
+}
+
+.map-node.is-orsia-tyranids .node-disc {
+  fill: #4b2039;
+  stroke: #d95b9b;
+}
+.map-node.is-orsia-tyranids .city-owner-portrait-border {
+  stroke: #ed78b2;
+}
+
+.map-node.is-orsia-fgushniki .node-disc {
+  fill: #53301b;
+  stroke: #e48a38;
+}
+.map-node.is-orsia-fgushniki .city-owner-portrait-border {
+  stroke: #f0a354;
+}
+
+.city-ledger-row.is-orsia.orsia-orcs .city-ledger-owner { color: #f08a4b; }
+.city-ledger-row.is-orsia.orsia-goblins .city-ledger-owner { color: #f17970; }
+.city-ledger-row.is-orsia.orsia-nazbols .city-ledger-owner { color: #ee667e; }
+.city-ledger-row.is-orsia.orsia-tyranids .city-ledger-owner { color: #ed78b2; }
+.city-ledger-row.is-orsia.orsia-fgushniki .city-ledger-owner { color: #f0a354; }
+
+.map-node.is-selected[class*='is-orsia-'] .node-disc,
+.map-node:hover[class*='is-orsia-'] .node-disc {
+  stroke: #ffd1af;
+}

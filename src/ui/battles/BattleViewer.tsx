@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from 'react';
 import type { BattleSideId, BattleTacticId } from '@/core/battles/BattleTypes';
+import type { GameState } from '@/core/state/GameState';
 import {
   getBattleFormationDots,
   getLanePressureShift,
@@ -23,6 +24,8 @@ import {
 import { prototypeUnits } from '@/data/units/prototypeUnits';
 import type { BattleReport } from '@/ui/battles/BattleReport';
 import { orsiaSubfactionById } from '@/data/factions/orsiaSubfactions';
+import { RIVAL_FACTION_ID, rivalExpeditionById } from '@/data/factions/rivalExpeditions';
+import { prototypeLeaderById } from '@/data/leaders/prototypeLeader';
 
 const PLAYBACK_SPEEDS: BattlePlaybackSpeed[] = [1, 2, 4];
 const MAX_RAF_DELTA_MS = 64;
@@ -30,10 +33,12 @@ const MAX_RAF_DELTA_MS = 64;
 export function BattleViewer({
   report,
   cityName,
+  state,
   onClose,
 }: {
   report: BattleReport;
   cityName: string;
+  state: GameState;
   onClose: () => void;
 }) {
   const presentation = useMemo(() => buildBattlePresentation(report.result), [report.result]);
@@ -128,12 +133,12 @@ export function BattleViewer({
       </header>
 
       <div className="battle-scoreboard">
-        <SideScore side="A" snapshot={sideA} tactic={report.attackerTactic} />
+        <SideScore state={state} side="A" snapshot={sideA} tactic={report.attackerTactic} />
         <div className="battle-clock">
           <strong>{formatBattleTime(sample.battleTime)}</strong>
           <span>{eventFrame.round > 0 ? `Раунд ${eventFrame.round}` : 'До боя'}</span>
         </div>
-        <SideScore side="B" snapshot={sideB} tactic={report.defenderTactic} />
+        <SideScore state={state} side="B" snapshot={sideB} tactic={report.defenderTactic} />
       </div>
 
       <BattlePitch
@@ -228,10 +233,12 @@ export function BattleViewer({
 }
 
 function SideScore({
+  state,
   side,
   snapshot,
   tactic,
 }: {
+  state: GameState;
   side: BattleSideId;
   snapshot: BattlePresentationSide;
   tactic: BattleTacticId;
@@ -239,10 +246,23 @@ function SideScore({
   const units = Math.max(0, Math.round(snapshot.units));
   const morale = clamp(Math.round(snapshot.morale), 0, 100);
   const losses = Math.max(0, Math.round(snapshot.totalLosses));
+  const identity = getFactionIdentity(state, snapshot.factionId);
 
   return (
     <div className={`battle-side-score side-${side.toLowerCase()}`}>
-      <strong>{getFactionName(snapshot.factionId)}</strong>
+      <div className="battle-side-identity">
+        {identity.portraitSrc ? (
+          <img className="battle-leader-portrait" src={identity.portraitSrc} alt="" draggable={false} />
+        ) : (
+          <div className="battle-leader-portrait is-placeholder" aria-label="Временный портрет">
+            {identity.placeholderLabel}
+          </div>
+        )}
+        <div>
+          <strong>{identity.name}</strong>
+          <small>{identity.leaderName ?? 'портрет будет добавлен позже'}</small>
+        </div>
+      </div>
       <span>{getTacticName(tactic)}</span>
       <div className="battle-score-values">
         <b>{units}</b>
@@ -558,13 +578,55 @@ function getPressureShift(frame: BattlePresentationFrame): number {
   return clamp(rollPressure + lossPressure, -3.4, 3.4);
 }
 
-function getFactionName(factionId: string): string {
-  if (factionId === 'expedition') return 'Экспедиция';
-  if (factionId === 'meridian-company') return 'Меридиан';
+type FactionIdentity = {
+  name: string;
+  leaderName: string | null;
+  portraitSrc: string | null;
+  placeholderLabel: string;
+};
+
+function getFactionIdentity(state: GameState, factionId: string): FactionIdentity {
+  if (factionId === state.playerFactionId) {
+    const leader = prototypeLeaderById[state.selectedLeaderId];
+    return {
+      name: 'Экспедиция',
+      leaderName: leader?.name ?? null,
+      portraitSrc: leader?.portraitSrc ?? null,
+      placeholderLabel: 'Э',
+    };
+  }
+  if (factionId === RIVAL_FACTION_ID) {
+    const faction = rivalExpeditionById[state.campaign.rivalOrganizationId];
+    const leader = prototypeLeaderById[state.campaign.rivalLeaderId];
+    return {
+      name: faction?.name ?? 'Конкурирующая экспедиция',
+      leaderName: leader?.name ?? null,
+      portraitSrc: leader?.portraitSrc ?? null,
+      placeholderLabel: 'К',
+    };
+  }
   const orsia = orsiaSubfactionById[factionId];
-  if (orsia) return orsia.name;
-  if (factionId === 'orssia-neutral') return 'Орсия';
-  return factionId;
+  if (orsia) {
+    return {
+      name: orsia.name,
+      leaderName: orsia.leaderName,
+      portraitSrc: orsia.portraitSrc,
+      placeholderLabel: getOrsiaPlaceholderLabel(factionId),
+    };
+  }
+  if (factionId === 'orssia-neutral') {
+    return { name: 'Орсия', leaderName: null, portraitSrc: null, placeholderLabel: 'ОР' };
+  }
+  return { name: factionId, leaderName: null, portraitSrc: null, placeholderLabel: '?' };
+}
+
+function getOrsiaPlaceholderLabel(factionId: string): string {
+  if (factionId === 'orsia-orcs') return 'ОР';
+  if (factionId === 'orsia-goblins') return 'ГО';
+  if (factionId === 'orsia-nazbols') return 'НБ';
+  if (factionId === 'orsia-tyranids') return 'ТИ';
+  if (factionId === 'orsia-fgushniki') return 'ФГ';
+  return 'ОР';
 }
 
 function getTacticName(tactic: BattleTacticId): string {

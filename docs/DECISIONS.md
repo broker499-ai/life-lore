@@ -364,3 +364,81 @@ Seeded campaign RNG выбирает 4–5 из пяти групп и расп�
 **Статус:** принято.
 
 Legacy neutral ownership преобразуется в seeded внутреннюю Орсию, но любой город, уже захваченный игроком или Меридианом в старом сейве, сохраняет владельца и гарнизон.
+
+## D-060 — POI-события являются одноразовым сохранённым campaign state
+
+**Статус:** принято.
+
+Первое посещение POI может установить `CampaignState.pendingEventId`. После выбора событие попадает в `resolvedEventIds` и больше не триггерится. UI только отображает определения и вызывает core resolver; награды не вычисляются в React.
+
+## D-061 — Артефакты data-driven и хранятся как ids
+
+**Статус:** принято.
+
+`CampaignState.artifactIds` является коллекцией найденных артефактов. Определения и численные effects находятся в `src/data/artifacts`. На Stage 17 effects применяются при находке; будущие passive effects могут быть добавлены через тот же definition contract.
+
+## D-062 — Владос усиливает artifact effects в core
+
+**Статус:** принято.
+
+`artifact_effect_multiplier` применяется внутри `resolveLocationEvent()` при обработке artifact effect. UI может показывать коэффициент, но не рассчитывает итог награды.
+
+## D-063 — Pan камеры не перехватывает pointer на MapNode
+
+**Статус:** принято.
+
+При zoom drag начинается только с фона SVG. Pointer-down на `.map-node` останавливается на узле, поэтому выбор города/POI остаётся надёжным при любом масштабе.
+
+## D-064 — End Turn является постоянным campaign control
+
+**Статус:** принято.
+
+`Завершить ход` не принадлежит выбранной локации. Кнопка живёт в отдельной постоянной панели между контекстным dock и нижней навигацией, одинаково для карты и экрана армии.
+
+## D-065 — Save v9 добавляет event/artifact state
+
+**Статус:** принято.
+
+v8→v9 добавляет `pendingEventId`, `resolvedEventIds`, `artifactIds`. Старые механики и завоевания не меняются.
+
+## D-066 — Конкурент имеет стабильный simulation-id и случайную data-driven identity
+
+**Статус:** принято.
+
+Новая кампания seeded campaign RNG выбирает одну из организаций Госпол/Роспол/ИСПУ/Соцпсих/Истотер, но simulation использует единый `rival-expedition`. Это не пять новых несовместимых faction implementations: AI, экономика, supply и combat продолжают работать через общие faction contracts.
+
+## D-067 — Лидер конкурента выбирается из невыбранных лидеров и превращается в traits
+
+**Статус:** принято.
+
+Campaign RNG выбирает одного из четырёх лидеров, оставшихся после выбора игрока. В `FactionState` копируются его универсальные traits. Simulation не ветвится по имени организации или `leaderId`.
+
+## D-068 — Корень является отдельной campaign command, а не обычным move
+
+**Статус:** принято.
+
+`root-sanctum` не открывается через `moveArmy`. `getRootClaimAvailability/claimRoot` проверяют campaign requirements, staging city, action budget и supply. Это позволяет явно завершать кампанию и не смешивать финальное состояние с обычной навигацией графа.
+
+## D-069 — Save v10 хранит identity конкурента и состояние завершения кампании
+
+**Статус:** принято.
+
+v9→v10 добавляет `rivalOrganizationId`, `rivalLeaderId`, `status`, `endingReason`, `endedTurn`. Legacy `meridian-company` преобразуется в `rival-expedition` без потери завоёванных городов, армии, экономики, событий или артефактов.
+
+## D-070 — Портреты battle scoreboard являются presentation-only identity
+
+**Статус:** принято.
+
+Battle Viewer получает `GameState` только для подписи и портрета стороны. Player/rival используют существующие leader portrait assets; орсийские группы временно используют placeholders. BattleSimulator и BattleResult не зависят от графических assets.
+
+## D-070 — Fog knowledge хранится в GameState, visibility вычисляется отдельно
+
+Stage 20 хранит только исторически обнаруженные узлы (`campaign.discoveredNodeIds`). Текущее состояние `visible` вычисляется из положения армий/своих городов и trait `map_revealed`; оно не дублируется в сейве.
+
+## D-071 — Разведка не должна обходиться через вторичные UI
+
+`CitiesOverview`, `DecisionPanel` и `RaceIndicator` подчиняются тому же visibility layer, что SVG-карта. Старые разведданные не дают актуальный owner/garrison/rival position.
+
+## D-072 — Светлую кайму лидерских PNG маскируем presentation background
+
+Исходные портреты не модифицируются повторно. Для выбора лидера, map token и battle header используется тёплая expedition-photo подложка; это обратимо и не вносит новые art assets.

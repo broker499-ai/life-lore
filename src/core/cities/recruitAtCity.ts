@@ -18,6 +18,8 @@ export type RecruitAtCityInput = {
   armyId: ArmyId;
   cityId: CityId;
   offer: RecruitmentOffer;
+  moraleRestore: number;
+  moraleCap: number;
 };
 
 export function getRecruitAtCityAvailability(
@@ -38,6 +40,12 @@ export function getRecruitAtCityAvailability(
   }
   if (!Number.isFinite(input.offer.cost) || input.offer.cost < 0) {
     throw new Error('Recruitment cost must be a finite non-negative number');
+  }
+  if (!Number.isFinite(input.moraleRestore) || input.moraleRestore < 0) {
+    throw new Error('Recruitment morale restore must be a finite non-negative number');
+  }
+  if (!Number.isFinite(input.moraleCap) || input.moraleCap < 0) {
+    throw new Error('Recruitment morale cap must be a finite non-negative number');
   }
 
   const faction = state.factions[army.factionId];
@@ -65,6 +73,7 @@ export function recruitAtCity(
     unitTypeId: string;
     amount: number;
     cost: number;
+    moraleRestored: number;
   }
 > {
   const availability = getRecruitAtCityAvailability(state, input);
@@ -77,6 +86,8 @@ export function recruitAtCity(
   if (!faction) throw new Error(`Army ${army.id} references missing faction ${army.factionId}`);
 
   const currentAmount = army.roster[input.offer.unitTypeId] ?? 0;
+  const nextMorale = Math.min(input.moraleCap, army.morale + input.moraleRestore);
+  const moraleRestored = nextMorale - army.morale;
 
   return {
     ok: true,
@@ -102,6 +113,7 @@ export function recruitAtCity(
             ...army.roster,
             [input.offer.unitTypeId]: currentAmount + input.offer.amount,
           },
+          morale: nextMorale,
         },
       },
     },
@@ -113,6 +125,7 @@ export function recruitAtCity(
         unitTypeId: input.offer.unitTypeId,
         amount: input.offer.amount,
         cost: input.offer.cost,
+        moraleRestored,
       },
     ],
   };

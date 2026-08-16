@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useRef,
   useState,
   type KeyboardEvent,
@@ -7,20 +8,42 @@ import {
 } from 'react';
 import { getRosterTotalUnits } from '@/core/armies/armyStats';
 import type { MapGraph } from '@/core/map/MapGraph';
+import type { MapNodeVisibility } from '@/core/map/MapVisibility';
 import type { CityState } from '@/core/state/GameState';
 import type { PrototypeMapRegion } from '@/data/map/prototypeMap';
 import { orsiaSubfactionById } from '@/data/factions/orsiaSubfactions';
 import { t } from '@/i18n/t';
 import type { TranslationKey } from '@/i18n/ru';
 
+export type PlayerMovementAnimation = {
+  id: number;
+  fromNodeId: string;
+  toNodeId: string;
+  durationMs: number;
+};
+
+export type MapCameraSnapshot = {
+  zoom: number;
+  centerX: number;
+  centerY: number;
+};
+
 export type SvgWorldMapProps = {
   graph: MapGraph;
+  nodeVisibilityById: Record<string, MapNodeVisibility>;
   regions: PrototypeMapRegion[];
   cities: Record<string, CityState>;
   playerFactionId: string;
   rivalFactionId: string;
+  rivalPortraitSrc?: string;
   selectedNodeId: string | null;
   playerNodeId: string;
+  playerPortraitSrc?: string;
+  playerWalkFrameSrcs?: readonly string[];
+  playerMovement?: PlayerMovementAnimation | null;
+  onPlayerMovementComplete?: (movementId: number) => void;
+  initialCamera?: MapCameraSnapshot | null;
+  onCameraChange?: (camera: MapCameraSnapshot) => void;
   rivalNodeId: string | null;
   reachableNodeIds: string[];
   movableNodeIds: string[];
@@ -40,18 +63,26 @@ type DragState = {
 };
 
 const ZOOM_LEVELS = [1, 1.35, 1.75, 2.2] as const;
-const WORLD_MIN = -4;
-const WORLD_MAX = 104;
+const WORLD_MIN = -8;
+const WORLD_MAX = 108;
 const WORLD_SIZE = WORLD_MAX - WORLD_MIN;
 
 export function SvgWorldMap({
   graph,
+  nodeVisibilityById,
   regions,
   cities,
   playerFactionId,
   rivalFactionId,
+  rivalPortraitSrc,
   selectedNodeId,
   playerNodeId,
+  playerPortraitSrc,
+  playerWalkFrameSrcs = [],
+  playerMovement = null,
+  onPlayerMovementComplete,
+  initialCamera = null,
+  onCameraChange,
   rivalNodeId,
   reachableNodeIds,
   movableNodeIds,
@@ -59,17 +90,73 @@ export function SvgWorldMap({
   supplyPathNodeIds = [],
   onSelectNode,
 }: SvgWorldMapProps) {
-  const [camera, setCamera] = useState<CameraState>({ zoom: 1, centerX: 50, centerY: 50 });
+  const [camera, setCamera] = useState<CameraState>(() =>
+    clampCamera(initialCamera ?? { zoom: 1, centerX: 50, centerY: 50 }),
+  );
   const dragRef = useRef<DragState | null>(null);
   const suppressNextClickRef = useRef(false);
+  const movementCompleteRef = useRef(onPlayerMovementComplete);
+  movementCompleteRef.current = onPlayerMovementComplete;
+  const cameraChangeRef = useRef(onCameraChange);
+  cameraChangeRef.current = onCameraChange;
+  const [movementProgress, setMovementProgress] = useState(0);
+  const movementId = playerMovement?.id ?? null;
+  const movementDurationMs = playerMovement?.durationMs ?? 0;
   const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
   const reachable = new Set(reachableNodeIds);
   const movable = new Set(movableNodeIds);
   const attackable = new Set(attackableNodeIds);
+  const discoveredNodeIds = graph.nodes
+    .filter((node) => (nodeVisibilityById[node.id] ?? 'unknown') !== 'unknown')
+    .map((node) => node.id);
+  const allNodesVisible = graph.nodes.every((node) => nodeVisibilityById[node.id] === 'visible');
+  const movementFromNode = playerMovement ? nodeById.get(playerMovement.fromNodeId) ?? null : null;
+  const movementToNode = playerMovement ? nodeById.get(playerMovement.toNodeId) ?? null : null;
+  const movementFrameIndex =
+    playerWalkFrameSrcs.length > 0 && movementDurationMs > 0
+      ? Math.floor((movementProgress * movementDurationMs) / 165) % playerWalkFrameSrcs.length
+      : 0;
+  const movementFrameSrc = playerWalkFrameSrcs[movementFrameIndex] ?? null;
+  const easedMovementProgress = smoothStep(movementProgress);
+  const movementX = movementFromNode && movementToNode
+    ? movementFromNode.x + (movementToNode.x - movementFromNode.x) * easedMovementProgress
+    : 0;
+  const movementY = movementFromNode && movementToNode
+    ? movementFromNode.y + (movementToNode.y - movementFromNode.y) * easedMovementProgress
+    : 0;
+  const movementFacesRight = !movementFromNode || !movementToNode || movementToNode.x >= movementFromNode.x;
   const supplyEdges = new Set<string>();
   for (let index = 1; index < supplyPathNodeIds.length; index += 1) {
     supplyEdges.add(edgeKey(supplyPathNodeIds[index - 1], supplyPathNodeIds[index]));
   }
+
+  useEffect(() => {
+    if (movementId === null || movementDurationMs <= 0) {
+      setMovementProgress(0);
+      return;
+    }
+
+    let animationFrame = 0;
+    const startedAt = performance.now();
+    setMovementProgress(0);
+
+    const tick = (now: number) => {
+      const nextProgress = Math.min(1, (now - startedAt) / movementDurationMs);
+      setMovementProgress(nextProgress);
+      if (nextProgress < 1) {
+        animationFrame = requestAnimationFrame(tick);
+      } else {
+        movementCompleteRef.current?.(movementId);
+      }
+    };
+
+    animationFrame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animationFrame);
+  }, [movementDurationMs, movementId]);
+
+  useEffect(() => {
+    cameraChangeRef.current?.(camera);
+  }, [camera]);
 
   const viewSize = WORLD_SIZE / camera.zoom;
   const viewBoxX = camera.centerX - viewSize / 2;
@@ -117,6 +204,8 @@ export function SvgWorldMap({
 
   function handlePointerDown(event: ReactPointerEvent<SVGSVGElement>) {
     if (camera.zoom <= 1 || event.button !== 0) return;
+    const target = event.target as Element;
+    if (target.closest('.map-node')) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     dragRef.current = {
       pointerId: event.pointerId,
@@ -187,6 +276,29 @@ export function SvgWorldMap({
         onPointerCancel={handlePointerUp}
       >
         <defs>
+          <clipPath id="playerPortraitClip" clipPathUnits="userSpaceOnUse">
+            <circle cx="0" cy="0" r="3.15" />
+          </clipPath>
+          <clipPath id="cityOwnerPortraitClip" clipPathUnits="objectBoundingBox">
+            <circle cx="0.5" cy="0.5" r="0.5" />
+          </clipPath>
+          <mask id="mapFogMask" maskUnits="userSpaceOnUse" x={WORLD_MIN} y={WORLD_MIN} width={WORLD_SIZE} height={WORLD_SIZE}>
+            <rect x={WORLD_MIN} y={WORLD_MIN} width={WORLD_SIZE} height={WORLD_SIZE} fill="white" />
+            {discoveredNodeIds.map((nodeId) => {
+              const node = nodeById.get(nodeId);
+              if (!node) return null;
+              const visibility = nodeVisibilityById[nodeId] ?? 'unknown';
+              return (
+                <circle
+                  key={`fog-hole-${nodeId}`}
+                  cx={node.x}
+                  cy={node.y}
+                  r={visibility === 'visible' ? 15 : 10.5}
+                  fill="black"
+                />
+              );
+            })}
+          </mask>
           <radialGradient id="caveGlow" cx="50%" cy="45%" r="65%">
             <stop offset="0%" stopColor="rgba(163, 192, 132, 0.12)" />
             <stop offset="100%" stopColor="rgba(0, 0, 0, 0)" />
@@ -196,8 +308,8 @@ export function SvgWorldMap({
           </filter>
         </defs>
 
-        <rect width="100" height="100" rx="6" className="map-bg" />
-        <rect width="100" height="100" rx="6" fill="url(#caveGlow)" />
+        <rect x={WORLD_MIN} y={WORLD_MIN} width={WORLD_SIZE} height={WORLD_SIZE} rx="6" className="map-bg" />
+        <rect x={WORLD_MIN} y={WORLD_MIN} width={WORLD_SIZE} height={WORLD_SIZE} rx="6" fill="url(#caveGlow)" />
 
         <g className="map-regions" aria-hidden="true">
           {regions.map((region) => (
@@ -221,12 +333,28 @@ export function SvgWorldMap({
           </g>
         </g>
 
+        {!allNodesVisible ? (
+          <rect
+            x={WORLD_MIN}
+            y={WORLD_MIN}
+            width={WORLD_SIZE}
+            height={WORLD_SIZE}
+            className="map-fog-unknown"
+            mask="url(#mapFogMask)"
+            aria-hidden="true"
+          />
+        ) : null}
+
         {graph.edges.map((edge) => {
           const from = nodeById.get(edge.from);
           const to = nodeById.get(edge.to);
           if (!from || !to) return null;
+          const fromVisibility = nodeVisibilityById[from.id] ?? 'unknown';
+          const toVisibility = nodeVisibilityById[to.id] ?? 'unknown';
+          if (fromVisibility === 'unknown' || toVisibility === 'unknown') return null;
           const touchesPlayer = edge.from === playerNodeId || edge.to === playerNodeId;
           const isSupplyRoute = supplyEdges.has(edgeKey(edge.from, edge.to));
+          const isExploredRoute = fromVisibility !== 'visible' && toVisibility !== 'visible';
           return (
             <line
               key={`${edge.from}-${edge.to}`}
@@ -234,27 +362,38 @@ export function SvgWorldMap({
               y1={from.y}
               x2={to.x}
               y2={to.y}
-              className={`map-edge${touchesPlayer ? ' is-local-route' : ''}${isSupplyRoute ? ' is-supply-route' : ''}`}
+              className={`map-edge${touchesPlayer ? ' is-local-route' : ''}${isSupplyRoute ? ' is-supply-route' : ''}${isExploredRoute ? ' is-explored' : ''}`}
             />
           );
         })}
 
         {graph.nodes.map((node) => {
+          const visibility = nodeVisibilityById[node.id] ?? 'unknown';
+          if (visibility === 'unknown') return null;
+          const isVisible = visibility === 'visible';
           const isSelected = node.id === selectedNodeId;
-          const isPlayer = node.id === playerNodeId;
-          const isReachable = reachable.has(node.id);
-          const canMove = movable.has(node.id);
-          const canAttack = attackable.has(node.id);
+          const isPlayer = node.id === playerNodeId && !playerMovement;
+          const isReachable = isVisible && reachable.has(node.id);
+          const canMove = isVisible && movable.has(node.id);
+          const canAttack = isVisible && attackable.has(node.id);
           const city = cities[node.id];
-          const isOwned = city?.ownerFactionId === playerFactionId;
-          const isRivalOwned = city?.ownerFactionId === rivalFactionId;
-          const isNeutral = city?.ownerFactionId === null;
-          const orsiaOwner = city?.ownerFactionId ? orsiaSubfactionById[city.ownerFactionId] : null;
-          const isRival = node.id === rivalNodeId;
+          const isOwned = isVisible && city?.ownerFactionId === playerFactionId;
+          const isRivalOwned = isVisible && city?.ownerFactionId === rivalFactionId;
+          const isNeutral = isVisible && city?.ownerFactionId === null;
+          const orsiaOwner = isVisible && city?.ownerFactionId ? orsiaSubfactionById[city.ownerFactionId] : null;
+          const cityOwnerPortraitSrc = isVisible && city
+            ? city.ownerFactionId === playerFactionId
+              ? playerPortraitSrc ?? null
+              : city.ownerFactionId === rivalFactionId
+                ? rivalPortraitSrc ?? null
+                : orsiaOwner?.portraitSrc ?? null
+            : null;
+          const isRival = isVisible && node.id === rivalNodeId;
           const isPoi = node.kind === 'poi';
-          const garrisonUnits = city ? getRosterTotalUnits(city.garrison.roster) : 0;
+          const garrisonUnits = isVisible && city ? getRosterTotalUnits(city.garrison.roster) : 0;
           const classes = [
             'map-node',
+            visibility === 'explored' ? 'is-explored' : '',
             isSelected ? 'is-selected' : '',
             node.isCentral ? 'is-central' : '',
             isPoi ? 'is-poi' : '',
@@ -275,6 +414,7 @@ export function SvgWorldMap({
               role="button"
               tabIndex={0}
               aria-label={t(node.nameKey as TranslationKey)}
+              onPointerDown={(event: ReactPointerEvent<SVGGElement>) => event.stopPropagation()}
               onClick={() => selectNode(node.id)}
               onKeyDown={(event: KeyboardEvent<SVGGElement>) => {
                 if (event.key === 'Enter' || event.key === ' ') {
@@ -283,7 +423,26 @@ export function SvgWorldMap({
                 }
               }}
             >
-              {orsiaOwner ? <title>{`Орсия · ${orsiaOwner.name}`}</title> : null}
+              {orsiaOwner ? <title>{`Орсия · ${orsiaOwner.name}`}</title> : visibility === 'explored' ? <title>Разведано ранее · текущая обстановка неизвестна</title> : null}
+              {(canMove || canAttack) && !isPlayer ? (
+                <circle
+                  cx={node.x}
+                  cy={node.y}
+                  r={node.isCentral ? 6.4 : isPoi ? 5.1 : 5.8}
+                  className={`reachability-pulse${canAttack ? ' is-attack' : ''}`}
+                  aria-hidden="true"
+                />
+              ) : null}
+              {isPlayer ? (
+                <g className="player-location-highlight" aria-hidden="true">
+                  <circle cx={node.x} cy={node.y} r="7.4" className="player-location-halo" />
+                  <circle cx={node.x} cy={node.y} r="5.9" className="player-location-ring" />
+                  <g className="player-here-badge" transform={`translate(${node.x} ${node.y - 8.3})`}>
+                    <rect x="-4.9" y="-1.55" width="9.8" height="3.1" rx="1.25" />
+                    <text x="0" y="0.7" textAnchor="middle">ВЫ ЗДЕСЬ</text>
+                  </g>
+                </g>
+              ) : null}
               {node.isCentral ? (
                 <>
                   <circle cx={node.x} cy={node.y} r="6.4" className="central-glow" filter="url(#softGlow)" />
@@ -303,11 +462,27 @@ export function SvgWorldMap({
                 </>
               ) : (
                 <>
-                  <circle cx={node.x} cy={node.y} r="3.9" className="node-disc" />
-                  <path
-                    className="city-mark"
-                    d={`M ${node.x - 1.9} ${node.y + 1.3} v -2.4 h 3.8 v 2.4 z M ${node.x - 1.25} ${node.y - 1.1} v -1.2 h 1.05 v 1.2 M ${node.x + 0.45} ${node.y - 1.1} v -1.7 h 1 v 1.7`}
-                  />
+                  <circle cx={node.x} cy={node.y} r="4.25" className="node-disc" />
+                  {cityOwnerPortraitSrc ? (
+                    <>
+                      <image
+                        href={cityOwnerPortraitSrc}
+                        x={node.x - 3.45}
+                        y={node.y - 3.45}
+                        width="6.9"
+                        height="6.9"
+                        preserveAspectRatio="xMidYMid slice"
+                        clipPath="url(#cityOwnerPortraitClip)"
+                        className="city-owner-portrait"
+                      />
+                      <circle cx={node.x} cy={node.y} r="3.55" className="city-owner-portrait-border" />
+                    </>
+                  ) : (
+                    <path
+                      className="city-mark"
+                      d={`M ${node.x - 1.9} ${node.y + 1.3} v -2.4 h 3.8 v 2.4 z M ${node.x - 1.25} ${node.y - 1.1} v -1.2 h 1.05 v 1.2 M ${node.x + 0.45} ${node.y - 1.1} v -1.7 h 1 v 1.7`}
+                    />
+                  )}
                 </>
               )}
 
@@ -319,9 +494,23 @@ export function SvgWorldMap({
                 </g>
               ) : null}
               {isPlayer ? (
-                <g className="player-token" transform={`translate(${node.x + 5.1} ${node.y - 4.9})`}>
-                  <circle r="2.25" className="player-token-bg" />
-                  <path d="M -0.7 1 L 0 -1.15 L 0.8 1 Z" />
+                <g className="player-token player-portrait-token" transform={`translate(${node.x + 5.6} ${node.y - 5.4})`}>
+                  <circle r="3.65" className="player-token-bg player-portrait-bg" />
+                  {playerPortraitSrc ? (
+                    <image
+                      href={playerPortraitSrc}
+                      x="-3.35"
+                      y="-3.35"
+                      width="6.7"
+                      height="6.7"
+                      preserveAspectRatio="xMidYMid meet"
+                      clipPath="url(#playerPortraitClip)"
+                      className="player-portrait-image"
+                    />
+                  ) : (
+                    <path d="M -0.7 1 L 0 -1.15 L 0.8 1 Z" />
+                  )}
+                  <circle r="3.3" className="player-portrait-border" />
                 </g>
               ) : null}
               {isRival ? (
@@ -338,9 +527,35 @@ export function SvgWorldMap({
             </g>
           );
         })}
+
+        {movementFromNode && movementToNode && movementFrameSrc ? (
+          <g
+            className="player-movement-sprite"
+            transform={`translate(${movementX} ${movementY})`}
+            aria-hidden="true"
+          >
+            <ellipse cx="0" cy="1.15" rx="2.55" ry="0.72" className="player-movement-shadow" />
+            <g transform={movementFacesRight ? undefined : 'scale(-1 1)'}>
+              <image
+                href={movementFrameSrc}
+                x="-4.25"
+                y="-10.55"
+                width="8.5"
+                height="11.9"
+                preserveAspectRatio="xMidYMax meet"
+                className="player-walk-frame"
+              />
+            </g>
+          </g>
+        ) : null}
       </svg>
     </div>
   );
+}
+
+function smoothStep(value: number): number {
+  const clamped = Math.min(1, Math.max(0, value));
+  return clamped * clamped * (3 - 2 * clamped);
 }
 
 function clampCamera(camera: CameraState): CameraState {

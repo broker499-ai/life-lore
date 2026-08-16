@@ -18,6 +18,8 @@ export type RunAiTurnInput = {
   battleRules: BattleRules;
   moveSupplyCost: number;
   attackSupplyCost: number;
+  recruitMoraleRestore: number;
+  moraleCap: number;
 };
 
 export function runAiTurn(
@@ -36,7 +38,7 @@ export function runAiTurn(
         tactic: action.tactic,
         supplyCost: input.attackSupplyCost,
       },
-      { unitDefinitions: input.unitDefinitions, battleRules: input.battleRules },
+      { unitDefinitions: input.unitDefinitions, battleRules: input.battleRules, cityDefinitions: input.cityDefinitions },
     );
     if (result.ok) {
       return {
@@ -85,6 +87,8 @@ export function runAiTurn(
       armyId: input.armyId,
       cityId: action.cityId,
       offer: action.offer,
+      moraleRestore: input.recruitMoraleRestore,
+      moraleCap: input.moraleCap,
     });
     if (result.ok) {
       return {

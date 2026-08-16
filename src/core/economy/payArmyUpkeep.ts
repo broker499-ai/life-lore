@@ -1,6 +1,9 @@
 import type { UnitDefinitions } from '@/core/armies/UnitDefinition';
 import { getArmySummary } from '@/core/armies/armyStats';
 import type { CommandSuccess } from '@/core/commands/CommandResult';
+import type { CityDefinitions } from '@/core/cities/CityDefinition';
+import { getFactionArmyUpkeepCityMultiplier } from '@/core/cities/cityTraits';
+import { getArmyUpkeepMultiplier } from '@/core/leaders/LeaderAbility';
 import type { FactionId, GameState } from '@/core/state/GameState';
 
 export type ArmyUpkeepEvent = {
@@ -14,23 +17,28 @@ export function getFactionArmyUpkeep(
   state: GameState,
   unitDefinitions: UnitDefinitions,
   factionId: FactionId,
+  cityDefinitions?: CityDefinitions,
 ): number {
   const total = Object.values(state.armies).reduce((sum, army) => {
     if (army.factionId !== factionId) return sum;
     return sum + getArmySummary(army, unitDefinitions).upkeep;
   }, 0);
-  return roundMoney(total);
+  const cityMultiplier = cityDefinitions
+    ? getFactionArmyUpkeepCityMultiplier(state, cityDefinitions, factionId)
+    : 1;
+  return roundMoney(total * getArmyUpkeepMultiplier(state, factionId) * cityMultiplier);
 }
 
 export function payArmyUpkeep(
   state: GameState,
   unitDefinitions: UnitDefinitions,
+  cityDefinitions?: CityDefinitions,
 ): CommandSuccess<GameState, ArmyUpkeepEvent> {
   let nextFactions = state.factions;
   const events: ArmyUpkeepEvent[] = [];
 
   for (const faction of Object.values(state.factions)) {
-    const due = getFactionArmyUpkeep(state, unitDefinitions, faction.id);
+    const due = getFactionArmyUpkeep(state, unitDefinitions, faction.id, cityDefinitions);
     if (due <= 0) continue;
 
     const amount = Math.min(faction.resources.money, due);
