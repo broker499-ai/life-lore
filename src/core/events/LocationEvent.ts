@@ -2,6 +2,7 @@ import type { ArtifactDefinitions } from '@/core/artifacts/ArtifactDefinition';
 import { acquireArtifact } from '@/core/artifacts/acquireArtifact';
 import type { GameEvent } from '@/core/commands/CommandResult';
 import type { ArmyId, GameState, NodeId } from '@/core/state/GameState';
+import { factionIgnoresMorale } from '@/core/leaders/LeaderAbility';
 
 export type EventEffect =
   | { type: 'money'; amount: number }
@@ -102,7 +103,7 @@ export function resolveLocationEvent(
   let supplies = faction.resources.supplies;
   let specimens = faction.resources.specimens;
   let specimensCollected = faction.specimensCollected;
-  let morale = army.morale;
+  let morale = factionIgnoresMorale(state, input.factionId) ? 100 : army.morale;
   const discoveredNodes = new Set(state.campaign.discoveredNodeIds);
   const emitted: GameEvent[] = [];
 
@@ -113,7 +114,7 @@ export function resolveLocationEvent(
       specimens = Math.max(0, specimens + effect.amount);
       if (effect.amount > 0) specimensCollected += effect.amount;
     }
-    if (effect.type === 'morale') morale = clamp(morale + effect.amount, 0, input.moraleCap);
+    if (effect.type === 'morale' && !factionIgnoresMorale(state, input.factionId)) morale = clamp(morale + effect.amount, 0, input.moraleCap);
     if (effect.type === 'discover_nodes') {
       for (const nodeId of effect.nodeIds) discoveredNodes.add(nodeId);
     }

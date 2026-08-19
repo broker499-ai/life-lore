@@ -58,6 +58,7 @@ export type CampaignStatus = 'active' | 'victory' | 'defeat';
 export type CampaignEndingReason = 'root_claimed' | 'rival_root_claimed' | 'army_destroyed';
 
 export type CampaignState = {
+  developerMode: boolean;
   rootObtainedByFactionId: FactionId | null;
   pendingEventId: string | null;
   resolvedEventIds: string[];
@@ -70,7 +71,10 @@ export type CampaignState = {
   completedResearchIds: string[];
   pendingFactionEvent: PendingFactionEventState | null;
   resolvedFactionEventIds: string[];
+  preRootLayoutId: string;
+  preRootLocationOrder: NodeId[];
   extensionLocationOrder: NodeId[];
+  factionCapitalCityIds: Record<FactionId, CityId>;
   rivalOrganizationId: string;
   rivalLeaderId: LeaderId;
   status: CampaignStatus;

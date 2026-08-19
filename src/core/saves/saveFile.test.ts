@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createPrototypeGameState, RIVAL_FACTION_ID } from '@/core/state/createPrototypeGameState';
 import { CURRENT_SAVE_VERSION, deserializeGame, serializeGame } from './saveFile';
 import { prototypeMap } from '@/data/map/prototypeMap';
+import type { GameState } from '@/core/state/GameState';
 
 const LEGACY_RIVAL_FACTION_ID = 'meridian-company';
 
@@ -63,7 +64,7 @@ function stripGarrisons(state: ReturnType<typeof createPrototypeGameState>) {
 }
 
 describe('save file', () => {
-  it('round-trips v15 including research, artifact loadout, scientific progress, story state and battle RNG cursor', () => {
+  it('round-trips current save including capitals, research, artifact loadout, scientific progress, story state and battle RNG cursor', () => {
     const state = createPrototypeGameState(99);
     state.rng.battles.cursor = 7;
     state.factions[RIVAL_FACTION_ID].strategicActionSpent = true;
@@ -84,6 +85,20 @@ describe('save file', () => {
     expect(restored.campaign.rivalOrganizationId).toBe(state.campaign.rivalOrganizationId);
     expect(restored.campaign.rivalLeaderId).toBe(state.campaign.rivalLeaderId);
     expect(JSON.parse(serializeGame(state)).version).toBe(CURRENT_SAVE_VERSION);
+  });
+
+
+  it('migrates v16 saves by assigning stable faction capitals', () => {
+    const current = createPrototypeGameState(108, 'artemios');
+    const { factionCapitalCityIds: _capitals, ...legacyCampaign } = current.campaign;
+    const restored = deserializeGame(JSON.stringify({
+      version: 16,
+      state: { ...current, campaign: legacyCampaign },
+    }));
+
+    expect(restored.campaign.factionCapitalCityIds.expedition).toBe('outer-post');
+    expect(restored.campaign.factionCapitalCityIds['rival-expedition']).toBe('rival-post');
+    expect(Object.keys(restored.campaign.factionCapitalCityIds).length).toBeGreaterThanOrEqual(4);
   });
 
 
@@ -171,8 +186,8 @@ describe('save file', () => {
     if (restored.factions['orsia-goblins']) {
       expect(restored.factions['orsia-goblins'].traits.some((trait) => trait.type === 'battle_unit_power_multiplier')).toBe(true);
     }
-    if (restored.factions['orsia-fgushniki']) {
-      expect(restored.factions['orsia-fgushniki'].traits.some((trait) => trait.type === 'captured_city_income_multiplier')).toBe(true);
+    if (restored.factions['orsia-lateki']) {
+      expect(restored.factions['orsia-lateki'].traits.some((trait) => trait.type === 'captured_city_income_multiplier')).toBe(true);
     }
   });
 
@@ -344,5 +359,45 @@ describe('save file', () => {
     expect(() => deserializeGame('{"version":999,"state":{}}')).toThrow(
       'Unsupported or invalid save file',
     );
+  });
+});
+
+describe('save v18 developer mode migration', () => {
+  it('defaults developer mode to off for v17 saves', () => {
+    const current = createPrototypeGameState(818, 'artemios');
+    const raw = JSON.parse(serializeGame(current)) as { version: number; state: GameState };
+    raw.version = 17;
+    delete (raw.state.campaign as Partial<GameState['campaign']>).developerMode;
+    const restored = deserializeGame(JSON.stringify(raw));
+    expect(restored.campaign.developerMode).toBe(false);
+  });
+});
+
+describe('save v19 campaign variation / faction migration', () => {
+  it('migrates v18 FGU identity and old Artemios perk without rearranging the legacy map', () => {
+    let current = createPrototypeGameState(1, 'artemios');
+    for (let seed = 1; seed < 100 && !current.factions['orsia-lateki']; seed += 1) {
+      current = createPrototypeGameState(seed, 'artemios');
+    }
+    const legacy = JSON.parse(JSON.stringify(current)) as GameState;
+    if (legacy.factions['orsia-lateki']) {
+      legacy.factions['orsia-fgushniki'] = { ...legacy.factions['orsia-lateki'], id: 'orsia-fgushniki' };
+      delete legacy.factions['orsia-lateki'];
+      for (const city of Object.values(legacy.cities)) {
+        if (city.ownerFactionId === 'orsia-lateki') city.ownerFactionId = 'orsia-fgushniki';
+      }
+    }
+    legacy.factions.expedition.traits = [{ type: 'ignore_supply' }];
+    legacy.armies['player-main'].morale = 37;
+    delete (legacy.campaign as Partial<GameState['campaign']>).preRootLayoutId;
+    delete (legacy.campaign as Partial<GameState['campaign']>).preRootLocationOrder;
+
+    const restored = deserializeGame(JSON.stringify({ version: 18, state: legacy }));
+    expect(restored.campaign.preRootLayoutId).toBe('classic');
+    expect(restored.factions['orsia-fgushniki']).toBeUndefined();
+    if (legacy.factions['orsia-fgushniki']) expect(restored.factions['orsia-lateki']).toBeDefined();
+    expect(restored.factions.expedition.traits.some((trait) => trait.type === 'ignore_morale')).toBe(true);
+    expect(restored.factions.expedition.traits.some((trait) => trait.type === 'ignore_supply')).toBe(false);
+    expect(restored.armies['player-main'].morale).toBe(100);
   });
 });

@@ -1,4 +1,5 @@
 import { getRosterTotalUnits } from '@/core/armies/armyStats';
+import { hasUnlimitedStrategicActions, shouldSpendStrategicAction } from '@/core/dev/developerMode';
 import type { CommandOutcome } from '@/core/commands/CommandResult';
 import type { CityDefinitions } from '@/core/cities/CityDefinition';
 import { getRootClaimCitySupplyMultiplier } from '@/core/cities/cityTraits';
@@ -87,7 +88,7 @@ export function getRootClaimAvailability(
   if (!faction) {
     return { canClaim: false, reason: 'army_not_found', supplyCost, progress };
   }
-  if (faction.strategicActionSpent) {
+  if (faction.strategicActionSpent && !hasUnlimitedStrategicActions(state, input.factionId)) {
     return { canClaim: false, reason: 'strategic_action_spent', supplyCost, progress };
   }
   if (faction.resources.supplies < supplyCost) {
@@ -125,7 +126,7 @@ export function claimRoot(
           ...faction.resources,
           supplies: faction.resources.supplies - availability.supplyCost,
         },
-        strategicActionSpent: true,
+        strategicActionSpent: shouldSpendStrategicAction(state, input.factionId),
         lastStrategicAction: 'claim_root',
       },
     },

@@ -20,8 +20,8 @@ function frame(index: number, at: number, phase: BattlePresentationFrame['phase'
     rolls: {},
     lossesThisFrame: {},
     sides: {
-      A: { factionId: 'a', initialUnits: 10, units: 10, morale: 80, totalLosses: 0, initialRoster: { line: 10 }, roster: { line: 10 }, broken: false, outcome: null },
-      B: { factionId: 'b', initialUnits: 10, units: 10, morale: 80, totalLosses: 0, initialRoster: { line: 10 }, roster: { line: 10 }, broken: false, outcome: null },
+      A: { factionId: 'a', initialUnits: 10, units: 10, morale: 80, totalLosses: 0, initialRoster: { line: 10 }, roster: { line: 10 }, broken: false, outcome: null, sectorState: { sectors: { left: { units: 2, morale: 80, broken: false }, center: { units: 6, morale: 80, broken: false }, right: { units: 2, morale: 80, broken: false } }, reserveUnits: 0, reserveCommitted: true } },
+      B: { factionId: 'b', initialUnits: 10, units: 10, morale: 80, totalLosses: 0, initialRoster: { line: 10 }, roster: { line: 10 }, broken: false, outcome: null, sectorState: { sectors: { left: { units: 2, morale: 80, broken: false }, center: { units: 6, morale: 80, broken: false }, right: { units: 2, morale: 80, broken: false } }, reserveUnits: 0, reserveCommitted: true } },
     },
   };
 }

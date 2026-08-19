@@ -6,3 +6,6 @@ coverage/
 .env
 .env.*
 !.env.example
+
+# Generated headless balance reports
+simulation-results/

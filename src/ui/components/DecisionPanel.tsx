@@ -1,6 +1,7 @@
+import { useEffect, useState, type ChangeEvent } from 'react';
 import { getRosterTotalUnits } from '@/core/armies/armyStats';
 import type { UnitDefinitions } from '@/core/armies/UnitDefinition';
-import type { BattleTacticId } from '@/core/battles/BattleTypes';
+import type { BattleFormationId, BattleLane, BattlePlan, BattleReservePercent, BattleTacticId } from '@/core/battles/BattleTypes';
 import type { AttackCityAvailability, AttackCityError } from '@/core/cities/attackCity';
 import type { CityDefinition, RecruitmentOffer } from '@/core/cities/CityDefinition';
 import { getEffectiveCityRest, getEffectiveCityTaxIncome } from '@/core/cities/cityTraits';
@@ -22,6 +23,19 @@ const TACTICS: Array<{ id: BattleTacticId; label: string; title: string; hint: s
   { id: 'flank', label: 'Обход', title: 'Манёвр с усилением стрелковых частей и умеренным риском.', hint: 'Манёвр: усиление стрелков и умеренный риск' },
 ];
 
+const FORMATIONS: Array<{ id: BattleFormationId; label: string; hint: string }> = [
+  { id: 'line', label: 'Линия', hint: '25 / 50 / 25' },
+  { id: 'strong_center', label: 'Сильный центр', hint: '15 / 70 / 15' },
+  { id: 'crescent', label: 'Полумесяц', hint: '35 / 30 / 35' },
+];
+
+const RESERVE_LEVELS: BattleReservePercent[] = [0, 15, 30];
+const RESERVE_LANES: Array<{ id: BattleLane; label: string }> = [
+  { id: 'left', label: 'Лево' },
+  { id: 'center', label: 'Центр' },
+  { id: 'right', label: 'Право' },
+];
+
 export function DecisionPanel({
   selectedNode,
   selectedNodeVisibility,
@@ -30,6 +44,7 @@ export function DecisionPanel({
   playerFactionId,
   rivalFactionId,
   rivalFactionName,
+  capitalFactionId,
   playerNodeId,
   neighboringNodeIds,
   moveAvailability,
@@ -45,6 +60,7 @@ export function DecisionPanel({
   playerFactionId: string;
   rivalFactionId: string;
   rivalFactionName: string;
+  capitalFactionId?: string | null;
   playerNodeId: string;
   neighboringNodeIds: string[];
   moveAvailability: MoveArmyAvailability | null;
@@ -59,6 +75,31 @@ export function DecisionPanel({
         <div className="decision-copy">
           <strong>{t('campaign.mapHint')}</strong>
           <span>{t('campaign.movementHint')}</span>
+        </div>
+      </section>
+    );
+  }
+
+  if (selectedNodeVisibility === 'unknown') {
+    const capitalLabel = capitalFactionId
+      ? getCapitalFactionLabel(capitalFactionId, playerFactionId, rivalFactionId, rivalFactionName)
+      : null;
+    return (
+      <section className="decision-panel location-dock is-charted-only">
+        <div className="decision-copy location-copy">
+          <LocationHeader
+            eyebrow={capitalLabel ? `Известная столица · ${capitalLabel}` : 'Поселение отмечено на карте'}
+            name={t(selectedNode.nameKey as TranslationKey)}
+            onClear={onClear}
+          />
+          <p className="location-description">
+            {capitalLabel
+              ? 'Положение столицы известно заранее, но свежих разведданных о дороге и гарнизоне нет.'
+              : 'Название и положение известны по старым схемам. Кто контролирует поселение и что ждёт внутри — неизвестно.'}
+          </p>
+          <div className="location-meta-row">
+            <span className="fog-intel-pill">Владелец · гарнизон · налог: нет данных</span>
+          </div>
         </div>
       </section>
     );
@@ -231,11 +272,13 @@ export function StrategicActionBar({
   moveSupplyCost,
   attackSupplyCost,
   selectedTactic,
+  battlePlan,
   feedback,
   onMove,
   onOpenRootFinale,
   onAttack,
   onTacticChange,
+  onBattlePlanChange,
   onRest,
   onRecruit,
 }: {
@@ -258,14 +301,18 @@ export function StrategicActionBar({
   moveSupplyCost: number;
   attackSupplyCost: number;
   selectedTactic: BattleTacticId;
+  battlePlan: BattlePlan;
   feedback: string | null;
   onMove: (nodeId: string) => void;
   onOpenRootFinale: () => void;
   onAttack: (cityId: string) => void;
   onTacticChange: (tactic: BattleTacticId) => void;
+  onBattlePlanChange: (plan: BattlePlan) => void;
   onRest: (cityId: string) => void;
   onRecruit: (cityId: string, offer: RecruitmentOffer) => void;
 }) {
+  const [showTactics, setShowTactics] = useState(false);
+  const [showRecruit, setShowRecruit] = useState(false);
   const visibleSelectedNode = selectedNodeVisibility === 'visible' ? selectedNode : null;
   const isCurrentNode = visibleSelectedNode?.id === playerNodeId;
   const isRootObjective = rootClaimAvailability !== null;
@@ -273,6 +320,9 @@ export function StrategicActionBar({
   const isEnemyCity = Boolean(selectedCity && selectedCity.ownerFactionId !== playerFactionId && !isCurrentNode);
   const isAttackTarget = Boolean(visibleSelectedNode && isNeighbor && isEnemyCity);
   const canMoveTarget = Boolean(visibleSelectedNode && !isCurrentNode && !isAttackTarget && !isRootObjective);
+  const showCurrentCityActions = Boolean(
+    currentCityId && currentCityControlled && currentCityDefinition && (!selectedNode || isCurrentNode),
+  );
   const effectiveMoveCost = moveAvailability?.canMove ? moveAvailability.supplyCost : moveSupplyCost;
   const effectiveAttackCost = attackAvailability?.canAttack ? attackAvailability.supplyCost : attackSupplyCost;
   const defenderUnits = attackAvailability?.canAttack
@@ -280,24 +330,16 @@ export function StrategicActionBar({
     : selectedCity
       ? getRosterTotalUnits(selectedCity.garrison.roster)
       : 0;
+  const selectedTacticDefinition = TACTICS.find((tactic) => tactic.id === selectedTactic) ?? TACTICS[1];
+
+  useEffect(() => {
+    setShowTactics(false);
+    setShowRecruit(false);
+  }, [selectedNode?.id]);
 
   return (
     <section className="strategic-action-panel" aria-label="Стратегические действия">
-      <div className="strategic-action-bar">
-        {isAttackTarget
-          ? TACTICS.map((tactic) => (
-              <button
-                key={tactic.id}
-                type="button"
-                className={`tactic-chip${selectedTactic === tactic.id ? ' is-active' : ''}`}
-                title={tactic.title}
-                onClick={() => onTacticChange(tactic.id)}
-              >
-                {tactic.label}
-              </button>
-            ))
-          : null}
-
+      <div className="strategic-action-grid">
         {canMoveTarget && visibleSelectedNode ? (
           <button
             type="button"
@@ -323,56 +365,169 @@ export function StrategicActionBar({
         ) : null}
 
         {isAttackTarget && visibleSelectedNode ? (
-          <button
-            type="button"
-            className="primary-button action-button attack-button"
-            disabled={!attackAvailability?.canAttack}
-            title={getAttackDisabledReason(attackAvailability)}
-            onClick={() => onAttack(visibleSelectedNode.id)}
-          >
-            {defenderUnits > 0 ? 'Атаковать' : 'Занять'} · {formatSupplyCost(effectiveAttackCost)}
-          </button>
-        ) : null}
-
-        {currentCityId && currentCityControlled && currentCityDefinition ? (
           <>
             <button
               type="button"
-              className="primary-button action-button rest-button"
+              className="primary-button action-button attack-button"
+              disabled={!attackAvailability?.canAttack}
+              title={getAttackDisabledReason(attackAvailability)}
+              onClick={() => onAttack(visibleSelectedNode.id)}
+            >
+              {defenderUnits > 0 ? 'Атаковать' : 'Занять'} · {formatSupplyCost(effectiveAttackCost)}
+            </button>
+            <button
+              type="button"
+              className={`secondary-button action-button tactic-toggle${showTactics ? ' is-active' : ''}`}
+              onClick={() => setShowTactics((value) => !value)}
+              aria-expanded={showTactics}
+            >
+              План боя · {selectedTacticDefinition.label}
+            </button>
+          </>
+        ) : null}
+
+        {showCurrentCityActions && currentCityId ? (
+          <>
+            <button
+              type="button"
+              className="secondary-button action-button rest-button"
               disabled={!restAvailability?.canRest}
               title={getRestDisabledReason(restAvailability)}
               onClick={() => onRest(currentCityId)}
             >
-              Отдохнуть
+              Привал
             </button>
-            {currentRecruitmentOffers.map((offer) => {
-              const unit = unitDefinitions[offer.unitTypeId];
-              const availability = recruitAvailabilityByUnitTypeId[offer.unitTypeId] ?? null;
-              return (
-                <button
-                  key={offer.unitTypeId}
-                  type="button"
-                  className="secondary-button action-button recruit-button"
-                  disabled={!availability?.canRecruit}
-                  title={getRecruitDisabledReason(availability)}
-                  onClick={() => onRecruit(currentCityId, offer)}
-                >
-                  +{offer.amount} {unit?.shortName ?? offer.unitTypeId} · −{offer.cost}
-                </button>
-              );
-            })}
+            {currentRecruitmentOffers.length > 0 ? (
+              <button
+                type="button"
+                className={`secondary-button action-button recruit-toggle${showRecruit ? ' is-active' : ''}`}
+                onClick={() => setShowRecruit((value) => !value)}
+                aria-expanded={showRecruit}
+              >
+                Набор · {currentRecruitmentOffers.length}
+              </button>
+            ) : null}
           </>
         ) : null}
 
-        {!isAttackTarget && !canMoveTarget && !isRootObjective && !(currentCityId && currentCityControlled && currentCityDefinition) ? (
-          <span className="strategic-action-hint">Выберите соседнюю точку для хода.</span>
+        {!isAttackTarget && !canMoveTarget && !isRootObjective && !showCurrentCityActions ? (
+          <span className="strategic-action-hint">
+            {selectedNodeVisibility === 'unknown'
+              ? 'Поселение известно, но путь и обстановка ещё не разведаны.'
+              : selectedNodeVisibility === 'explored'
+                ? 'Вернитесь в зону наблюдения, чтобы действовать здесь.'
+                : 'Выберите соседнюю точку для хода.'}
+          </span>
         ) : null}
       </div>
+
+      {showTactics && isAttackTarget ? (
+        <div className="battle-plan-panel" aria-label="План боя">
+          <PlanSection title="Тактика">
+            <div className="tactic-option-grid">
+              {TACTICS.map((tactic) => (
+                <button
+                  key={tactic.id}
+                  type="button"
+                  className={`tactic-chip${selectedTactic === tactic.id ? ' is-active' : ''}`}
+                  title={tactic.title}
+                  onClick={() => onTacticChange(tactic.id)}
+                >
+                  <strong>{tactic.label}</strong>
+                  <span>{tactic.hint}</span>
+                </button>
+              ))}
+            </div>
+          </PlanSection>
+
+          <PlanSection title="Построение">
+            <div className="battle-plan-chip-row">
+              {FORMATIONS.map((formation) => (
+                <button
+                  key={formation.id}
+                  type="button"
+                  className={`battle-plan-chip${battlePlan.formation === formation.id ? ' is-active' : ''}`}
+                  onClick={() => onBattlePlanChange({ ...battlePlan, formation: formation.id })}
+                >
+                  <strong>{formation.label}</strong><span>{formation.hint}</span>
+                </button>
+              ))}
+            </div>
+          </PlanSection>
+
+          <PlanSection title="Резерв · вводится в 3-м раунде">
+            <div className="battle-plan-chip-row is-tight">
+              {RESERVE_LEVELS.map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`battle-plan-chip is-compact${battlePlan.reservePercent === value ? ' is-active' : ''}`}
+                  onClick={() => onBattlePlanChange({ ...battlePlan, reservePercent: value })}
+                >
+                  {value}%
+                </button>
+              ))}
+            </div>
+            {battlePlan.reservePercent > 0 ? (
+              <div className="battle-plan-chip-row is-tight" aria-label="Куда ввести резерв">
+                {RESERVE_LANES.map((lane) => (
+                  <button
+                    key={lane.id}
+                    type="button"
+                    className={`battle-plan-chip is-compact${battlePlan.reserveTarget === lane.id ? ' is-active' : ''}`}
+                    onClick={() => onBattlePlanChange({ ...battlePlan, reserveTarget: lane.id })}
+                  >
+                    {lane.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </PlanSection>
+
+          <PlanSection title="Командование во время боя">
+            <div className="battle-live-orders-note">
+              <strong>2 приказа</strong>
+              <span>Бой автоматически остановится перед 2-м и 4-м раундами. В этот момент можно усилить сектор, приказать общий натиск, удерживать строй или не вмешиваться.</span>
+            </div>
+          </PlanSection>
+
+          <label className="battle-retreat-toggle">
+            <input
+              type="checkbox"
+              checked={battlePlan.retreatMoraleThreshold !== null}
+              onChange={(event: ChangeEvent<HTMLInputElement>) => onBattlePlanChange({ ...battlePlan, retreatMoraleThreshold: event.target.checked ? 30 : null })}
+            />
+            <span><strong>Организованный отход</strong><small>Отступить, если общая мораль упадёт до 30, вместо риска полного разгрома.</small></span>
+          </label>
+        </div>
+      ) : null}
+
+      {showRecruit && showCurrentCityActions && currentCityId ? (
+        <div className="recruit-option-grid" aria-label="Набор войск">
+          {currentRecruitmentOffers.map((offer) => {
+            const unit = unitDefinitions[offer.unitTypeId];
+            const availability = recruitAvailabilityByUnitTypeId[offer.unitTypeId] ?? null;
+            return (
+              <button
+                key={offer.unitTypeId}
+                type="button"
+                className="secondary-button recruit-option"
+                disabled={!availability?.canRecruit}
+                title={getRecruitDisabledReason(availability)}
+                onClick={() => onRecruit(currentCityId, offer)}
+              >
+                <strong>+{offer.amount} {unit?.shortName ?? offer.unitTypeId}</strong>
+                <span>−{offer.cost}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
       {feedback ? <div className="strategic-action-feedback" title={feedback}>{feedback}</div> : null}
     </section>
   );
 }
-
 function LocationHeader({ eyebrow, name, onClear }: { eyebrow: string; name: string; onClear: () => void }) {
   return (
     <div className="location-title-row">
@@ -383,6 +538,17 @@ function LocationHeader({ eyebrow, name, onClear }: { eyebrow: string; name: str
       <button type="button" className="location-close" aria-label="Снять выбор" onClick={onClear}>×</button>
     </div>
   );
+}
+
+function getCapitalFactionLabel(
+  factionId: string,
+  playerFactionId: string,
+  rivalFactionId: string,
+  rivalFactionName: string,
+): string {
+  if (factionId === playerFactionId) return 'Экспедиция';
+  if (factionId === rivalFactionId) return rivalFactionName;
+  return orsiaSubfactionById[factionId]?.name ?? 'неизвестная фракция';
 }
 
 function getCapturedIncomeMultiplierFromDefinition(factionId: string): number {
@@ -442,6 +608,15 @@ function getNodeMessage({
   }
   if (moveAvailability && !moveAvailability.canMove) return getMoveErrorMessage(moveAvailability.reason);
   return t('campaign.canMove');
+}
+
+function PlanSection({ title, children }: { title: string; children: import('react').ReactNode }) {
+  return (
+    <div className="battle-plan-section">
+      <small className="battle-plan-section-title">{title}</small>
+      {children}
+    </div>
+  );
 }
 
 function getMoveErrorMessage(error: MoveArmyError): string {

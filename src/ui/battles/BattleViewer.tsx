@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from 'react';
-import type { BattleSideId, BattleTacticId } from '@/core/battles/BattleTypes';
+import type { BattleCommandId, BattleSideId, BattleTacticId } from '@/core/battles/BattleTypes';
 import type { GameState } from '@/core/state/GameState';
 import {
   getBattleFormationDots,
@@ -26,32 +26,57 @@ import type { BattleReport } from '@/ui/battles/BattleReport';
 import { orsiaSubfactionById } from '@/data/factions/orsiaSubfactions';
 import { RIVAL_FACTION_ID, rivalExpeditionById } from '@/data/factions/rivalExpeditions';
 import { prototypeLeaderById } from '@/data/leaders/prototypeLeader';
+import { getBattleBackgroundSrc } from '@/data/battles/battleBackgrounds';
 
 const PLAYBACK_SPEEDS: BattlePlaybackSpeed[] = [1, 2, 4];
 const MAX_RAF_DELTA_MS = 64;
+const LIVE_COMMANDS: Array<{ id: BattleCommandId; label: string; hint: string }> = [
+  { id: 'press_left', label: 'Давить слева', hint: '+атака на левом фланге' },
+  { id: 'press_center', label: 'Давить центр', hint: '+атака в центре' },
+  { id: 'press_right', label: 'Давить справа', hint: '+атака на правом фланге' },
+  { id: 'general_assault', label: 'Общий натиск', hint: '+атака, но выше риск' },
+  { id: 'hold_line', label: 'Держать строй', hint: '+защита и стойкость' },
+  { id: 'none', label: 'Не вмешиваться', hint: 'Сохранить текущий ход боя' },
+];
+const COMMAND_DECISION_ROUNDS = [2, 4] as const;
 
 export function BattleViewer({
   report,
   cityName,
   state,
+  onIssueCommand,
   onClose,
 }: {
   report: BattleReport;
   cityName: string;
   state: GameState;
+  onIssueCommand?: (command: BattleCommandId) => boolean;
   onClose: () => void;
 }) {
   const presentation = useMemo(() => buildBattlePresentation(report.result), [report.result]);
+  const battleBackgroundSrc = useMemo(() => getBattleBackgroundSrc(report.cityId), [report.cityId]);
   const track = useMemo(() => buildBattlePlaybackTrack(presentation.frames), [presentation.frames]);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [speed, setSpeed] = useState<BattlePlaybackSpeed>(1);
   const [isPlaying, setIsPlaying] = useState(() => !prefersReducedMotion());
+  const [pendingCommandRound, setPendingCommandRound] = useState<number | null>(null);
+  const [commandSubmitting, setCommandSubmitting] = useState(false);
+  const [skipDecisionPrompts, setSkipDecisionPrompts] = useState(false);
   const lastRafTimeRef = useRef<number | null>(null);
 
   const sample = useMemo(
     () => sampleBattlePlayback(presentation.frames, track, elapsedMs),
     [elapsedMs, presentation.frames, track],
   );
+
+  const commandsUsed = report.result.sides.A.plan.commands.length;
+  const nextDecision = useMemo(() => {
+    if (skipDecisionPrompts || !onIssueCommand || commandsUsed >= COMMAND_DECISION_ROUNDS.length) return null;
+    const round = COMMAND_DECISION_ROUNDS[commandsUsed];
+    const frameIndex = presentation.frames.findIndex((frame) => frame.round === round && frame.phase === 'opening');
+    if (frameIndex < 0) return null;
+    return { round, elapsedMs: getBattleFrameTimeMs(track, frameIndex) };
+  }, [commandsUsed, onIssueCommand, presentation.frames, skipDecisionPrompts, track]);
 
   const fromFrame = presentation.frames[sample.fromIndex] ?? presentation.frames[0];
   const toFrame = presentation.frames[sample.toIndex] ?? fromFrame;
@@ -82,6 +107,23 @@ export function BattleViewer({
   useEffect(() => {
     if (isLast && isPlaying) setIsPlaying(false);
   }, [isLast, isPlaying]);
+
+  useEffect(() => {
+    if (!nextDecision || pendingCommandRound !== null) return;
+    if (elapsedMs + 0.5 < nextDecision.elapsedMs) return;
+    setElapsedMs(nextDecision.elapsedMs);
+    setIsPlaying(false);
+    setPendingCommandRound(nextDecision.round);
+  }, [elapsedMs, nextDecision, pendingCommandRound]);
+
+  useEffect(() => {
+    if (pendingCommandRound === null) return;
+    const decisionIndex = COMMAND_DECISION_ROUNDS.indexOf(pendingCommandRound as 2 | 4);
+    if (decisionIndex < 0 || commandsUsed < decisionIndex + 1) return;
+    setPendingCommandRound(null);
+    setCommandSubmitting(false);
+    setIsPlaying(true);
+  }, [commandsUsed, pendingCommandRound]);
 
   if (!fromFrame || !toFrame || !eventFrame) return null;
 
@@ -115,9 +157,20 @@ export function BattleViewer({
     setElapsedMs(Number(event.target.value));
   }
 
-  function handleSkip() {
+  function handleSkipBattle() {
+    setSkipDecisionPrompts(true);
+    setPendingCommandRound(null);
+    setCommandSubmitting(false);
     setIsPlaying(false);
     setElapsedMs(track.durationMs);
+  }
+
+  function handleCommand(command: BattleCommandId) {
+    if (!onIssueCommand || pendingCommandRound === null || commandSubmitting) return;
+    setCommandSubmitting(true);
+    setIsPlaying(false);
+    const accepted = onIssueCommand(command);
+    if (!accepted) setCommandSubmitting(false);
   }
 
   return (
@@ -127,9 +180,16 @@ export function BattleViewer({
           <span className="eyebrow">{presentation.scale === 'battle' ? 'Крупная битва' : 'Стычка'}</span>
           <h2>{cityName}</h2>
         </div>
-        <button type="button" className="text-button" onClick={onClose}>
-          К карте
-        </button>
+        <div className="battle-viewer-header-actions">
+          {!isLast ? (
+            <button type="button" className="battle-skip-header-button" onClick={handleSkipBattle} disabled={commandSubmitting}>
+              ⏭ Бой
+            </button>
+          ) : null}
+          <button type="button" className="text-button" onClick={onClose}>
+            К карте
+          </button>
+        </div>
       </header>
 
       <div className="battle-scoreboard">
@@ -151,6 +211,15 @@ export function BattleViewer({
         winnerSide={presentation.winnerSide}
         attackerTactic={report.attackerTactic}
         defenderTactic={report.defenderTactic}
+        backgroundSrc={battleBackgroundSrc}
+        attackerSnapshot={sideA}
+        defenderSnapshot={sideB}
+        attackerPlan={report.result.sides.A.plan}
+        defenderPlan={report.result.sides.B.plan}
+        pendingCommandRound={pendingCommandRound}
+        commandSubmitting={commandSubmitting}
+        commandsUsed={commandsUsed}
+        onCommand={onIssueCommand ? handleCommand : undefined}
       />
 
       <div className="battle-commentary" aria-live="polite">
@@ -168,6 +237,7 @@ export function BattleViewer({
           step={1}
           value={Math.min(elapsedMs, track.durationMs)}
           onChange={handleScrub}
+          disabled={pendingCommandRound !== null}
         />
         <span>
           {displayedFrameIndex + 1}/{presentation.frames.length}
@@ -179,7 +249,7 @@ export function BattleViewer({
           <button
             type="button"
             className="secondary-button battle-step-button"
-            disabled={elapsedMs <= 0}
+            disabled={elapsedMs <= 0 || pendingCommandRound !== null}
             onClick={handlePrevious}
             aria-label="Предыдущее событие"
           >
@@ -189,6 +259,7 @@ export function BattleViewer({
             type="button"
             className="primary-button battle-play-button"
             onClick={togglePlayback}
+            disabled={pendingCommandRound !== null}
             aria-pressed={isPlaying && !isLast}
           >
             {isLast ? '↻ Повторить' : isPlaying ? 'Ⅱ Пауза' : '▶ Продолжить'}
@@ -196,7 +267,7 @@ export function BattleViewer({
           <button
             type="button"
             className="secondary-button battle-step-button"
-            disabled={isLast}
+            disabled={isLast || pendingCommandRound !== null}
             onClick={handleNext}
             aria-label="Следующее событие"
           >
@@ -217,19 +288,76 @@ export function BattleViewer({
               ×{value}
             </button>
           ))}
-          {!isLast ? (
-            <button type="button" className="battle-skip-button" onClick={handleSkip}>
-              Пропустить
-            </button>
-          ) : (
+          {isLast ? (
             <button type="button" className="battle-skip-button is-result" onClick={onClose}>
               К карте
             </button>
-          )}
+          ) : null}
         </div>
       </div>
     </section>
   );
+}
+
+function BattleSceneSectorHud({
+  attacker,
+  defender,
+  attackerPlan,
+  defenderPlan,
+}: {
+  attacker: BattlePresentationSide;
+  defender: BattlePresentationSide;
+  attackerPlan: import('@/core/battles/BattleTypes').BattlePlan;
+  defenderPlan: import('@/core/battles/BattleTypes').BattlePlan;
+}) {
+  return (
+    <div className="battle-scene-sector-hud" aria-label="Состояние флангов">
+      <BattleSceneSectorSide side="A" snapshot={attacker} plan={attackerPlan} />
+      <BattleSceneSectorSide side="B" snapshot={defender} plan={defenderPlan} />
+    </div>
+  );
+}
+
+function BattleSceneSectorSide({
+  side,
+  snapshot,
+  plan,
+}: {
+  side: BattleSideId;
+  snapshot: BattlePresentationSide;
+  plan: import('@/core/battles/BattleTypes').BattlePlan;
+}) {
+  return (
+    <div className={`battle-scene-sector-side side-${side.toLowerCase()}`}>
+      <div className="battle-scene-sector-cards">
+        {(['left', 'center', 'right'] as const).map((lane) => {
+          const sector = snapshot.sectorState.sectors[lane];
+          const condition = sector.broken ? 'БЕЖИТ' : sector.morale < 35 ? 'ДРОЖИТ' : sector.morale < 60 ? 'НАПРЯЖЁН' : 'ДЕРЖИТСЯ';
+          return (
+            <div key={lane} className={`battle-scene-sector-chip lane-${lane}${sector.broken ? ' is-broken' : ''}`}>
+              <span className="battle-scene-sector-lane">{getLaneLabel(lane).toUpperCase()}</span>
+              <b>{Math.max(0, Math.round(sector.units))}</b>
+              <span className="battle-scene-sector-condition">{condition}</span>
+              <i><em style={{ width: `${clamp(Math.round(sector.morale), 0, 100)}%` }} /></i>
+            </div>
+          );
+        })}
+      </div>
+      <small>
+        {snapshot.sectorState.reserveCommitted
+          ? `Резерв введён · ${getFormationLabel(plan.formation)}`
+          : `Резерв ${Math.max(0, Math.round(snapshot.sectorState.reserveUnits))} → ${getLaneLabel(plan.reserveTarget)}`}
+      </small>
+    </div>
+  );
+}
+
+function getFormationLabel(formation: import('@/core/battles/BattleTypes').BattleFormationId): string {
+  return formation === 'strong_center' ? 'сильный центр' : formation === 'crescent' ? 'полумесяц' : 'линия';
+}
+
+function getLaneLabel(lane: BattleLane): string {
+  return lane === 'left' ? 'левый' : lane === 'right' ? 'правый' : 'центр';
 }
 
 function SideScore({
@@ -286,6 +414,15 @@ function BattlePitch({
   winnerSide,
   attackerTactic,
   defenderTactic,
+  backgroundSrc,
+  attackerSnapshot,
+  defenderSnapshot,
+  attackerPlan,
+  defenderPlan,
+  pendingCommandRound,
+  commandSubmitting,
+  commandsUsed,
+  onCommand,
 }: {
   fromFrame: BattlePresentationFrame;
   toFrame: BattlePresentationFrame;
@@ -296,6 +433,15 @@ function BattlePitch({
   winnerSide: BattleSideId | null;
   attackerTactic: BattleTacticId;
   defenderTactic: BattleTacticId;
+  backgroundSrc: string;
+  attackerSnapshot: BattlePresentationSide;
+  defenderSnapshot: BattlePresentationSide;
+  attackerPlan: import('@/core/battles/BattleTypes').BattlePlan;
+  defenderPlan: import('@/core/battles/BattleTypes').BattlePlan;
+  pendingCommandRound: number | null;
+  commandSubmitting: boolean;
+  commandsUsed: number;
+  onCommand?: (command: BattleCommandId) => void;
 }) {
   const pressureFrom = getPressureShift(fromFrame);
   const pressureTo = getPressureShift(toFrame);
@@ -334,10 +480,18 @@ function BattlePitch({
 
   return (
     <div
-      className={`battle-pitch continuous-motion phase-${eventFrame.phase}${hasImpact ? ' has-impact' : ''}`}
-      style={{ '--battle-impact-opacity': impact.opacity } as CSSProperties}
+      className={`battle-pitch continuous-motion phase-${eventFrame.phase}${hasImpact ? ' has-impact' : ''}${pendingCommandRound !== null ? ' is-command-paused' : ''}`}
+      style={{ '--battle-impact-opacity': impact.opacity, backgroundImage: `url("${backgroundSrc}")` } as CSSProperties}
     >
-      <svg viewBox="0 0 100 100" role="img" aria-label="Схематичное поле боя">
+      <img className="battle-scene-background" src={backgroundSrc} alt="" aria-hidden="true" draggable={false} />
+      <div className="battle-scene-veil" aria-hidden="true" />
+      <BattleSceneSectorHud
+        attacker={attackerSnapshot}
+        defender={defenderSnapshot}
+        attackerPlan={attackerPlan}
+        defenderPlan={defenderPlan}
+      />
+      <svg viewBox="0 0 100 100" role="img" aria-label="Поле боя">
         <defs>
           <marker id="battle-arrow-a" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="4" markerHeight="4" orient="auto">
             <path d="M0 0L6 3L0 6Z" className="battle-arrowhead side-a" />
@@ -376,8 +530,8 @@ function BattlePitch({
         <MeleeVectors side="A" dots={dotsA} phase={eventFrame.phase} battleTime={battleTime} tactic={attackerTactic} />
         <MeleeVectors side="B" dots={dotsB} phase={eventFrame.phase} battleTime={battleTime} tactic={defenderTactic} />
 
-        <FormationDots side="A" dots={dotsA} />
-        <FormationDots side="B" dots={dotsB} />
+        <FormationDots side="A" dots={dotsA} phase={eventFrame.phase} />
+        <FormationDots side="B" dots={dotsB} phase={eventFrame.phase} />
 
         {(toFrame.lossesThisFrame.A ?? 0) > 0 && impact.opacity > 0 ? (
           <LossMarker side="A" amount={toFrame.lossesThisFrame.A ?? 0} opacity={impact.opacity} scale={impact.scale} />
@@ -387,9 +541,25 @@ function BattlePitch({
         ) : null}
       </svg>
       <div className="battle-formation-legend" aria-hidden="true">
-        <span><i className="legend-line" /> передняя линия</span>
+        <span><i className="legend-line" /> линия</span>
         <span><i className="legend-ranged" /> стрелки</span>
       </div>
+      {pendingCommandRound !== null && onCommand ? (
+        <div className="battle-command-overlay" role="group" aria-label={`Приказ перед раундом ${pendingCommandRound}`}>
+          <div className="battle-command-overlay-copy">
+            <strong>Приказ перед {pendingCommandRound}-м раундом</strong>
+            <span>{commandSubmitting ? 'Пересчитываем…' : `Приказов осталось: ${Math.max(0, 2 - commandsUsed)}`}</span>
+          </div>
+          <div className="battle-command-overlay-grid">
+            {LIVE_COMMANDS.map((command) => (
+              <button key={command.id} type="button" disabled={commandSubmitting} onClick={() => onCommand(command.id)}>
+                <strong>{command.label}</strong>
+                <span>{command.hint}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -413,6 +583,11 @@ function LossMarker({
     >
       <circle cx={x} cy="50" r="5" />
       <circle className="battle-impact-ring" cx={x} cy="50" r={7 + (scale - 1) * 4} />
+      <g className="battle-impact-sparks">
+        <path d={`M ${x - 8} 50 H ${x - 4.8} M ${x + 4.8} 50 H ${x + 8}`} />
+        <path d={`M ${x} 42 V 45.2 M ${x} 54.8 V 58`} />
+        <path d={`M ${x - 5.8} 44.2 L ${x - 3.5} 46.5 M ${x + 3.5} 53.5 L ${x + 5.8} 55.8`} />
+      </g>
       <text x={x} y="51.4" textAnchor="middle">
         −{amount}
       </text>
@@ -426,18 +601,41 @@ const BATTLE_LANES: Array<{ lane: BattleLane; y: number }> = [
   { lane: 'right', y: 76 },
 ];
 
-function FormationDots({ side, dots }: { side: BattleSideId; dots: BattleFormationDot[] }) {
+function FormationDots({
+  side,
+  dots,
+  phase,
+}: {
+  side: BattleSideId;
+  dots: BattleFormationDot[];
+  phase: BattlePresentationPhase;
+}) {
+  const animated = phase === 'advance' || phase === 'clash' || phase === 'morale';
   return (
-    <g className={`battle-dots side-${side.toLowerCase()}`}>
-      {dots.map((dot) => (
-        <circle
+    <g className={`battle-dots side-${side.toLowerCase()}${animated ? ' is-animated' : ''}`}>
+      {dots.map((dot, index) => (
+        <g
           key={`${side}-${dot.id}`}
-          className={`role-${dot.role} lane-${dot.lane}`}
-          cx={dot.x}
-          cy={dot.y}
-          r={dot.r}
+          className={`battle-unit-slot role-${dot.role} lane-${dot.lane}`}
+          transform={`translate(${dot.x} ${dot.y})`}
           opacity={dot.opacity}
-        />
+        >
+          <g
+            className="battle-unit-glyph"
+            style={{ '--battle-unit-delay': `${(index % 7) * -0.09}s` } as CSSProperties}
+          >
+            <ellipse className="battle-unit-shadow" cx="0" cy={dot.r * 0.92} rx={dot.r * 1.28} ry={dot.r * 0.46} />
+            <circle className="battle-unit-body" cx="0" cy="0" r={dot.r} />
+            {dot.role === 'ranged' ? (
+              <>
+                <path className="battle-unit-weapon" d={`M ${-dot.r * 0.55} ${dot.r * 0.1} L ${dot.r * 0.65} ${-dot.r * 0.72}`} />
+                <circle className="battle-unit-role-mark" cx={dot.r * 0.48} cy={-dot.r * 0.52} r={Math.max(0.28, dot.r * 0.2)} />
+              </>
+            ) : (
+              <path className="battle-unit-weapon" d={`M ${-dot.r * 0.58} ${dot.r * 0.58} L ${dot.r * 0.62} ${-dot.r * 0.62}`} />
+            )}
+          </g>
+        </g>
       ))}
     </g>
   );
@@ -467,12 +665,18 @@ function VolleyPaths({
         const targetX = 50 + pressureShift - forward * (1.5 + index * 0.8);
         const controlX = (dot.x + targetX) / 2;
         const arc = side === 'A' ? -4 - index : 4 + index;
+        const flight = (battleTime * 0.72 + index * 0.29 + (side === 'A' ? 0 : 0.17)) % 1;
+        const oneMinus = 1 - flight;
+        const projectileX = oneMinus * oneMinus * dot.x + 2 * oneMinus * flight * controlX + flight * flight * targetX;
+        const projectileY = oneMinus * oneMinus * dot.y + 2 * oneMinus * flight * (dot.y + arc) + flight * flight * dot.y;
         return (
-          <path
-            key={`${side}-volley-${dot.id}`}
-            d={`M${dot.x} ${dot.y} Q${controlX} ${dot.y + arc} ${targetX} ${dot.y}`}
-            style={{ strokeDashoffset: -(battleTime * 5 + index * 2) }}
-          />
+          <g key={`${side}-volley-${dot.id}`}>
+            <path
+              d={`M${dot.x} ${dot.y} Q${controlX} ${dot.y + arc} ${targetX} ${dot.y}`}
+              style={{ strokeDashoffset: -(battleTime * 5 + index * 2) }}
+            />
+            <circle className="battle-projectile" cx={projectileX} cy={projectileY} r="0.72" />
+          </g>
         );
       })}
     </g>
@@ -556,6 +760,27 @@ function interpolateSide(
     roster: progress >= 0.5 ? to.roster : from.roster,
     broken: progress >= 0.7 ? to.broken : from.broken,
     outcome: progress >= 0.96 ? to.outcome : from.outcome,
+    sectorState: {
+      reserveUnits: lerp(from.sectorState.reserveUnits, to.sectorState.reserveUnits, progress),
+      reserveCommitted: progress >= 0.7 ? to.sectorState.reserveCommitted : from.sectorState.reserveCommitted,
+      sectors: {
+        left: interpolateSector(from.sectorState.sectors.left, to.sectorState.sectors.left, progress),
+        center: interpolateSector(from.sectorState.sectors.center, to.sectorState.sectors.center, progress),
+        right: interpolateSector(from.sectorState.sectors.right, to.sectorState.sectors.right, progress),
+      },
+    },
+  };
+}
+
+function interpolateSector(
+  from: import('@/core/battles/BattleTypes').BattleSectorSnapshot,
+  to: import('@/core/battles/BattleTypes').BattleSectorSnapshot,
+  progress: number,
+): import('@/core/battles/BattleTypes').BattleSectorSnapshot {
+  return {
+    units: lerp(from.units, to.units, progress),
+    morale: lerp(from.morale, to.morale, progress),
+    broken: progress >= 0.7 ? to.broken : from.broken,
   };
 }
 
@@ -625,7 +850,7 @@ function getOrsiaPlaceholderLabel(factionId: string): string {
   if (factionId === 'orsia-goblins') return 'ГО';
   if (factionId === 'orsia-nazbols') return 'НБ';
   if (factionId === 'orsia-tyranids') return 'ТИ';
-  if (factionId === 'orsia-fgushniki') return 'ФГ';
+  if (factionId === 'orsia-lateki') return 'ЛТ';
   return 'ОР';
 }
 

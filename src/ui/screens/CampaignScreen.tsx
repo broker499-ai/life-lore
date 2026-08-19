@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { BattleTacticId } from '@/core/battles/BattleTypes';
+import { DEFAULT_BATTLE_PLAN, type BattleCommandId, type BattlePlan, type BattleTacticId } from '@/core/battles/BattleTypes';
 import {
   attackCity,
   getAttackCityAvailability,
@@ -19,6 +19,7 @@ import {
 } from '@/core/cities/restAtCity';
 import { getNeighborNodeIds } from '@/core/map/MapGraph';
 import { getMapNodeVisibilityById } from '@/core/map/MapVisibility';
+import { getCapitalFactionIdByCityId } from '@/core/map/factionCapitals';
 import {
   getMoveArmyAvailability,
   moveArmy,
@@ -99,8 +100,19 @@ type PendingMovement = PlayerMovementAnimation & (
       originNodeId: string | null;
       tactic: BattleTacticId;
       attackSupplyCost: number;
+      sourceState: GameState;
+      plan: BattlePlan;
     }
 );
+
+type ActivePlayerBattle = {
+  sourceState: GameState;
+  cityId: string;
+  originNodeId: string | null;
+  tactic: BattleTacticId;
+  attackSupplyCost: number;
+  plan: BattlePlan;
+};
 
 const PLAYER_MOVE_ANIMATION_MS = 1050;
 
@@ -114,7 +126,8 @@ export function CampaignScreen({
   onExit: () => void;
 }) {
   const [state, setState] = useState(() => triggerAvailableSurfaceBriefing(evaluatePlayerDefeat(initialState).state, prototypeSurfaceBriefings));
-  const campaignMap = useMemo(() => getCampaignMap(state), [state.campaign.extensionLocationOrder, state.campaign.resolvedEventIds]);
+  const campaignMap = useMemo(() => getCampaignMap(state), [state.campaign.preRootLayoutId, state.campaign.preRootLocationOrder, state.campaign.extensionLocationOrder, state.campaign.resolvedEventIds]);
+  const capitalFactionIdByCityId = useMemo(() => getCapitalFactionIdByCityId(state), [state.campaign.factionCapitalCityIds]);
   const campaignRegions = useMemo(() => isExtensionUnlocked(state)
     ? [
         ...prototypeMapRegions,
@@ -127,7 +140,9 @@ export function CampaignScreen({
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(initialUi.selectedNodeId);
   const [mapCamera, setMapCamera] = useState<MapCameraSnapshot | null>(initialUi.mapCamera);
   const [selectedTactic, setSelectedTactic] = useState<BattleTacticId>('balanced');
+  const [battlePlan, setBattlePlan] = useState<BattlePlan>(() => ({ ...DEFAULT_BATTLE_PLAN, commands: [] }));
   const [battleReport, setBattleReport] = useState<BattleReport | null>(null);
+  const [activePlayerBattle, setActivePlayerBattle] = useState<ActivePlayerBattle | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [pendingMovement, setPendingMovement] = useState<PendingMovement | null>(null);
   const [rootFinaleOpen, setRootFinaleOpen] = useState(false);
@@ -165,12 +180,13 @@ export function CampaignScreen({
   const selectedNodeVisibility = selectedNodeId
     ? mapVisibilityById[selectedNodeId] ?? 'unknown'
     : null;
-  const selectedNode = useMemo(
-    () => selectedNodeVisibility === 'unknown'
-      ? null
-      : campaignMap.nodes.find((node) => node.id === selectedNodeId) ?? null,
-    [selectedNodeId, selectedNodeVisibility],
-  );
+  const selectedNode = useMemo(() => {
+    const node = campaignMap.nodes.find((candidate) => candidate.id === selectedNodeId) ?? null;
+    if (!node) return null;
+    if (selectedNodeVisibility === 'unknown' && node.kind !== 'city') return null;
+    return node;
+  }, [campaignMap, selectedNodeId, selectedNodeVisibility]);
+  const selectedCapitalFactionId = selectedNode ? capitalFactionIdByCityId[selectedNode.id] ?? null : null;
   const selectedCity = selectedNodeId && selectedNodeVisibility === 'visible'
     ? state.cities[selectedNodeId] ?? null
     : null;
@@ -207,7 +223,7 @@ export function CampaignScreen({
 
   const neighboringNodeIds = useMemo(
     () => getNeighborNodeIds(campaignMap, playerNodeId),
-    [playerNodeId],
+    [campaignMap, playerNodeId],
   );
   const playerSupply = useMemo(
     () => getSupplyStatus(state, campaignMap, state.playerFactionId, playerNodeId),
@@ -239,7 +255,7 @@ export function CampaignScreen({
       toNodeId: selectedNodeId,
       supplyCost: prototypeCampaignRules.moveSupplyCost,
     });
-  }, [selectedNodeId, selectedNodeVisibility, state]);
+  }, [campaignMap, rootObjectiveRules.nodeId, selectedNodeId, selectedNodeVisibility, state]);
 
   const selectedAttackAvailability = useMemo<AttackCityAvailability | null>(() => {
     if (!selectedNodeId || selectedNodeVisibility !== 'visible' || !state.cities[selectedNodeId]) return null;
@@ -249,7 +265,7 @@ export function CampaignScreen({
       tactic: selectedTactic,
       supplyCost: prototypeCampaignRules.attackSupplyCost,
     });
-  }, [selectedNodeId, selectedNodeVisibility, selectedTactic, state]);
+  }, [campaignMap, selectedNodeId, selectedNodeVisibility, selectedTactic, state]);
 
   const restAvailability = useMemo<RestAtCityAvailability | null>(() => {
     if (!currentCityDefinition || !currentCityControlled) return null;
@@ -288,7 +304,7 @@ export function CampaignScreen({
           supplyCost: prototypeCampaignRules.moveSupplyCost,
         }).canMove;
       }),
-    [neighboringNodeIds, playerRootAvailability.canClaim, state],
+    [campaignMap, neighboringNodeIds, playerRootAvailability.canClaim, rootObjectiveRules.nodeId, state],
   );
 
   const attackableNodeIds = useMemo(
@@ -302,7 +318,7 @@ export function CampaignScreen({
           supplyCost: prototypeCampaignRules.attackSupplyCost,
         }).canAttack;
       }),
-    [neighboringNodeIds, selectedTactic, state],
+    [campaignMap, neighboringNodeIds, selectedTactic, state],
   );
 
   function handleMove(toNodeId: string) {
@@ -370,13 +386,14 @@ export function CampaignScreen({
     const artifactText = artifactEvent?.type === 'artifact_acquired'
       ? ` Найден городской артефакт «${prototypeArtifacts[artifactEvent.artifactId]?.name ?? artifactEvent.artifactId}».`
       : '';
-    setFeedback(`Переход выполнен: −${event.supplyCost} припасов.${abilityText}${artifactText}${eventText} Действие хода использовано.`);
+    setFeedback(`Переход выполнен: −${event.supplyCost} припасов.${abilityText}${artifactText}${eventText}${state.campaign.developerMode ? ' DEV: можно действовать снова.' : ' Действие хода использовано.'}`);
   }
 
   function handleAttack(cityId: string) {
     if (pendingMovement) return;
 
     const originNodeId = state.armies['player-main']?.nodeId ?? null;
+    const planSnapshot: BattlePlan = { ...battlePlan, commands: [...battlePlan.commands] };
     const result = attackCity(
       state,
       campaignMap,
@@ -384,6 +401,7 @@ export function CampaignScreen({
         armyId: 'player-main',
         cityId,
         tactic: selectedTactic,
+        battlePlan: planSnapshot,
         supplyCost: prototypeCampaignRules.attackSupplyCost,
       },
       { unitDefinitions: prototypeUnits, battleRules: prototypeBattleRules, cityDefinitions: prototypeCities },
@@ -412,18 +430,30 @@ export function CampaignScreen({
       originNodeId,
       tactic: selectedTactic,
       attackSupplyCost: actualAttackCost,
+      sourceState: state,
+      plan: planSnapshot,
     });
   }
 
   function completeAttackMovement(movement: Extract<PendingMovement, { kind: 'attack' }>) {
-    const result = movement.result;
     setPendingMovement(null);
+    applyPlayerAttackOutcome(movement.result, {
+      sourceState: movement.sourceState,
+      cityId: movement.cityId,
+      originNodeId: movement.originNodeId,
+      tactic: movement.tactic,
+      attackSupplyCost: movement.attackSupplyCost,
+      plan: movement.plan,
+    });
+  }
+
+  function applyPlayerAttackOutcome(result: SuccessfulAttackResult, context: ActivePlayerBattle) {
     const visit = result.captured
       ? resolveCityVisitArtifact(
           result.state,
           {
-            cityId: movement.cityId,
-            factionId: state.playerFactionId,
+            cityId: context.cityId,
+            factionId: context.sourceState.playerFactionId,
             armyId: 'player-main',
             supplyCap: prototypeCampaignRules.supplyCap,
             moraleCap: prototypeCampaignRules.moraleCap,
@@ -440,35 +470,79 @@ export function CampaignScreen({
       : '';
 
     if (!result.battle) {
+      setActivePlayerBattle(null);
       setBattleReport(null);
-      setFeedback(`Гарнизон отсутствовал. Город занят за ${movement.attackSupplyCost} припасов.${cityArtifactText}`);
+      setFeedback(`Гарнизон отсутствовал. Город занят за ${context.attackSupplyCost} припасов.${cityArtifactText}`);
       return;
     }
 
+    const normalizedContext: ActivePlayerBattle = {
+      ...context,
+      plan: { ...result.battle.sides.A.plan, commands: [...result.battle.sides.A.plan.commands] },
+    };
+    setActivePlayerBattle(normalizedContext);
     setBattleReport({
-      cityId: movement.cityId,
+      cityId: context.cityId,
       result: result.battle,
-      attackerTactic: movement.tactic,
+      attackerTactic: context.tactic,
       defenderTactic: 'cautious',
     });
     setView('battle');
 
     const attacker = result.battle.sides.A;
     const defender = result.battle.sides.B;
-    const cityNode = campaignMap.nodes.find((node) => node.id === movement.cityId);
-    const originNode = campaignMap.nodes.find((node) => node.id === movement.originNodeId);
-    const cityName = cityNode ? t(cityNode.nameKey as Parameters<typeof t>[0]) : movement.cityId;
+    const resultMap = getCampaignMap(context.sourceState);
+    const cityNode = resultMap.nodes.find((node) => node.id === context.cityId);
+    const originNode = resultMap.nodes.find((node) => node.id === context.originNodeId);
+    const cityName = cityNode ? t(cityNode.nameKey as Parameters<typeof t>[0]) : context.cityId;
     const originName = originNode ? t(originNode.nameKey as Parameters<typeof t>[0]) : 'исходной позиции';
 
     if (result.captured) {
       setFeedback(
         `Победа: ${cityName} захвачен. Потери ${attacker.totalLosses}, защитники потеряли ${defender.totalLosses}. Мораль ${attacker.moraleAfter}.${cityArtifactText}`,
       );
+    } else if (attacker.outcome === 'retreat') {
+      setFeedback(
+        `Организованный отход от ${cityName}. Потери ${attacker.totalLosses}, защитники потеряли ${defender.totalLosses}. Армия вернулась к ${originName}. Мораль ${attacker.moraleAfter}.`,
+      );
     } else {
       setFeedback(
         `Штурм отбит. Потери ${attacker.totalLosses}, защитники потеряли ${defender.totalLosses}. Армия отступила к ${originName}. Мораль ${attacker.moraleAfter}.`,
       );
     }
+  }
+
+  function handleIssueBattleCommand(command: BattleCommandId): boolean {
+    if (!activePlayerBattle || !battleReport) return false;
+    if (activePlayerBattle.plan.commands.length >= 2) return false;
+
+    const nextPlan: BattlePlan = {
+      ...activePlayerBattle.plan,
+      commands: [...activePlayerBattle.plan.commands, command].slice(0, 2),
+    };
+    const sourceMap = getCampaignMap(activePlayerBattle.sourceState);
+    const rerun = attackCity(
+      activePlayerBattle.sourceState,
+      sourceMap,
+      {
+        armyId: 'player-main',
+        cityId: activePlayerBattle.cityId,
+        tactic: activePlayerBattle.tactic,
+        battlePlan: nextPlan,
+        supplyCost: prototypeCampaignRules.attackSupplyCost,
+      },
+      { unitDefinitions: prototypeUnits, battleRules: prototypeBattleRules, cityDefinitions: prototypeCities },
+    );
+
+    if (!rerun.ok || !rerun.battle) {
+      setFeedback(!rerun.ok ? getAttackErrorMessage(rerun.error) : 'Не удалось пересчитать бой после приказа.');
+      return false;
+    }
+
+    // Re-run from the exact pre-battle GameState and RNG seed. Everything before the
+    // command round therefore stays identical; only the intervention and its consequences change.
+    applyPlayerAttackOutcome(rerun, { ...activePlayerBattle, plan: nextPlan });
+    return true;
   }
 
   function handleOpenRootFinale() {
@@ -502,6 +576,7 @@ export function CampaignScreen({
   }
 
   function handleCloseBattle() {
+    setActivePlayerBattle(null);
     const defeat = evaluatePlayerDefeat(state);
     if (defeat.state !== state) setState(defeat.state);
     setView('map');
@@ -545,7 +620,7 @@ export function CampaignScreen({
     setBattleReport(null);
     const event = result.events[0];
     const unitName = prototypeUnits[event.unitTypeId]?.shortName ?? event.unitTypeId;
-    setFeedback(`Нанято: ${unitName} +${event.amount} за ${event.cost}. Короткий привал: мораль +${event.moraleRestored}. Припасы не пополнялись. Действие хода использовано.`);
+    setFeedback(`Нанято: ${unitName} +${event.amount} за ${event.cost}. Короткий привал: мораль +${event.moraleRestored}. Припасы не пополнялись.${state.campaign.developerMode ? ' DEV: можно действовать снова.' : ' Действие хода использовано.'}`);
   }
 
   function handleResolveEvent(choiceId: string) {
@@ -693,6 +768,27 @@ export function CampaignScreen({
     setFeedback(`Ход ${state.turn} завершён.${rivalText}${incomeText}${upkeepText}${supplyText} Армия снова может действовать.`);
   }
 
+  function handleToggleDeveloperMode() {
+    setState((current) => ({
+      ...current,
+      factions: {
+        ...current.factions,
+        [current.playerFactionId]: {
+          ...current.factions[current.playerFactionId],
+          strategicActionSpent: false,
+          lastStrategicAction: null,
+        },
+      },
+      campaign: {
+        ...current.campaign,
+        developerMode: !current.campaign.developerMode,
+      },
+    }));
+    setFeedback(state.campaign.developerMode
+      ? 'Режим разработчика выключен.'
+      : 'Режим разработчика включён: стратегические действия в этом ходу не ограничены.');
+  }
+
   function handleManualSave() {
     if (pendingMovement) return;
     manualSaveAtRef.current = Date.now();
@@ -720,12 +816,13 @@ export function CampaignScreen({
 
     return (
       <main className="campaign-shell battle-shell">
-        <TopStatusBar state={state} />
+        <TopStatusBar state={state} morale={playerArmy?.morale ?? 0} supplyLabel={getSupplyHeaderLabel(playerSupply)} leaderStatus={getLeaderStatus(state)} onSave={handleManualSave} onExit={onExit} onToggleDeveloperMode={handleToggleDeveloperMode} interactionLocked={isPlayerMoving} />
         <BattleViewer
           key={battleReport.result.battleId}
           report={battleReport}
           cityName={battleCityName}
           state={state}
+          onIssueCommand={activePlayerBattle ? handleIssueBattleCommand : undefined}
           onClose={handleCloseBattle}
         />
       </main>
@@ -734,22 +831,22 @@ export function CampaignScreen({
 
   return (
     <main className="campaign-shell">
-      <TopStatusBar state={state} />
+      <TopStatusBar state={state} morale={playerArmy?.morale ?? 0} supplyLabel={getSupplyHeaderLabel(playerSupply)} leaderStatus={getLeaderStatus(state)} onSave={handleManualSave} onExit={onExit} onToggleDeveloperMode={handleToggleDeveloperMode} interactionLocked={isPlayerMoving} />
 
       {view === 'map' ? (
         <section className="map-area">
-          <CampaignToolbar state={state} morale={playerArmy?.morale ?? 0} supply={playerSupply} onSave={handleManualSave} onExit={onExit} interactionLocked={isPlayerMoving} />
-          <RaceIndicator
-            state={state}
-            graph={campaignMap}
-            rivalFactionId={RIVAL_FACTION_ID}
-            rivalArmyId={RIVAL_ARMY_ID}
-          />
-          <SvgWorldMap
+          <div className="map-stage">
+            <RaceIndicator
+              state={state}
+              graph={campaignMap}
+              rivalArmyId={RIVAL_ARMY_ID}
+            />
+            <SvgWorldMap
             graph={campaignMap}
             nodeVisibilityById={mapVisibilityById}
             regions={campaignRegions}
             cities={state.cities}
+            capitalFactionIdByCityId={capitalFactionIdByCityId}
             playerFactionId={state.playerFactionId}
             rivalFactionId={RIVAL_FACTION_ID}
             rivalPortraitSrc={rivalLeader?.portraitSrc}
@@ -767,14 +864,16 @@ export function CampaignScreen({
             attackableNodeIds={attackableNodeIds}
             supplyPathNodeIds={playerSupply.path}
             onSelectNode={isPlayerMoving ? () => undefined : (nodeId) => {
-              if ((mapVisibilityById[nodeId] ?? 'unknown') === 'unknown') return;
+              const visibility = mapVisibilityById[nodeId] ?? 'unknown';
+              const node = campaignMap.nodes.find((candidate) => candidate.id === nodeId);
+              if (visibility === 'unknown' && node?.kind !== 'city') return;
               setSelectedNodeId(nodeId);
             }}
-          />
+            />
+          </div>
         </section>
       ) : view === 'army' ? (
         <section className="map-area army-area">
-          <CampaignToolbar state={state} morale={playerArmy?.morale ?? 0} supply={playerSupply} onSave={handleManualSave} onExit={onExit} interactionLocked={isPlayerMoving} />
           <div className="army-scroll">
             {playerArmy ? (
               <ArmyOverview army={playerArmy} unitDefinitions={prototypeUnits} />
@@ -792,14 +891,12 @@ export function CampaignScreen({
         </section>
       ) : view === 'cities' ? (
         <section className="map-area army-area cities-area">
-          <CampaignToolbar state={state} morale={playerArmy?.morale ?? 0} supply={playerSupply} onSave={handleManualSave} onExit={onExit} interactionLocked={isPlayerMoving} />
           <div className="army-scroll">
             <CitiesOverview state={state} rivalFactionId={RIVAL_FACTION_ID} />
           </div>
         </section>
       ) : (
         <section className="map-area army-area research-area">
-          <CampaignToolbar state={state} morale={playerArmy?.morale ?? 0} supply={playerSupply} onSave={handleManualSave} onExit={onExit} interactionLocked={isPlayerMoving} />
           <div className="army-scroll research-scroll">
             <ResearchOverview state={state} definitions={prototypeResearch} onResearch={handleResearch} />
           </div>
@@ -825,6 +922,7 @@ export function CampaignScreen({
               playerFactionId={state.playerFactionId}
               rivalFactionId={RIVAL_FACTION_ID}
               rivalFactionName={rivalName}
+              capitalFactionId={selectedCapitalFactionId}
               playerNodeId={playerNodeId}
               neighboringNodeIds={neighboringNodeIds}
               moveAvailability={selectedMoveAvailability}
@@ -853,11 +951,13 @@ export function CampaignScreen({
               moveSupplyCost={prototypeCampaignRules.moveSupplyCost}
               attackSupplyCost={prototypeCampaignRules.attackSupplyCost}
               selectedTactic={selectedTactic}
+              battlePlan={battlePlan}
               feedback={feedback}
               onMove={handleMove}
               onOpenRootFinale={handleOpenRootFinale}
               onAttack={handleAttack}
               onTacticChange={setSelectedTactic}
+              onBattlePlanChange={setBattlePlan}
               onRest={handleRest}
               onRecruit={handleRecruit}
             />
@@ -875,7 +975,11 @@ export function CampaignScreen({
         <section className="persistent-turn-bar" aria-label="Управление ходом">
           <div>
             <span>Ход {state.turn}</span>
-            <strong>{isPlayerMoving ? pendingMovement?.kind === 'attack' ? 'Выдвижение на штурм' : 'Переход выполняется' : state.factions[state.playerFactionId]?.strategicActionSpent ? 'Действие использовано' : 'Действие доступно'}</strong>
+            <strong>{isPlayerMoving
+              ? pendingMovement?.kind === 'attack' ? 'Выдвижение на штурм' : 'Переход выполняется'
+              : state.campaign.developerMode
+                ? 'DEV · действия без лимита'
+                : state.factions[state.playerFactionId]?.strategicActionSpent ? 'Действие использовано' : 'Действие доступно'}</strong>
           </div>
           <button type="button" className="primary-button persistent-end-turn" onClick={handleEndTurn} disabled={isPlayerMoving}>
             {t('campaign.endTurn')}
@@ -955,51 +1059,10 @@ export function CampaignScreen({
   );
 }
 
-function CampaignToolbar({
-  state,
-  morale,
-  supply,
-  onSave,
-  onExit,
-  interactionLocked = false,
-}: {
-  state: GameState;
-  morale: number;
-  supply: ReturnType<typeof getSupplyStatus>;
-  onSave: () => void;
-  onExit: () => void;
-  interactionLocked?: boolean;
-}) {
-  const leader = prototypeLeaderById[state.selectedLeaderId];
-  return (
-    <div className="campaign-toolbar">
-      <div>
-        <span className="eyebrow">Орсия · экспедиционный журнал</span>
-        <strong>{t('app.title')}</strong>
-        {leader ? <span className="leader-toolbar-skill">{leader.name} · {getLeaderStatus(state)}</span> : null}
-      </div>
-      <div className="toolbar-meta">
-        <span>Мораль {morale}</span>
-        <span className="artifact-toolbar-chip">Артефакты {state.campaign.artifactIds.length} · активно {state.campaign.activeArtifactIds.length}/3</span>
-        <span className={`supply-toolbar-chip is-${supply.level}`} title={getSupplyTitle(supply)}>
-          {supply.level === 'ignored' ? 'Снабжение — не требуется' : `Снабжение ${supply.percent}%`}
-        </span>
-        <button type="button" className="text-button campaign-save-button" onClick={onSave} disabled={interactionLocked}>
-          Сохранить
-        </button>
-        <button type="button" className="text-button" onClick={onExit} disabled={interactionLocked}>
-          {t('campaign.exit')}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function getSupplyTitle(supply: ReturnType<typeof getSupplyStatus>): string {
-  if (supply.level === 'ignored') return 'Артемиос игнорирует снабжение: припасы не расходуются на движение и штурмы.';
-  if (supply.distance === null) return 'Линия снабжения отрезана. Действия дороже, в конце хода падает мораль.';
-  if (supply.distance === 0) return 'Армия находится в собственной опорной точке.';
-  return `До ближайшей своей опорной точки: ${supply.distance} ребр. Дальние действия становятся дороже.`;
+function getSupplyHeaderLabel(supply: ReturnType<typeof getSupplyStatus>): string {
+  if (supply.level === 'ignored') return 'СНАБЖ. ∞';
+  if (supply.distance === null) return 'СНАБЖ. 0%';
+  return `СНАБЖ. ${supply.percent}%`;
 }
 
 

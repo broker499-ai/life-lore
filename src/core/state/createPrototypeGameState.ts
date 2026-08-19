@@ -5,8 +5,9 @@ import type { CityState, FactionState, GameState } from '@/core/state/GameState'
 import { DEFAULT_LEADER_ID, prototypeLeaderById, prototypeLeaders } from '@/data/leaders/prototypeLeader';
 import { ORSIA_SUPER_FACTION_ID, orsiaMapSubfactions, orsiaSubfactionById } from '@/data/factions/orsiaSubfactions';
 import { RIVAL_FACTION_ID, rivalExpeditions } from '@/data/factions/rivalExpeditions';
-import { prototypeMap } from '@/data/map/prototypeMap';
-import { chooseExtensionLocationOrder, extensionCityIds } from '@/core/map/extensionMap';
+import { chooseExtensionLocationOrder, extensionCityIds, getCampaignMap } from '@/core/map/extensionMap';
+import { choosePreRootMap } from '@/core/map/preRootMap';
+import { createFactionCapitalCityIds } from '@/core/map/factionCapitals';
 
 export const PLAYER_FACTION_ID = 'expedition';
 export { RIVAL_FACTION_ID };
@@ -73,6 +74,9 @@ export function createPrototypeGameState(
 
   const rivalIdentity = chooseRivalIdentity(leader.id, rng.campaign);
   rng = { ...rng, campaign: rivalIdentity.rngState };
+
+  const preRootMapRoll = choosePreRootMap(rng.campaign);
+  rng = { ...rng, campaign: preRootMapRoll.rngState };
 
   const distribution = distributeOrsiaCities(rng.campaign);
   rng = { ...rng, campaign: distribution.rngState };
@@ -159,6 +163,12 @@ export function createPrototypeGameState(
     cities[id] = created.city;
   }
 
+  const factionCapitalCityIds = createFactionCapitalCityIds(
+    cities,
+    extensionOrder.order,
+    PLAYER_FACTION_ID,
+  );
+
   const initialState: GameState = {
     turn: 1,
     playerFactionId: PLAYER_FACTION_ID,
@@ -170,7 +180,7 @@ export function createPrototypeGameState(
         id: PLAYER_ARMY_ID,
         factionId: PLAYER_FACTION_ID,
         nodeId: 'outer-post',
-        morale: 80,
+        morale: leader.traits.some((trait) => trait.type === 'ignore_morale') ? 100 : 80,
         roster: {
           'expedition-infantry': 20,
           'expedition-rangers': 4,
@@ -180,7 +190,7 @@ export function createPrototypeGameState(
         id: RIVAL_ARMY_ID,
         factionId: RIVAL_FACTION_ID,
         nodeId: 'rival-post',
-        morale: 78,
+        morale: rivalLeader.traits.some((trait) => trait.type === 'ignore_morale') ? 100 : 78,
         roster: {
           'expedition-infantry': 18,
           'expedition-rangers': 6,
@@ -188,6 +198,7 @@ export function createPrototypeGameState(
       },
     },
     campaign: {
+      developerMode: false,
       rootObtainedByFactionId: null,
       pendingEventId: null,
       resolvedEventIds: [],
@@ -200,7 +211,10 @@ export function createPrototypeGameState(
       completedResearchIds: [],
       pendingFactionEvent: null,
       resolvedFactionEventIds: [],
+      preRootLayoutId: preRootMapRoll.layoutId,
+      preRootLocationOrder: preRootMapRoll.locationOrder,
       extensionLocationOrder: extensionOrder.order,
+      factionCapitalCityIds,
       rivalOrganizationId: rivalIdentity.organizationId,
       rivalLeaderId: rivalIdentity.leaderId,
       status: 'active',
@@ -210,7 +224,7 @@ export function createPrototypeGameState(
     rng,
   };
 
-  return synchronizePlayerMapKnowledge(initialState, prototypeMap);
+  return synchronizePlayerMapKnowledge(initialState, getCampaignMap(initialState));
 }
 
 

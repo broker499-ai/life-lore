@@ -21,8 +21,8 @@ export const prototypeLeaders: LeaderDefinition[] = [
       '/assets/leaders/walk/artemios/frame-2.png',
       '/assets/leaders/walk/artemios/frame-3.png',
     ],
-    abilityDescription: 'Войска полностью игнорируют систему припасов: перемещение и штурмы не тратят припасы, а разрыв снабжения не снижает мораль.',
-    traits: [{ type: 'ignore_supply' }],
+    abilityDescription: 'Войска игнорируют систему морали: мораль экспедиции всегда равна 100 и не снижается от боёв, событий или разрыва снабжения.',
+    traits: [{ type: 'ignore_morale' }],
   },
   {
     id: 'vlados',
@@ -66,15 +66,15 @@ export const prototypeLeaders: LeaderDefinition[] = [
   {
     id: 'makson',
     name: 'Максон',
-    abilityName: 'Бассбустед',
+    abilityName: 'Наземный флот',
     portraitSrc: '/assets/leaders/makson.png',
     walkFrameSrcs: [
       '/assets/leaders/walk/makson/frame-1.png',
       '/assets/leaders/walk/makson/frame-2.png',
       '/assets/leaders/walk/makson/frame-3.png',
     ],
-    abilityDescription: 'Противник получает на 25% больше урона по морали от атак армии Максона.',
-    traits: [{ type: 'morale_damage_inflicted_multiplier', multiplier: 1.25 }],
+    abilityDescription: 'Экспедиция полностью игнорирует систему припасов: переходы, штурмы и финальная операция не требуют припасов, а снабжение считается обеспеченным.',
+    traits: [{ type: 'ignore_supply' }],
   },
 ];
 

@@ -23,7 +23,7 @@ function input(cityId = 'moss-market') {
 
 function ensureOrsiaFaction(
   state: ReturnType<typeof createPrototypeGameState>,
-  factionId: 'orsia-nazbols' | 'orsia-tyranids' | 'orsia-orcs' | 'orsia-goblins' | 'orsia-fgushniki',
+  factionId: 'orsia-nazbols' | 'orsia-tyranids' | 'orsia-orcs' | 'orsia-goblins' | 'orsia-lateki',
 ) {
   const definition = orsiaSubfactionById[factionId];
   state.factions[factionId] = {
@@ -241,8 +241,8 @@ describe('attackCity', () => {
 
   it('marks a captured FGU city with a persistent corruption income penalty', () => {
     const state = createPrototypeGameState(71);
-    ensureOrsiaFaction(state, 'orsia-fgushniki');
-    state.cities['moss-market'].ownerFactionId = 'orsia-fgushniki';
+    ensureOrsiaFaction(state, 'orsia-lateki');
+    state.cities['moss-market'].ownerFactionId = 'orsia-lateki';
     state.cities['moss-market'].garrison = { roster: {}, morale: 0 };
 
     const result = attackCity(state, prototypeMap, input(), deps);

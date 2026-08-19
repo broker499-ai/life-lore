@@ -4,7 +4,8 @@ import { moveArmy } from '@/core/map/moveArmy';
 import {
   factionKnowsFullMap,
   getArtifactEffectMultiplier,
-  getMoraleDamageInflictedMultiplier,
+  factionIgnoresMorale,
+  factionIgnoresSupply,
 } from '@/core/leaders/LeaderAbility';
 import { createPrototypeGameState } from '@/core/state/createPrototypeGameState';
 import { prototypeBattleRules } from '@/data/battles/prototypeBattleRules';
@@ -15,19 +16,23 @@ import { prototypeUnits } from '@/data/units/prototypeUnits';
 const deps = { unitDefinitions: prototypeUnits, battleRules: prototypeBattleRules, cityDefinitions: prototypeCities };
 
 describe('leader abilities', () => {
-  it('Artemios ignores supply costs for movement and attacks', () => {
+  it('Artemios keeps expedition morale locked at 100', () => {
     const state = createPrototypeGameState(42, 'artemios');
-    state.cities['moss-market'].ownerFactionId = 'expedition';
+    expect(factionIgnoresMorale(state, 'expedition')).toBe(true);
+    expect(factionIgnoresSupply(state, 'expedition')).toBe(false);
+    expect(state.armies['player-main'].morale).toBe(100);
 
-    const move = moveArmy(state, prototypeMap, {
-      armyId: 'player-main',
-      toNodeId: 'moss-market',
-      supplyCost: 6,
-    });
-
-    expect(move.ok).toBe(true);
-    if (!move.ok) return;
-    expect(move.state.factions.expedition.resources.supplies).toBe(80);
+    state.cities['moss-market'].ownerFactionId = 'orsia-orcs';
+    const battle = attackCity(
+      state,
+      prototypeMap,
+      { armyId: 'player-main', cityId: 'moss-market', tactic: 'balanced', supplyCost: 8 },
+      deps,
+    );
+    if (!battle.ok || !battle.battle) throw new Error('expected deterministic battle');
+    expect(battle.battle.sides.A.moraleBefore).toBe(100);
+    expect(battle.battle.sides.A.moraleAfter).toBe(100);
+    expect(battle.state.armies['player-main'].morale).toBe(100);
   });
 
   it('Vlados and Iliesh expose future-facing artifact/map traits', () => {
@@ -66,35 +71,19 @@ describe('leader abilities', () => {
     expect(third).toMatchObject({ ok: false, error: 'strategic_action_spent' });
   });
 
-  it('Makson exposes a stronger morale-damage multiplier and applies it in battle', () => {
-    const normal = createPrototypeGameState(42, 'vlados');
-    const makson = createPrototypeGameState(42, 'makson');
-    expect(getMoraleDamageInflictedMultiplier(makson, 'expedition')).toBe(1.25);
+  it('Makson Наземный флот ignores the supply system', () => {
+    const state = createPrototypeGameState(42, 'makson');
+    expect(factionIgnoresSupply(state, 'expedition')).toBe(true);
+    expect(factionIgnoresMorale(state, 'expedition')).toBe(false);
+    state.cities['moss-market'].ownerFactionId = 'expedition';
 
-    const normalBattle = attackCity(
-      normal,
-      prototypeMap,
-      { armyId: 'player-main', cityId: 'moss-market', tactic: 'balanced', supplyCost: 8 },
-      deps,
-    );
-    const maksonBattle = attackCity(
-      makson,
-      prototypeMap,
-      { armyId: 'player-main', cityId: 'moss-market', tactic: 'balanced', supplyCost: 8 },
-      deps,
-    );
-    if (!normalBattle.ok || !maksonBattle.ok || !normalBattle.battle || !maksonBattle.battle) {
-      throw new Error('expected deterministic battles');
-    }
-    const normalFirstMorale = normalBattle.battle.timeline.find(
-      (event) => event.type === 'morale_change' && event.side === 'B',
-    );
-    const maksonFirstMorale = maksonBattle.battle.timeline.find(
-      (event) => event.type === 'morale_change' && event.side === 'B',
-    );
-    if (!normalFirstMorale || normalFirstMorale.type !== 'morale_change' || !maksonFirstMorale || maksonFirstMorale.type !== 'morale_change') {
-      throw new Error('expected morale events');
-    }
-    expect(maksonFirstMorale.after).toBeLessThan(normalFirstMorale.after);
+    const move = moveArmy(state, prototypeMap, {
+      armyId: 'player-main',
+      toNodeId: 'moss-market',
+      supplyCost: 6,
+    });
+    expect(move.ok).toBe(true);
+    if (!move.ok) return;
+    expect(move.state.factions.expedition.resources.supplies).toBe(80);
   });
 });

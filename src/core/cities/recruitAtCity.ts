@@ -1,6 +1,8 @@
 import type { CommandOutcome } from '@/core/commands/CommandResult';
+import { hasUnlimitedStrategicActions, shouldSpendStrategicAction } from '@/core/dev/developerMode';
 import type { RecruitmentOffer } from '@/core/cities/CityDefinition';
 import type { ArmyId, CityId, GameState } from '@/core/state/GameState';
+import { factionIgnoresMorale } from '@/core/leaders/LeaderAbility';
 
 export type RecruitAtCityError =
   | 'army_not_found'
@@ -50,7 +52,7 @@ export function getRecruitAtCityAvailability(
 
   const faction = state.factions[army.factionId];
   if (!faction) throw new Error(`Army ${army.id} references missing faction ${army.factionId}`);
-  if (faction.strategicActionSpent) {
+  if (faction.strategicActionSpent && !hasUnlimitedStrategicActions(state, army.factionId)) {
     return { canRecruit: false, reason: 'strategic_action_spent' };
   }
   if (faction.resources.money < input.offer.cost) {
@@ -86,7 +88,7 @@ export function recruitAtCity(
   if (!faction) throw new Error(`Army ${army.id} references missing faction ${army.factionId}`);
 
   const currentAmount = army.roster[input.offer.unitTypeId] ?? 0;
-  const nextMorale = Math.min(input.moraleCap, army.morale + input.moraleRestore);
+  const nextMorale = factionIgnoresMorale(state, army.factionId) ? 100 : Math.min(input.moraleCap, army.morale + input.moraleRestore);
   const moraleRestored = nextMorale - army.morale;
 
   return {
@@ -101,7 +103,7 @@ export function recruitAtCity(
             ...faction.resources,
             money: faction.resources.money - input.offer.cost,
           },
-          strategicActionSpent: true,
+          strategicActionSpent: shouldSpendStrategicAction(state, faction.id),
           lastStrategicAction: 'recruit',
         },
       },

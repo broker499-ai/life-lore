@@ -3,6 +3,7 @@ import type {
   BattleOutcome,
   BattleResult,
   BattleSideId,
+  BattleSideSectorSnapshot,
   BattleTimelineEvent,
 } from '@/core/battles/BattleTypes';
 
@@ -24,6 +25,7 @@ export type BattlePresentationSide = {
   roster: ArmyRoster;
   broken: boolean;
   outcome: BattleOutcome | null;
+  sectorState: BattleSideSectorSnapshot;
 };
 
 export type BattlePresentationFrame = {
@@ -55,9 +57,12 @@ type MutableSide = {
   roster: ArmyRoster;
   broken: boolean;
   outcome: BattleOutcome | null;
+  sectorState: BattleSideSectorSnapshot;
 };
 
 export function buildBattlePresentation(result: BattleResult): BattlePresentation {
+  const initialSectorA = getInitialSectorSnapshot(result, 'A');
+  const initialSectorB = getInitialSectorSnapshot(result, 'B');
   const mutableSides: Record<BattleSideId, MutableSide> = {
     A: {
       factionId: result.sides.A.factionId,
@@ -69,6 +74,7 @@ export function buildBattlePresentation(result: BattleResult): BattlePresentatio
       roster: cloneRoster(result.sides.A.initialRoster),
       broken: false,
       outcome: null,
+      sectorState: cloneSectorState(initialSectorA),
     },
     B: {
       factionId: result.sides.B.factionId,
@@ -80,6 +86,7 @@ export function buildBattlePresentation(result: BattleResult): BattlePresentatio
       roster: cloneRoster(result.sides.B.initialRoster),
       broken: false,
       outcome: null,
+      sectorState: cloneSectorState(initialSectorB),
     },
   };
 
@@ -93,6 +100,8 @@ export function buildBattlePresentation(result: BattleResult): BattlePresentatio
 
     for (const event of group.events) {
       if (event.type === 'round_start') round = event.round;
+      if (event.type === 'formation_set') mutableSides[event.side].sectorState = cloneSectorState(event.snapshot);
+      if (event.type === 'sector_status') mutableSides[event.side].sectorState = cloneSectorState(event.snapshot);
       if (event.type === 'combat_roll') rolls[event.side] = event.roll;
       if (event.type === 'casualties') {
         mutableSides[event.side].units = Math.max(
@@ -212,6 +221,31 @@ function getFrameCopy(
     };
   }
 
+  const command = events.find((event) => event.type === 'command_order');
+  if (command?.type === 'command_order') {
+    return { title: `Раунд ${round}: приказ`, detail: describeCommand(command.command, command.side) };
+  }
+
+  const reserve = events.find((event) => event.type === 'reserve_committed');
+  if (reserve?.type === 'reserve_committed') {
+    return { title: `Раунд ${round}: введён резерв`, detail: `Сторона ${reserve.side} вводит ${reserve.units} бойцов в ${describeLane(reserve.lane)}.` };
+  }
+
+  const sectorBreak = events.find((event) => event.type === 'sector_break');
+  if (sectorBreak?.type === 'sector_break') {
+    return { title: `Раунд ${round}: сектор сломлен`, detail: `${describeLane(sectorBreak.lane)} стороны ${sectorBreak.side} больше не удерживается.` };
+  }
+
+  const encirclement = events.find((event) => event.type === 'encirclement');
+  if (encirclement?.type === 'encirclement') {
+    return { title: `Раунд ${round}: окружение`, detail: `Оба фланга стороны ${encirclement.side} потеряны. Центр оказывается под перекрёстным давлением.` };
+  }
+
+  const retreat = events.find((event) => event.type === 'organized_retreat');
+  if (retreat?.type === 'organized_retreat') {
+    return { title: `Раунд ${round}: организованный отход`, detail: `Сторона ${retreat.side} выходит из боя до полного разгрома.` };
+  }
+
   if (events.some((event) => event.type === 'battle_end')) {
     if (result.winnerSide === 'A') {
       return { title: 'Победа атакующих', detail: describeOutcome(result.sides.A.outcome) };
@@ -258,6 +292,25 @@ function getFrameCopy(
   return { title: `Событие ${round}`, detail: 'Боевая обстановка меняется.' };
 }
 
+function describeCommand(command: import('@/core/battles/BattleTypes').BattleCommandId, side: BattleSideId): string {
+  const label = command === 'press_left'
+    ? 'давить левый фланг'
+    : command === 'press_center'
+      ? 'давить центр'
+      : command === 'press_right'
+        ? 'давить правый фланг'
+        : command === 'general_assault'
+          ? 'общий натиск'
+          : command === 'hold_line'
+            ? 'удерживать строй'
+            : 'оставить прежний приказ';
+  return `Сторона ${side}: ${label}.`;
+}
+
+function describeLane(lane: import('@/core/battles/BattleTypes').BattleLane): string {
+  return lane === 'left' ? 'левый фланг' : lane === 'right' ? 'правый фланг' : 'центр';
+}
+
 function describeOutcome(outcome: BattleOutcome): string {
   switch (outcome) {
     case 'victory':
@@ -276,6 +329,25 @@ function cloneSide(side: MutableSide): BattlePresentationSide {
     ...side,
     initialRoster: cloneRoster(side.initialRoster),
     roster: cloneRoster(side.roster),
+    sectorState: cloneSectorState(side.sectorState),
+  };
+}
+
+function getInitialSectorSnapshot(result: BattleResult, side: BattleSideId): BattleSideSectorSnapshot {
+  const event = result.timeline.find((item) => item.type === 'formation_set' && item.side === side);
+  if (event?.type === 'formation_set') return event.snapshot;
+  return result.sides[side].sectorState;
+}
+
+function cloneSectorState(snapshot: BattleSideSectorSnapshot): BattleSideSectorSnapshot {
+  return {
+    reserveUnits: snapshot.reserveUnits,
+    reserveCommitted: snapshot.reserveCommitted,
+    sectors: {
+      left: { ...snapshot.sectors.left },
+      center: { ...snapshot.sectors.center },
+      right: { ...snapshot.sectors.right },
+    },
   };
 }
 

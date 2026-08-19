@@ -1,7 +1,9 @@
 import type { CommandOutcome } from '@/core/commands/CommandResult';
+import { hasUnlimitedStrategicActions, shouldSpendStrategicAction } from '@/core/dev/developerMode';
 import type { CityDefinition } from '@/core/cities/CityDefinition';
 import { getEffectiveCityRest } from '@/core/cities/cityTraits';
 import type { ArmyId, CityId, GameState } from '@/core/state/GameState';
+import { factionIgnoresMorale } from '@/core/leaders/LeaderAbility';
 
 export type RestAtCityError =
   | 'army_not_found'
@@ -45,7 +47,7 @@ export function getRestAtCityAvailability(
 
   const faction = state.factions[army.factionId];
   if (!faction) throw new Error(`Army ${army.id} references missing faction ${army.factionId}`);
-  if (faction.strategicActionSpent) {
+  if (faction.strategicActionSpent && !hasUnlimitedStrategicActions(state, army.factionId)) {
     return { canRest: false, reason: 'strategic_action_spent' };
   }
   if (input.city.id !== city.id) throw new Error(`City definition mismatch for ${city.id}`);
@@ -55,7 +57,7 @@ export function getRestAtCityAvailability(
     input.supplyCap,
     faction.resources.supplies + rest.suppliesRestore,
   );
-  const nextMorale = Math.min(input.moraleCap, army.morale + rest.moraleRestore);
+  const nextMorale = factionIgnoresMorale(state, army.factionId) ? 100 : Math.min(input.moraleCap, army.morale + rest.moraleRestore);
 
   if (nextSupplies === faction.resources.supplies && nextMorale === army.morale) {
     return { canRest: false, reason: 'nothing_to_restore' };
@@ -92,7 +94,7 @@ export function restAtCity(
     input.supplyCap,
     faction.resources.supplies + rest.suppliesRestore,
   );
-  const nextMorale = Math.min(input.moraleCap, army.morale + rest.moraleRestore);
+  const nextMorale = factionIgnoresMorale(state, army.factionId) ? 100 : Math.min(input.moraleCap, army.morale + rest.moraleRestore);
   const suppliesRestored = nextSupplies - faction.resources.supplies;
   const moraleRestored = nextMorale - army.morale;
 
@@ -108,7 +110,7 @@ export function restAtCity(
             ...faction.resources,
             supplies: nextSupplies,
           },
-          strategicActionSpent: true,
+          strategicActionSpent: shouldSpendStrategicAction(state, faction.id),
           lastStrategicAction: 'rest',
         },
       },

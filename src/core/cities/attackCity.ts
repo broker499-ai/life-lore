@@ -2,11 +2,14 @@ import { getRosterTotalUnits } from '@/core/armies/armyStats';
 import type { CityDefinitions } from '@/core/cities/CityDefinition';
 import { getCityDefenderUnitPowerMultiplier } from '@/core/cities/cityTraits';
 import { areFactionsAllied, areFactionsHostile } from '@/core/factions/factionRelations';
+import { hasUnlimitedStrategicActions, shouldSpendStrategicAction } from '@/core/dev/developerMode';
 import {
   getBattleMoraleLossTakenMultiplier,
   getBattleUnitPowerMultiplier,
   getCapturedCityIncomeMultiplier,
   getFactionDefeatReaction,
+  factionIgnoresMorale,
+  getEffectiveMorale,
   getIncomingCasualtyMultiplier,
   getMoraleDamageInflictedMultiplier,
   getRandomBattleMoraleGain,
@@ -14,6 +17,7 @@ import {
 } from '@/core/leaders/LeaderAbility';
 import type { UnitDefinitions } from '@/core/armies/UnitDefinition';
 import type {
+  BattlePlan,
   BattleResult,
   BattleRules,
   BattleScale,
@@ -44,6 +48,7 @@ export type AttackCityInput = {
   cityId: CityId;
   tactic: BattleTacticId;
   supplyCost: number;
+  battlePlan?: Partial<BattlePlan>;
 };
 
 export type AttackCityDependencies = {
@@ -101,7 +106,7 @@ export function getAttackCityAvailability(
 
   const faction = state.factions[army.factionId];
   if (!faction) throw new Error(`Army ${army.id} references missing faction ${army.factionId}`);
-  if (faction.strategicActionSpent) {
+  if (faction.strategicActionSpent && !hasUnlimitedStrategicActions(state, army.factionId)) {
     return { canAttack: false, reason: 'strategic_action_spent' };
   }
   const supplyStatus = getSupplyStatus(state, graph, army.factionId, army.nodeId);
@@ -155,7 +160,7 @@ export function attackCity(
           ...faction.resources,
           supplies: faction.resources.supplies - availability.supplyCost,
         },
-        strategicActionSpent: true,
+        strategicActionSpent: shouldSpendStrategicAction(state, faction.id),
         lastStrategicAction: 'attack',
       },
     },
@@ -178,7 +183,11 @@ export function attackCity(
   const defenderFactionId =
     defendingArmy?.factionId ?? city.ownerFactionId ?? NEUTRAL_DEFENDER_FACTION_ID;
   const defenderRoster = defendingArmy?.roster ?? city.garrison.roster;
-  const defenderMorale = defendingArmy?.morale ?? city.garrison.morale;
+  const defenderMorale = getEffectiveMorale(
+    state,
+    defenderFactionId,
+    defendingArmy?.morale ?? city.garrison.morale,
+  );
   const battle = simulateBattle(
     {
       battleId,
@@ -186,8 +195,10 @@ export function attackCity(
       sideA: {
         factionId: army.factionId,
         roster: army.roster,
-        morale: army.morale,
+        morale: getEffectiveMorale(state, army.factionId, army.morale),
+        moraleLockedAt: factionIgnoresMorale(state, army.factionId) ? 100 : undefined,
         tactic: input.tactic,
+        plan: input.battlePlan,
         moraleDamageInflictedMultiplier: getMoraleDamageInflictedMultiplier(state, army.factionId),
         moraleLossTakenMultiplier: getBattleMoraleLossTakenMultiplier(state, army.factionId),
         casualtyTakenMultiplier: getIncomingCasualtyMultiplier(state, army.factionId, 'cautious'),
@@ -198,7 +209,15 @@ export function attackCity(
         factionId: defenderFactionId,
         roster: defenderRoster,
         morale: defenderMorale,
+        moraleLockedAt: factionIgnoresMorale(state, defenderFactionId) ? 100 : undefined,
         tactic: 'cautious',
+        plan: {
+          formation: 'line',
+          reservePercent: 15,
+          reserveTarget: 'center',
+          commands: ['hold_line'],
+          retreatMoraleThreshold: null,
+        },
         moraleDamageInflictedMultiplier: getMoraleDamageInflictedMultiplier(state, defenderFactionId),
         moraleLossTakenMultiplier: getBattleMoraleLossTakenMultiplier(state, defenderFactionId),
         casualtyTakenMultiplier: getIncomingCasualtyMultiplier(state, defenderFactionId, input.tactic),
@@ -221,7 +240,7 @@ export function attackCity(
   nextArmies[army.id] = {
     ...army,
     roster: attackerResult.remainingRoster,
-    morale: attackerResult.moraleAfter,
+    morale: getEffectiveMorale(state, army.factionId, attackerResult.moraleAfter),
     nodeId: attackerWon ? city.id : army.nodeId,
   };
 
@@ -238,7 +257,7 @@ export function attackCity(
         nextArmies[defendingArmy.id] = {
           ...defendingArmy,
           roster: defenderResult.remainingRoster,
-          morale: defenderResult.moraleAfter,
+          morale: getEffectiveMorale(state, defendingArmy.factionId, defenderResult.moraleAfter),
           nodeId: defenderRetreatNodeId,
         };
       } else {
@@ -248,7 +267,7 @@ export function attackCity(
       nextArmies[defendingArmy.id] = {
         ...defendingArmy,
         roster: defenderResult.remainingRoster,
-        morale: defenderResult.moraleAfter,
+        morale: getEffectiveMorale(state, defendingArmy.factionId, defenderResult.moraleAfter),
       };
     }
   }
@@ -278,7 +297,7 @@ export function attackCity(
               ...city,
               garrison: {
                 roster: defenderResult.remainingRoster,
-                morale: defenderResult.moraleAfter,
+                morale: getEffectiveMorale(state, defenderFactionId, defenderResult.moraleAfter),
               },
             },
     },

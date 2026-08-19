@@ -133,10 +133,10 @@ describe('simulateBattle', () => {
       roundsFought: 4,
       sideAOutcome: 'victory',
       sideALosses: { 'expedition-infantry': 4 },
-      sideAMorale: 65,
+      sideAMorale: 71,
       sideBOutcome: 'retreat',
-      sideBLosses: { 'orssian-guard': 4 },
-      sideBMorale: 51,
+      sideBLosses: { 'orssian-guard': 3, 'orssian-slingers': 1 },
+      sideBMorale: 56,
       rngCursor: 8,
     });
   });
@@ -189,6 +189,159 @@ describe('simulateBattle', () => {
       prototypeBattleRules,
     );
     expect(pyrrhic.sides.A.outcome).toBe('pyrrhic_victory');
+  });
+
+
+  it('runs the three-sector plan, commits reserve and executes up to two command orders', () => {
+    const result = simulateBattle(
+      {
+        battleId: 'sector-plan',
+        scale: 'battle',
+        sideA: {
+          factionId: 'expedition',
+          roster: { 'expedition-infantry': 30, 'expedition-rangers': 12 },
+          morale: 80,
+          tactic: 'flank',
+          plan: {
+            formation: 'crescent',
+            reservePercent: 15,
+            reserveTarget: 'right',
+            commands: ['press_left', 'general_assault'],
+            retreatMoraleThreshold: 30,
+          },
+        },
+        sideB: {
+          factionId: 'orssia-neutral',
+          roster: { 'orssian-guard': 30, 'orssian-slingers': 8 },
+          morale: 75,
+          tactic: 'cautious',
+        },
+      },
+      createRngState(42),
+      prototypeUnits,
+      prototypeBattleRules,
+    );
+
+    expect(result.timeline.filter((event) => event.type === 'command_order')).toHaveLength(2);
+    expect(result.timeline.some((event) => event.type === 'reserve_committed' && event.side === 'A' && event.lane === 'right')).toBe(true);
+    expect(result.timeline.some((event) => event.type === 'sector_status')).toBe(true);
+    expect(result.sides.A.plan.formation).toBe('crescent');
+    expect(result.sides.A.sectorState.reserveCommitted).toBe(true);
+  });
+
+  it('lets formation and live orders change the winner instead of only changing presentation', () => {
+    const common = {
+      battleId: 'command-impact',
+      scale: 'battle' as const,
+      sideA: {
+        factionId: 'expedition',
+        roster: { 'expedition-infantry': 18, 'expedition-rangers': 6 },
+        morale: 72,
+        tactic: 'balanced' as const,
+      },
+      sideB: {
+        factionId: 'orssia-neutral',
+        roster: { 'orssian-guard': 21, 'orssian-slingers': 5 },
+        morale: 72,
+        tactic: 'balanced' as const,
+      },
+    };
+    const passive = simulateBattle(
+      { ...common, sideA: { ...common.sideA, plan: { formation: 'line', reservePercent: 15, reserveTarget: 'center', commands: [], retreatMoraleThreshold: null } } },
+      createRngState(1),
+      prototypeUnits,
+      prototypeBattleRules,
+    );
+    const intervention = simulateBattle(
+      { ...common, sideA: { ...common.sideA, plan: { formation: 'crescent', reservePercent: 15, reserveTarget: 'left', commands: ['press_left', 'general_assault'], retreatMoraleThreshold: null } } },
+      createRngState(1),
+      prototypeUnits,
+      prototypeBattleRules,
+    );
+
+    expect(passive.winnerSide).toBe('B');
+    expect(intervention.winnerSide).toBe('A');
+  });
+
+  it('allows the same live order in both intervention slots', () => {
+    const result = simulateBattle(
+      {
+        ...baseBattle,
+        battleId: 'repeat-command',
+        scale: 'battle',
+        sideA: {
+          ...baseBattle.sideA,
+          roster: { 'expedition-infantry': 34, 'expedition-rangers': 10 },
+          plan: { formation: 'line', reservePercent: 15, reserveTarget: 'center', commands: ['hold_line', 'hold_line'], retreatMoraleThreshold: null },
+        },
+        sideB: {
+          ...baseBattle.sideB,
+          roster: { 'orssian-guard': 32, 'orssian-slingers': 10 },
+        },
+      },
+      createRngState(81),
+      prototypeUnits,
+      prototypeBattleRules,
+    );
+
+    expect(result.sides.A.plan.commands).toEqual(['hold_line', 'hold_line']);
+    expect(result.timeline.filter((event) => event.type === 'command_order' && event.side === 'A')).toHaveLength(2);
+  });
+
+  it('turns lost flanks into an encirclement event instead of a cosmetic flank modifier', () => {
+    const result = simulateBattle(
+      {
+        battleId: 'encirclement-case',
+        scale: 'battle',
+        sideA: {
+          factionId: 'expedition',
+          roster: { 'expedition-infantry': 30, 'expedition-rangers': 12 },
+          morale: 80,
+          tactic: 'flank',
+          plan: { formation: 'crescent', reservePercent: 15, reserveTarget: 'right', commands: ['press_left', 'general_assault'], retreatMoraleThreshold: null },
+        },
+        sideB: {
+          factionId: 'orssia-neutral',
+          roster: { 'orssian-guard': 30, 'orssian-slingers': 8 },
+          morale: 75,
+          tactic: 'cautious',
+        },
+      },
+      createRngState(42),
+      prototypeUnits,
+      prototypeBattleRules,
+    );
+
+    expect(result.timeline.some((event) => event.type === 'encirclement' && event.side === 'B')).toBe(true);
+  });
+
+  it('supports an organized retreat threshold that preserves retreat instead of waiting for a rout', () => {
+    const result = simulateBattle(
+      {
+        battleId: 'organized-retreat',
+        scale: 'battle',
+        sideA: {
+          factionId: 'expedition',
+          roster: { 'expedition-infantry': 12 },
+          morale: 50,
+          tactic: 'cautious',
+          plan: { formation: 'line', reservePercent: 0, reserveTarget: 'center', commands: ['hold_line'], retreatMoraleThreshold: 45 },
+        },
+        sideB: {
+          factionId: 'orssia-neutral',
+          roster: { 'orssian-guard': 30 },
+          morale: 80,
+          tactic: 'assault',
+        },
+      },
+      createRngState(1),
+      prototypeUnits,
+      prototypeBattleRules,
+    );
+
+    expect(result.timeline.some((event) => event.type === 'organized_retreat' && event.side === 'A')).toBe(true);
+    expect(result.sides.A.outcome).toBe('retreat');
+    expect(result.winnerSide).toBe('B');
   });
 
 });

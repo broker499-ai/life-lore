@@ -2,7 +2,7 @@ import { randomInt } from '@/core/rng/seededRandom';
 import type { RngState } from '@/core/rng/RngState';
 import type { GameState, NodeId } from '@/core/state/GameState';
 import type { MapGraph, MapNode } from '@/core/map/MapGraph';
-import { prototypeMap } from '@/data/map/prototypeMap';
+import { getPreRootMap } from '@/core/map/preRootMap';
 
 export const FALSE_ROOT_EVENT_ID = 'false-root-revelation';
 export const FALSE_ROOT_NODE_ID = 'root-sanctum';
@@ -105,7 +105,8 @@ export function getExtensionStagingCityId(state: GameState): string {
 }
 
 export function getCampaignMap(state: GameState): MapGraph {
-  if (!isExtensionUnlocked(state)) return prototypeMap;
+  const preRootMap = getPreRootMap(state);
+  if (!isExtensionUnlocked(state)) return preRootMap;
 
   const order = normalizeExtensionOrder(state.campaign.extensionLocationOrder);
   const extensionNodes: MapNode[] = order.map((nodeId, index) => {
@@ -131,8 +132,8 @@ export function getCampaignMap(state: GameState): MapGraph {
   ];
 
   return {
-    nodes: [...prototypeMap.nodes, ...extensionNodes, trueRoot],
-    edges: [...prototypeMap.edges, ...extensionEdges],
+    nodes: [...preRootMap.nodes, ...extensionNodes, trueRoot],
+    edges: [...preRootMap.edges, ...extensionEdges],
   };
 }
 

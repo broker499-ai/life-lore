@@ -3,6 +3,7 @@ import type { FactionId, GameState } from '@/core/state/GameState';
 
 export type FactionTrait = (
   | { type: 'ignore_supply' }
+  | { type: 'ignore_morale' }
   | { type: 'artifact_effect_multiplier'; multiplier: number }
   | { type: 'map_revealed' }
   | { type: 'river_double_move'; everyTurns: number }
@@ -59,6 +60,14 @@ export function factionIgnoresSupply(state: GameState, factionId: FactionId): bo
   return getFactionTrait(state, factionId, 'ignore_supply') !== null;
 }
 
+export function factionIgnoresMorale(state: GameState, factionId: FactionId): boolean {
+  return getFactionTrait(state, factionId, 'ignore_morale') !== null;
+}
+
+export function getEffectiveMorale(state: GameState, factionId: FactionId, morale: number): number {
+  return factionIgnoresMorale(state, factionId) ? 100 : morale;
+}
+
 export function getArtifactEffectMultiplier(state: GameState, factionId: FactionId): number {
   return multiplyTraits(state, factionId, 'artifact_effect_multiplier', (trait) => trait.multiplier);
 }
@@ -75,6 +84,7 @@ export function getMoraleDamageInflictedMultiplier(
 }
 
 export function getBattleMoraleLossTakenMultiplier(state: GameState, factionId: FactionId): number {
+  if (factionIgnoresMorale(state, factionId)) return 0;
   return multiplyTraits(state, factionId, 'battle_morale_loss_taken_multiplier', (trait) => trait.multiplier);
 }
 

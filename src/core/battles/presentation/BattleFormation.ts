@@ -1,12 +1,12 @@
 import type { UnitDefinitions, UnitRole } from '@/core/armies/UnitDefinition';
-import type { BattleSideId, BattleTacticId } from '@/core/battles/BattleTypes';
+import type { BattleLane, BattleSideId, BattleTacticId } from '@/core/battles/BattleTypes';
 import type {
   BattlePresentationPhase,
   BattlePresentationSide,
 } from '@/core/battles/presentation/BattlePresentation';
 import type { ArmyRoster, UnitTypeId } from '@/core/state/GameState';
 
-export type BattleLane = 'left' | 'center' | 'right';
+export type { BattleLane } from '@/core/battles/BattleTypes';
 
 export type BattleFormationDot = {
   id: string;

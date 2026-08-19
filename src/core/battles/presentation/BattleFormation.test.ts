@@ -14,6 +14,15 @@ function makeSide(roster: BattlePresentationSide['roster']): BattlePresentationS
     outcome: null,
     initialRoster: { 'expedition-infantry': 20, 'expedition-rangers': 4 },
     roster,
+    sectorState: {
+      sectors: {
+        left: { units: 6, morale: 80, broken: false },
+        center: { units: 12, morale: 80, broken: false },
+        right: { units: 6, morale: 80, broken: false },
+      },
+      reserveUnits: 0,
+      reserveCommitted: true,
+    },
   };
 }
 

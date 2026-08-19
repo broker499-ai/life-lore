@@ -91,12 +91,12 @@ describe('createPrototypeGameState Stage 22 remaining Orsia traits', () => {
     });
   });
 
-  it('copies Orc morale surge and FGU corruption traits from definitions', () => {
+  it('copies Orc morale surge and Lateki administrative trace traits from definitions', () => {
     const states = Array.from({ length: 100 }, (_, seed) => createPrototypeGameState(seed + 400));
     const withOrcs = states.find((state) => state.factions['orsia-orcs']);
-    const withFgu = states.find((state) => state.factions['orsia-fgushniki']);
+    const withLateki = states.find((state) => state.factions['orsia-lateki']);
     expect(withOrcs?.factions['orsia-orcs'].traits).toEqual(orsiaSubfactionById['orsia-orcs'].traits);
-    expect(withFgu?.factions['orsia-fgushniki'].traits).toEqual(orsiaSubfactionById['orsia-fgushniki'].traits);
+    expect(withLateki?.factions['orsia-lateki'].traits).toEqual(orsiaSubfactionById['orsia-lateki'].traits);
   });
 });
 
@@ -113,7 +113,7 @@ describe('createPrototypeGameState Stage 28 extension factions', () => {
     }
   });
 
-  it('gives Profkom the same captured-city corruption trait as FGU', () => {
+  it('gives Profkom the same captured-city administrative trace as Lateki', () => {
     const state = createPrototypeGameState(902);
     expect(state.factions['orsia-profkom'].traits).toContainEqual({
       type: 'captured_city_income_multiplier',

@@ -1,5 +1,6 @@
 import type { CommandOutcome } from '@/core/commands/CommandResult';
 import { areFactionsAllied } from '@/core/factions/factionRelations';
+import { hasUnlimitedStrategicActions, shouldSpendStrategicAction } from '@/core/dev/developerMode';
 import { canUseRiverDoubleMove, getSupplyActionCostMultiplier } from '@/core/leaders/LeaderAbility';
 import { areNodesAdjacent, hasMapNode, type MapGraph } from '@/core/map/MapGraph';
 import { synchronizePlayerMapKnowledge } from '@/core/map/MapVisibility';
@@ -51,8 +52,9 @@ export function getMoveArmyAvailability(
 
   const faction = state.factions[army.factionId];
   if (!faction) throw new Error(`Army ${army.id} references missing faction ${army.factionId}`);
-  const usesRiverDoubleMove = faction.strategicActionSpent && canUseRiverDoubleMove(state, army.factionId);
-  if (faction.strategicActionSpent && !usesRiverDoubleMove) {
+  const unlimitedActions = hasUnlimitedStrategicActions(state, army.factionId);
+  const usesRiverDoubleMove = !unlimitedActions && faction.strategicActionSpent && canUseRiverDoubleMove(state, army.factionId);
+  if (!unlimitedActions && faction.strategicActionSpent && !usesRiverDoubleMove) {
     return { canMove: false, reason: 'strategic_action_spent' };
   }
 
@@ -103,7 +105,7 @@ export function moveArmy(
           ...faction.resources,
           supplies: faction.resources.supplies - availability.supplyCost,
         },
-        strategicActionSpent: true,
+        strategicActionSpent: shouldSpendStrategicAction(state, faction.id),
         lastStrategicAction: 'move',
         leaderAbilityLastUsedTurn: availability.usesRiverDoubleMove
           ? state.turn

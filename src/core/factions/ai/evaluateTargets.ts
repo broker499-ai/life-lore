@@ -11,7 +11,6 @@ import {
 import { getAttackCityAvailability } from '@/core/cities/attackCity';
 import { getMoveArmyAvailability } from '@/core/map/moveArmy';
 import {
-  getCentralNodeId,
   getNeighborNodeIds,
   getShortestPathDistance,
   type MapGraph,
@@ -43,16 +42,19 @@ export function evaluateAiActions(state: GameState, input: AiEvaluationInput): A
   }
 
   const actions: AiAction[] = [];
-  const centralNodeId = getCentralNodeId(input.graph);
-  const currentDistance = centralNodeId
-    ? getShortestPathDistance(input.graph, army.nodeId, centralNodeId)
+  const centralNodes = input.graph.nodes.filter((node) => node.isCentral);
+  const objectiveNodeId = centralNodes.at(-1)?.id ?? input.graph.nodes.find((node) => node.kind === 'special')?.id ?? null;
+  const finalObjectiveNodeId = centralNodes.length > 1 ? objectiveNodeId : null;
+  const currentDistance = objectiveNodeId
+    ? getShortestPathDistance(input.graph, army.nodeId, objectiveNodeId)
     : null;
 
   for (const neighborId of getNeighborNodeIds(input.graph, army.nodeId)) {
-    // The central Root is resolved by the campaign objective layer, not by ordinary movement.
-    if (centralNodeId && neighborId === centralNodeId) continue;
-    const distanceAfter = centralNodeId
-      ? getShortestPathDistance(input.graph, neighborId, centralNodeId)
+    // Only the true final Root is resolved by the campaign objective layer.
+    // A non-final special node (the false Root) must remain enterable by AI.
+    if (finalObjectiveNodeId && neighborId === finalObjectiveNodeId) continue;
+    const distanceAfter = objectiveNodeId
+      ? getShortestPathDistance(input.graph, neighborId, objectiveNodeId)
       : null;
     const progress =
       currentDistance !== null && distanceAfter !== null ? currentDistance - distanceAfter : 0;

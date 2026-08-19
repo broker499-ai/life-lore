@@ -14,6 +14,7 @@ import type { PrototypeMapRegion } from '@/data/map/prototypeMap';
 import { orsiaSubfactionById } from '@/data/factions/orsiaSubfactions';
 import { t } from '@/i18n/t';
 import type { TranslationKey } from '@/i18n/ru';
+import { resolveMapTapNodeId } from '@/ui/map/mapPointerGesture';
 
 export type PlayerMovementAnimation = {
   id: number;
@@ -33,6 +34,7 @@ export type SvgWorldMapProps = {
   nodeVisibilityById: Record<string, MapNodeVisibility>;
   regions: PrototypeMapRegion[];
   cities: Record<string, CityState>;
+  capitalFactionIdByCityId?: Record<string, string>;
   playerFactionId: string;
   rivalFactionId: string;
   rivalPortraitSrc?: string;
@@ -54,6 +56,16 @@ export type SvgWorldMapProps = {
 
 type CameraState = { zoom: number; centerX: number; centerY: number };
 type WorldBounds = { minX: number; maxX: number; minY: number; maxY: number; width: number; height: number };
+type PointerPosition = { x: number; y: number };
+type PinchState = {
+  startDistance: number;
+  startZoom: number;
+  anchorWorldX: number;
+  anchorWorldY: number;
+  screenXFraction: number;
+  screenYFraction: number;
+};
+
 type DragState = {
   pointerId: number;
   startClientX: number;
@@ -61,9 +73,13 @@ type DragState = {
   startCenterX: number;
   startCenterY: number;
   moved: boolean;
+  pressedNodeId: string | null;
 };
 
-const ZOOM_LEVELS = [1, 1.35, 1.75, 2.2] as const;
+const ZOOM_LEVELS = [0.78, 1, 1.4, 2, 2.8, 3.8] as const;
+const MIN_ZOOM = ZOOM_LEVELS[0];
+const MAX_ZOOM = ZOOM_LEVELS[ZOOM_LEVELS.length - 1];
+const BASE_VIEW_HEIGHT = 116;
 const BASE_WORLD_MIN = -8;
 const BASE_WORLD_MAX = 108;
 const WORLD_PADDING = 8;
@@ -73,6 +89,7 @@ export function SvgWorldMap({
   nodeVisibilityById,
   regions,
   cities,
+  capitalFactionIdByCityId = {},
   playerFactionId,
   rivalFactionId,
   rivalPortraitSrc,
@@ -92,10 +109,23 @@ export function SvgWorldMap({
   onSelectNode,
 }: SvgWorldMapProps) {
   const worldBounds = getWorldBounds(graph);
+  const initialPlayerNode = graph.nodes.find((node) => node.id === playerNodeId) ?? null;
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const [viewportAspect, setViewportAspect] = useState(1);
   const [camera, setCamera] = useState<CameraState>(() =>
-    clampCamera(initialCamera ?? { zoom: 1, centerX: 50, centerY: 50 }, worldBounds),
+    clampCamera(
+      initialCamera ?? {
+        zoom: 1,
+        centerX: initialPlayerNode?.x ?? 50,
+        centerY: initialPlayerNode?.y ?? 50,
+      },
+      worldBounds,
+      1,
+    ),
   );
   const dragRef = useRef<DragState | null>(null);
+  const pointerPositionsRef = useRef(new Map<number, PointerPosition>());
+  const pinchRef = useRef<PinchState | null>(null);
   const suppressNextClickRef = useRef(false);
   const movementCompleteRef = useRef(onPlayerMovementComplete);
   movementCompleteRef.current = onPlayerMovementComplete;
@@ -133,8 +163,21 @@ export function SvgWorldMap({
   }
 
   useEffect(() => {
-    setCamera((current) => clampCamera(current, worldBounds));
-  }, [worldBounds.minX, worldBounds.maxX, worldBounds.minY, worldBounds.maxY]);
+    const svg = svgRef.current;
+    if (!svg || typeof ResizeObserver === 'undefined') return undefined;
+    const updateAspect = () => {
+      const rect = svg.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) setViewportAspect(rect.width / rect.height);
+    };
+    updateAspect();
+    const observer = new ResizeObserver(updateAspect);
+    observer.observe(svg);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    setCamera((current) => clampCamera(current, worldBounds, viewportAspect));
+  }, [viewportAspect, worldBounds.minX, worldBounds.maxX, worldBounds.minY, worldBounds.maxY]);
 
   useEffect(() => {
     if (movementId === null || movementDurationMs <= 0) {
@@ -164,8 +207,7 @@ export function SvgWorldMap({
     cameraChangeRef.current?.(camera);
   }, [camera]);
 
-  const viewWidth = worldBounds.width / camera.zoom;
-  const viewHeight = worldBounds.height / camera.zoom;
+  const { width: viewWidth, height: viewHeight } = getViewDimensions(camera.zoom, viewportAspect);
   const viewBoxX = camera.centerX - viewWidth / 2;
   const viewBoxY = camera.centerY - viewHeight / 2;
   const zoomIndex = getNearestZoomIndex(camera.zoom);
@@ -177,7 +219,7 @@ export function SvgWorldMap({
         focusPlayerWhenLeavingFit && current.zoom === 1 && nextZoom > 1 && playerNode
           ? { x: playerNode.x, y: playerNode.y }
           : { x: current.centerX, y: current.centerY };
-      return clampCamera({ zoom: nextZoom, centerX: center.x, centerY: center.y }, worldBounds);
+      return clampCamera({ zoom: nextZoom, centerX: center.x, centerY: center.y }, worldBounds, viewportAspect);
     });
   }
 
@@ -200,20 +242,29 @@ export function SvgWorldMap({
     const playerNode = nodeById.get(playerNodeId);
     if (!playerNode) return;
     const zoom = camera.zoom === 1 ? ZOOM_LEVELS[2] : camera.zoom;
-    setCamera(clampCamera({ zoom, centerX: playerNode.x, centerY: playerNode.y }, worldBounds));
+    setCamera(clampCamera({ zoom, centerX: playerNode.x, centerY: playerNode.y }, worldBounds, viewportAspect));
   }
 
   function handleWheel(event: ReactWheelEvent<SVGSVGElement>) {
     event.preventDefault();
-    if (event.deltaY < 0) zoomIn();
-    else if (event.deltaY > 0) zoomOut();
+    const direction = event.deltaY < 0 ? 1 : -1;
+    zoomAroundScreenPoint(event.currentTarget, event.clientX, event.clientY, camera.zoom * (direction > 0 ? 1.16 : 0.86));
   }
 
   function handlePointerDown(event: ReactPointerEvent<SVGSVGElement>) {
-    if (camera.zoom <= 1 || event.button !== 0) return;
-    const target = event.target as Element;
-    if (target.closest('.map-node')) return;
+    if (event.button !== 0 && event.pointerType !== 'touch') return;
+    pointerPositionsRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
     event.currentTarget.setPointerCapture(event.pointerId);
+
+    if (pointerPositionsRef.current.size >= 2) {
+      beginPinch(event.currentTarget);
+      dragRef.current = null;
+      suppressNextClickRef.current = true;
+      return;
+    }
+
+    const target = event.target as Element | null;
+    const pressedNodeId = target?.closest?.('.map-node')?.getAttribute('data-node-id') ?? null;
     dragRef.current = {
       pointerId: event.pointerId,
       startClientX: event.clientX,
@@ -221,10 +272,31 @@ export function SvgWorldMap({
       startCenterX: camera.centerX,
       startCenterY: camera.centerY,
       moved: false,
+      pressedNodeId,
     };
   }
 
   function handlePointerMove(event: ReactPointerEvent<SVGSVGElement>) {
+    if (!pointerPositionsRef.current.has(event.pointerId)) return;
+    pointerPositionsRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    if (pointerPositionsRef.current.size >= 2) {
+      if (!pinchRef.current) beginPinch(event.currentTarget);
+      const pinch = pinchRef.current;
+      const [a, b] = [...pointerPositionsRef.current.values()];
+      if (!pinch || !a || !b) return;
+      const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+      const nextZoom = clampZoom(pinch.startZoom * (distance / pinch.startDistance));
+      const { width: nextViewWidth, height: nextViewHeight } = getViewDimensions(nextZoom, viewportAspect);
+      setCamera(clampCamera({
+        zoom: nextZoom,
+        centerX: pinch.anchorWorldX - (pinch.screenXFraction - 0.5) * nextViewWidth,
+        centerY: pinch.anchorWorldY - (pinch.screenYFraction - 0.5) * nextViewHeight,
+      }, worldBounds, viewportAspect));
+      suppressNextClickRef.current = true;
+      return;
+    }
+
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     const dx = event.clientX - drag.startClientX;
@@ -233,46 +305,129 @@ export function SvgWorldMap({
 
     const rect = event.currentTarget.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return;
-    const currentViewWidth = worldBounds.width / camera.zoom;
-    const currentViewHeight = worldBounds.height / camera.zoom;
+    const { width: currentViewWidth, height: currentViewHeight } = getViewDimensions(camera.zoom, viewportAspect);
     const next = clampCamera({
       zoom: camera.zoom,
       centerX: drag.startCenterX - (dx / rect.width) * currentViewWidth,
       centerY: drag.startCenterY - (dy / rect.height) * currentViewHeight,
-    }, worldBounds);
+    }, worldBounds, viewportAspect);
     setCamera(next);
   }
 
   function handlePointerUp(event: ReactPointerEvent<SVGSVGElement>) {
     const drag = dragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    suppressNextClickRef.current = drag.moved;
-    dragRef.current = null;
+    const tappedNodeId = drag
+      ? resolveMapTapNodeId({
+          pointerMatches: drag.pointerId === event.pointerId,
+          moved: drag.moved,
+          pressedNodeId: drag.pressedNodeId,
+          activePointerCount: pointerPositionsRef.current.size,
+          pinchActive: Boolean(pinchRef.current),
+          clickSuppressed: suppressNextClickRef.current,
+        })
+      : null;
+
+    if (drag && drag.pointerId === event.pointerId) {
+      if (drag.moved) suppressNextClickRef.current = true;
+      dragRef.current = null;
+    }
+    pointerPositionsRef.current.delete(event.pointerId);
+    pinchRef.current = null;
+    if (pointerPositionsRef.current.size === 1) {
+      const [remainingId, remaining] = [...pointerPositionsRef.current.entries()][0] ?? [];
+      if (remainingId !== undefined && remaining) {
+        dragRef.current = {
+          pointerId: remainingId,
+          startClientX: remaining.x,
+          startClientY: remaining.y,
+          startCenterX: camera.centerX,
+          startCenterY: camera.centerY,
+          moved: true,
+          pressedNodeId: null,
+        };
+      }
+    }
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    if (tappedNodeId) {
+      // Pointer capture makes browser-generated click targeting inconsistent on touch.
+      // Resolve a clean tap here instead of relying on the synthetic click event.
+      onSelectNode(tappedNodeId);
+      suppressNextClickRef.current = false;
+    } else if (pointerPositionsRef.current.size === 0) {
+      // A finished pan/pinch should suppress only the browser click belonging to that gesture,
+      // not the next independent tap on a node.
+      window.setTimeout(() => {
+        suppressNextClickRef.current = false;
+      }, 0);
+    }
+  }
+
+  function handlePointerCancel(event: ReactPointerEvent<SVGSVGElement>) {
+    pointerPositionsRef.current.delete(event.pointerId);
+    if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null;
+    pinchRef.current = null;
+    suppressNextClickRef.current = false;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
   }
 
-  function selectNode(nodeId: string) {
-    if (suppressNextClickRef.current) {
-      suppressNextClickRef.current = false;
-      return;
-    }
-    onSelectNode(nodeId);
+
+  function beginPinch(svg: SVGSVGElement) {
+    const [a, b] = [...pointerPositionsRef.current.values()];
+    if (!a || !b) return;
+    const rect = svg.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const midpointX = (a.x + b.x) / 2;
+    const midpointY = (a.y + b.y) / 2;
+    const screenXFraction = clamp01((midpointX - rect.left) / rect.width);
+    const screenYFraction = clamp01((midpointY - rect.top) / rect.height);
+    const { width: currentViewWidth, height: currentViewHeight } = getViewDimensions(camera.zoom, viewportAspect);
+    pinchRef.current = {
+      startDistance: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
+      startZoom: camera.zoom,
+      anchorWorldX: camera.centerX + (screenXFraction - 0.5) * currentViewWidth,
+      anchorWorldY: camera.centerY + (screenYFraction - 0.5) * currentViewHeight,
+      screenXFraction,
+      screenYFraction,
+    };
+  }
+
+  function zoomAroundScreenPoint(svg: SVGSVGElement, clientX: number, clientY: number, requestedZoom: number) {
+    const rect = svg.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const fx = clamp01((clientX - rect.left) / rect.width);
+    const fy = clamp01((clientY - rect.top) / rect.height);
+    setCamera((current) => {
+      const nextZoom = clampZoom(requestedZoom);
+      const { width: currentViewWidth, height: currentViewHeight } = getViewDimensions(current.zoom, viewportAspect);
+      const anchorWorldX = current.centerX + (fx - 0.5) * currentViewWidth;
+      const anchorWorldY = current.centerY + (fy - 0.5) * currentViewHeight;
+      const { width: nextViewWidth, height: nextViewHeight } = getViewDimensions(nextZoom, viewportAspect);
+      return clampCamera({
+        zoom: nextZoom,
+        centerX: anchorWorldX - (fx - 0.5) * nextViewWidth,
+        centerY: anchorWorldY - (fy - 0.5) * nextViewHeight,
+      }, worldBounds, viewportAspect);
+    });
   }
 
   return (
     <div className={`map-frame${camera.zoom > 1 ? ' is-zoomed' : ''}`}>
       <div className="map-camera-controls" aria-label="Масштаб карты">
-        <button type="button" onClick={zoomOut} disabled={zoomIndex === 0} aria-label="Уменьшить карту">−</button>
+        <button type="button" onClick={zoomOut} disabled={camera.zoom <= MIN_ZOOM + 0.01} aria-label="Уменьшить карту">−</button>
         <button type="button" className="camera-zoom-toggle" onClick={cycleZoom} title="Переключить масштаб">
           {Math.round(camera.zoom * 100)}%
         </button>
-        <button type="button" onClick={zoomIn} disabled={zoomIndex === ZOOM_LEVELS.length - 1} aria-label="Увеличить карту">+</button>
+        <button type="button" onClick={zoomIn} disabled={camera.zoom >= MAX_ZOOM - 0.01} aria-label="Увеличить карту">+</button>
         <button type="button" onClick={focusPlayer} title="Центрировать на экспедиции" aria-label="Центрировать на экспедиции">⌖</button>
       </div>
 
       <svg
+        ref={svgRef}
         className="world-map"
         viewBox={`${viewBoxX} ${viewBoxY} ${viewWidth} ${viewHeight}`}
         role="img"
@@ -281,7 +436,7 @@ export function SvgWorldMap({
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
       >
         <defs>
           <clipPath id="playerPortraitClip" clipPathUnits="userSpaceOnUse">
@@ -377,7 +532,8 @@ export function SvgWorldMap({
 
         {graph.nodes.map((node) => {
           const visibility = nodeVisibilityById[node.id] ?? 'unknown';
-          if (visibility === 'unknown') return null;
+          const isChartedSettlement = visibility === 'unknown' && node.kind === 'city';
+          if (visibility === 'unknown' && !isChartedSettlement) return null;
           const isVisible = visibility === 'visible';
           const isSelected = node.id === selectedNodeId;
           const isPlayer = node.id === playerNodeId && !playerMovement;
@@ -385,23 +541,37 @@ export function SvgWorldMap({
           const canMove = isVisible && movable.has(node.id);
           const canAttack = isVisible && attackable.has(node.id);
           const city = cities[node.id];
+          const capitalFactionId = capitalFactionIdByCityId[node.id] ?? null;
+          const capitalOrsiaOwner = capitalFactionId ? orsiaSubfactionById[capitalFactionId] ?? null : null;
+          const isKnownCapital = Boolean(capitalFactionId);
           const isOwned = isVisible && city?.ownerFactionId === playerFactionId;
           const isRivalOwned = isVisible && city?.ownerFactionId === rivalFactionId;
           const isNeutral = isVisible && city?.ownerFactionId === null;
           const orsiaOwner = isVisible && city?.ownerFactionId ? orsiaSubfactionById[city.ownerFactionId] : null;
+          const knownCapitalPortraitSrc = capitalFactionId === playerFactionId
+            ? playerPortraitSrc ?? null
+            : capitalFactionId === rivalFactionId
+              ? rivalPortraitSrc ?? null
+              : capitalOrsiaOwner?.portraitSrc ?? null;
           const cityOwnerPortraitSrc = isVisible && city
             ? city.ownerFactionId === playerFactionId
               ? playerPortraitSrc ?? null
               : city.ownerFactionId === rivalFactionId
                 ? rivalPortraitSrc ?? null
                 : orsiaOwner?.portraitSrc ?? null
-            : null;
+            : isKnownCapital
+              ? knownCapitalPortraitSrc
+              : null;
           const isRival = isVisible && node.id === rivalNodeId;
           const isPoi = node.kind === 'poi';
           const garrisonUnits = isVisible && city ? getRosterTotalUnits(city.garrison.roster) : 0;
           const classes = [
             'map-node',
             visibility === 'explored' ? 'is-explored' : '',
+            isChartedSettlement ? 'is-charted-settlement' : '',
+            isKnownCapital ? 'is-known-capital' : '',
+            capitalFactionId === playerFactionId ? 'is-capital-player' : '',
+            capitalFactionId === rivalFactionId ? 'is-capital-rival' : '',
             isSelected ? 'is-selected' : '',
             node.isCentral ? 'is-central' : '',
             isPoi ? 'is-poi' : '',
@@ -412,18 +582,17 @@ export function SvgWorldMap({
             isOwned ? 'is-owned' : '',
             isRivalOwned ? 'is-rival-owned' : '',
             isNeutral ? 'is-neutral' : '',
-            orsiaOwner ? `is-${orsiaOwner.mapClass}` : '',
+            orsiaOwner ? `is-${orsiaOwner.mapClass}` : capitalOrsiaOwner ? `is-${capitalOrsiaOwner.mapClass}` : '',
           ].filter(Boolean).join(' ');
 
           return (
             <g
               key={node.id}
               className={classes}
+              data-node-id={node.id}
               role="button"
               tabIndex={0}
               aria-label={t(node.nameKey as TranslationKey)}
-              onPointerDown={(event: ReactPointerEvent<SVGGElement>) => event.stopPropagation()}
-              onClick={() => selectNode(node.id)}
               onKeyDown={(event: KeyboardEvent<SVGGElement>) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                   event.preventDefault();
@@ -431,7 +600,8 @@ export function SvgWorldMap({
                 }
               }}
             >
-              {orsiaOwner ? <title>{`Орсия · ${orsiaOwner.name}`}</title> : visibility === 'explored' ? <title>Разведано ранее · текущая обстановка неизвестна</title> : null}
+              {isChartedSettlement && capitalFactionId ? <title>{`Известная столица · ${getFactionCapitalLabel(capitalFactionId)}`}</title> : isChartedSettlement ? <title>Поселение отмечено на карте · разведданных нет</title> : orsiaOwner ? <title>{`Орсия · ${orsiaOwner.name}`}</title> : visibility === 'explored' ? <title>Разведано ранее · текущая обстановка неизвестна</title> : null}
+              <circle cx={node.x} cy={node.y} r={8.2} className="node-hit-target" aria-hidden="true" />
               {(canMove || canAttack) && !isPlayer ? (
                 <circle
                   cx={node.x}
@@ -494,6 +664,11 @@ export function SvgWorldMap({
                 </>
               )}
 
+              {isKnownCapital && node.kind === 'city' ? (
+                <g className="capital-badge" transform={`translate(${node.x - 4.7} ${node.y - 4.4})`} aria-hidden="true">
+                  <path d="M -1.6 0.8 L -1.25 -1.25 L 0 -0.2 L 1.25 -1.25 L 1.6 0.8 Z" />
+                </g>
+              ) : null}
               {isOwned ? <circle cx={node.x} cy={node.y} r="5.2" className="ownership-ring" /> : null}
               {garrisonUnits > 0 && !isOwned && !isRivalOwned ? (
                 <g className="garrison-badge" transform={`translate(${node.x + 4.1} ${node.y + 3.8})`}>
@@ -561,14 +736,23 @@ export function SvgWorldMap({
   );
 }
 
+
+function getFactionCapitalLabel(factionId: string): string {
+  const orsia = orsiaSubfactionById[factionId];
+  if (orsia) return orsia.name;
+  if (factionId === 'expedition') return 'Экспедиция';
+  if (factionId === 'rival-expedition') return 'Конкурирующая экспедиция';
+  return factionId;
+}
+
 function smoothStep(value: number): number {
   const clamped = Math.min(1, Math.max(0, value));
   return clamped * clamped * (3 - 2 * clamped);
 }
 
-function clampCamera(camera: CameraState, bounds: WorldBounds): CameraState {
-  const viewWidth = bounds.width / camera.zoom;
-  const viewHeight = bounds.height / camera.zoom;
+function clampCamera(camera: CameraState, bounds: WorldBounds, viewportAspect: number): CameraState {
+  const zoom = clampZoom(camera.zoom);
+  const { width: viewWidth, height: viewHeight } = getViewDimensions(zoom, viewportAspect);
   const halfWidth = viewWidth / 2;
   const halfHeight = viewHeight / 2;
   const minCenterX = bounds.minX + halfWidth;
@@ -576,10 +760,24 @@ function clampCamera(camera: CameraState, bounds: WorldBounds): CameraState {
   const minCenterY = bounds.minY + halfHeight;
   const maxCenterY = bounds.maxY - halfHeight;
   return {
-    zoom: camera.zoom,
+    zoom,
     centerX: minCenterX > maxCenterX ? (bounds.minX + bounds.maxX) / 2 : Math.min(maxCenterX, Math.max(minCenterX, camera.centerX)),
     centerY: minCenterY > maxCenterY ? (bounds.minY + bounds.maxY) / 2 : Math.min(maxCenterY, Math.max(minCenterY, camera.centerY)),
   };
+}
+
+function getViewDimensions(zoom: number, viewportAspect: number): { width: number; height: number } {
+  const height = BASE_VIEW_HEIGHT / clampZoom(zoom);
+  const safeAspect = Number.isFinite(viewportAspect) && viewportAspect > 0.2 ? viewportAspect : 1;
+  return { width: height * safeAspect, height };
+}
+
+function clampZoom(value: number): number {
+  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
+}
+
+function clamp01(value: number): number {
+  return Math.min(1, Math.max(0, value));
 }
 
 function getWorldBounds(graph: MapGraph): WorldBounds {
