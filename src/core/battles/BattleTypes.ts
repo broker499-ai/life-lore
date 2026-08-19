@@ -54,6 +54,8 @@ export type BattleSideInput = {
   casualtyTakenMultiplier?: number;
   unitPowerMultiplier?: number;
   randomMoraleGain?: { chancePercent: number; minGain: number; maxGain: number };
+  /** Orc-style formation: all active units occupy the center; enemy flanks wrap around it. */
+  centerOnlyFormation?: boolean;
 };
 
 export type BattleInput = {
@@ -104,6 +106,7 @@ export type BattleSideResult = {
   moraleAfter: number;
   plan: BattlePlan;
   sectorState: BattleSideSectorSnapshot;
+  centerOnlyFormation?: boolean;
 };
 
 export type BattleResult = {

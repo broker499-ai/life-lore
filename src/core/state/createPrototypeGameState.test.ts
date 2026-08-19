@@ -42,7 +42,7 @@ describe('createPrototypeGameState Stage 21 faction traits', () => {
     for (const city of nazbolCities) expect(city.garrison.morale).toBeGreaterThanOrEqual(94);
   });
 
-  it('copies Tyranid anti-tactic resistance from the faction definition', () => {
+  it('copies the Tyranid post-capture egg-clutch trait from the faction definition', () => {
     const states = Array.from({ length: 40 }, (_, seed) => createPrototypeGameState(seed + 100));
     const withTyranids = states.find((state) => state.factions['orsia-tyranids']);
     expect(withTyranids).toBeDefined();
@@ -91,7 +91,7 @@ describe('createPrototypeGameState Stage 22 remaining Orsia traits', () => {
     });
   });
 
-  it('copies Orc morale surge and Lateki administrative trace traits from definitions', () => {
+  it('copies Orc center-only formation and Lateki subsidy traits from definitions', () => {
     const states = Array.from({ length: 100 }, (_, seed) => createPrototypeGameState(seed + 400));
     const withOrcs = states.find((state) => state.factions['orsia-orcs']);
     const withLateki = states.find((state) => state.factions['orsia-lateki']);
@@ -113,7 +113,7 @@ describe('createPrototypeGameState Stage 28 extension factions', () => {
     }
   });
 
-  it('gives Profkom the same captured-city administrative trace as Lateki', () => {
+  it('keeps Profkom corruption penalty separate from the Lateki subsidy', () => {
     const state = createPrototypeGameState(902);
     expect(state.factions['orsia-profkom'].traits).toContainEqual({
       type: 'captured_city_income_multiplier',

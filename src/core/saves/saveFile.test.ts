@@ -181,7 +181,7 @@ describe('save file', () => {
 
     for (const city of Object.values(restored.cities)) expect(city.incomeMultiplier).toBe(1);
     if (restored.factions['orsia-orcs']) {
-      expect(restored.factions['orsia-orcs'].traits.some((trait) => trait.type === 'random_battle_morale_gain')).toBe(true);
+      expect(restored.factions['orsia-orcs'].traits.some((trait) => trait.type === 'center_only_formation')).toBe(true);
     }
     if (restored.factions['orsia-goblins']) {
       expect(restored.factions['orsia-goblins'].traits.some((trait) => trait.type === 'battle_unit_power_multiplier')).toBe(true);
@@ -220,7 +220,7 @@ describe('save file', () => {
       for (const city of cities) expect(city.garrison.morale).toBeGreaterThanOrEqual(94);
     }
     if (restored.factions['orsia-tyranids']) {
-      expect(restored.factions['orsia-tyranids'].traits.some((trait) => trait.type === 'incoming_casualty_multiplier_by_enemy_tactic')).toBe(true);
+      expect(restored.factions['orsia-tyranids'].traits.some((trait) => trait.type === 'post_capture_egg_clutch')).toBe(true);
     }
   });
 
@@ -399,5 +399,29 @@ describe('save v19 campaign variation / faction migration', () => {
     expect(restored.factions.expedition.traits.some((trait) => trait.type === 'ignore_morale')).toBe(true);
     expect(restored.factions.expedition.traits.some((trait) => trait.type === 'ignore_supply')).toBe(false);
     expect(restored.armies['player-main'].morale).toBe(100);
+  });
+});
+
+describe('save v20 faction mechanics migration', () => {
+  it('initializes Tyranid clutches and refreshes Orc/Tyranid/Lateki traits for v19 saves', () => {
+    const current = createPrototypeGameState(404, 'vlados');
+    const legacy = JSON.parse(JSON.stringify(current)) as GameState;
+    delete (legacy.campaign as Partial<GameState['campaign']>).tyranidEggClutches;
+    if (legacy.factions['orsia-orcs']) legacy.factions['orsia-orcs'].traits = [{ type: 'random_battle_morale_gain', chancePercent: 10, minGain: 1, maxGain: 1 }];
+    if (legacy.factions['orsia-tyranids']) legacy.factions['orsia-tyranids'].traits = [];
+    if (legacy.factions['orsia-lateki']) legacy.factions['orsia-lateki'].traits = [{ type: 'captured_city_income_multiplier', multiplier: 0.6 }];
+
+    const restored = deserializeGame(JSON.stringify({ version: 19, state: legacy }));
+
+    expect(restored.campaign.tyranidEggClutches).toEqual({});
+    if (restored.factions['orsia-orcs']) {
+      expect(restored.factions['orsia-orcs'].traits).toContainEqual({ type: 'center_only_formation' });
+    }
+    if (restored.factions['orsia-tyranids']) {
+      expect(restored.factions['orsia-tyranids'].traits.some((trait) => trait.type === 'post_capture_egg_clutch')).toBe(true);
+    }
+    if (restored.factions['orsia-lateki']) {
+      expect(restored.factions['orsia-lateki'].traits).toContainEqual({ type: 'captured_city_income_multiplier', multiplier: 1.4 });
+    }
   });
 });

@@ -31,6 +31,16 @@ export const prototypeUnits: UnitDefinitions = {
     upkeepPerUnit: 0.55,
     description: 'Усиленный вариант разведчиков из легендарной группы 103. Чуть сильнее следопытов и заметно увереннее в том, что знает короткую дорогу.',
   },
+  'tyranid-hatchling': {
+    id: 'tyranid-hatchling',
+    name: 'Молодняк тиранидов',
+    shortName: 'Молодняк',
+    role: 'line',
+    attack: 4,
+    defense: 4,
+    upkeepPerUnit: 0,
+    description: 'Недавно вылупившийся рой из городской кладки. Уже опасен, но заметно слабее полноценного гарнизона.',
+  },
   'orssian-guard': {
     id: 'orssian-guard',
     name: 'Страж Орсии',

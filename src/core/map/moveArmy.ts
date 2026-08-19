@@ -5,6 +5,7 @@ import { canUseRiverDoubleMove, getSupplyActionCostMultiplier } from '@/core/lea
 import { areNodesAdjacent, hasMapNode, type MapGraph } from '@/core/map/MapGraph';
 import { synchronizePlayerMapKnowledge } from '@/core/map/MapVisibility';
 import type { ArmyId, GameState, NodeId } from '@/core/state/GameState';
+import { applyTyranidReversionAfterArmyDeparture } from '@/core/cities/tyranidEggClutch';
 import { getProjectedMoveSupplyStatus, getSupplyAdjustedActionCost, type SupplyStatus } from '@/core/supply/Supply';
 
 export type MoveArmyError =
@@ -120,7 +121,7 @@ export function moveArmy(
 
   return {
     ok: true,
-    state: synchronizePlayerMapKnowledge(nextState, graph),
+    state: synchronizePlayerMapKnowledge(applyTyranidReversionAfterArmyDeparture(state, nextState, army.id), graph),
     events: [
       {
         type: 'army_moved',

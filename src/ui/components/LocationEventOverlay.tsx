@@ -85,7 +85,7 @@ function describeEffects(choice: EventChoice, artifacts: ArtifactDefinitions): s
 
 function formatEffect(type: 'money' | 'supplies' | 'specimens' | 'morale', amount: number): string {
   const sign = amount > 0 ? '+' : '';
-  const label = type === 'money' ? 'деньги' : type === 'supplies' ? 'припасы' : type === 'specimens' ? 'образцы' : 'мораль';
+  const label = type === 'money' ? 'деньги' : type === 'supplies' ? 'припасы' : type === 'specimens' ? 'образцы' : 'моральная паника';
   return `${sign}${amount} ${label}`;
 }
 

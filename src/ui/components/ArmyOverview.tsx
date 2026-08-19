@@ -20,7 +20,7 @@ export function ArmyOverview({
           <p>Состав армии теперь влияет на содержание и станет входом для BattleSimulator.</p>
         </div>
         <div className="morale-badge">
-          <span>Мораль</span>
+          <span>Моральная паника</span>
           <strong>{army.morale}</strong>
         </div>
       </div>

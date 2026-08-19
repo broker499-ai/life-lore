@@ -35,7 +35,7 @@ export function TopStatusBar({
           {leader?.portraitSrc ? <img src={leader.portraitSrc} alt="" draggable={false} /> : null}
           <div>
             <strong>{leader?.name ?? 'Экспедиция'}</strong>
-            <span>{leaderStatus || `Мораль ${morale}`}</span>
+            <span>{leaderStatus || `Моральная паника ${morale}`}</span>
           </div>
         </div>
         <div className="campaign-header-actions">

@@ -4,6 +4,7 @@ import type { CityDefinitions } from '@/core/cities/CityDefinition';
 import { collectCityIncome } from '@/core/economy/collectCityIncome';
 import { payArmyUpkeep } from '@/core/economy/payArmyUpkeep';
 import type { FactionState, GameState } from '@/core/state/GameState';
+import { resolveOverdueUnoccupiedTyranidClutches } from '@/core/cities/tyranidEggClutch';
 
 export type EndTurnInput = {
   cityDefinitions: CityDefinitions;
@@ -23,13 +24,15 @@ export function endTurn(
     ]),
   ) as GameState['factions'];
 
+  const advancedState: GameState = {
+    ...upkeep.state,
+    turn: state.turn + 1,
+    factions,
+  };
+
   return {
     ok: true,
-    state: {
-      ...upkeep.state,
-      turn: state.turn + 1,
-      factions,
-    },
+    state: resolveOverdueUnoccupiedTyranidClutches(advancedState),
     events: [...income.events, ...upkeep.events, { type: 'turn_ended', turn: state.turn }],
   };
 }

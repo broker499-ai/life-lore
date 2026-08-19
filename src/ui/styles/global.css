@@ -6693,3 +6693,804 @@ button:disabled {
   .battle-scene-sector-side { width: 58px; }
   .battle-command-overlay-grid button { min-height: 44px; }
 }
+
+/* ======================================================================
+   Stage 35 — phone landscape mode
+   Portrait remains the default. On a short, wide touch viewport the campaign
+   becomes a two-pane command table: world map/content on the left, current
+   location and actions on the right. This avoids shrinking the map to fit
+   vertically and keeps every primary action reachable without scrolling the
+   whole page.
+   ====================================================================== */
+@media (orientation: landscape) and (min-width: 600px) and (max-width: 1000px) and (max-height: 600px) {
+  html,
+  body,
+  #root {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .campaign-shell:not(.battle-shell) {
+    width: 100vw;
+    max-width: none;
+    height: 100dvh;
+    min-height: 0;
+    padding:
+      env(safe-area-inset-top)
+      max(6px, env(safe-area-inset-right))
+      env(safe-area-inset-bottom)
+      max(6px, env(safe-area-inset-left));
+    display: grid;
+    grid-template-columns: minmax(0, 1.72fr) clamp(280px, 34vw, 360px);
+    grid-template-rows: 44px minmax(0, 1fr) 48px;
+    grid-template-areas:
+      "header header"
+      "content command"
+      "content nav";
+    gap: 0;
+    overflow: hidden;
+    background: #0f0d0a;
+  }
+
+  .campaign-shell:not(.battle-shell) > .campaign-header {
+    grid-area: header;
+    min-width: 0;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(240px, 0.82fr) minmax(380px, 1.18fr);
+    grid-template-rows: 44px;
+    align-items: stretch;
+    padding: 0;
+    border-bottom: 1px solid rgba(232, 223, 200, 0.18);
+  }
+
+  .campaign-header-main {
+    height: 44px;
+    min-width: 0;
+    padding: 0 7px 0 3px;
+    border-right: 1px solid rgba(232, 223, 200, 0.10);
+  }
+
+  .campaign-header-leader img {
+    width: 32px;
+    height: 32px;
+    flex-basis: 32px;
+  }
+
+  .campaign-header-leader strong { font-size: 13px; }
+  .campaign-header-leader span { font-size: 7.5px; }
+  .header-supply-chip { min-height: 30px; font-size: 7.5px; }
+  .header-menu-button { min-height: 42px; }
+
+  .campaign-resource-row {
+    min-width: 0;
+    min-height: 44px;
+    height: 44px;
+    border-top: 0;
+    align-self: stretch;
+  }
+
+  .campaign-resource-row .status-item {
+    min-height: 44px;
+    padding: 5px 3px;
+    align-items: center;
+  }
+
+  .campaign-resource-row .status-item span { font-size: 6px; }
+  .campaign-resource-row .status-item strong { font-size: 11px; }
+
+  .campaign-header-menu {
+    top: 44px;
+    right: 0;
+    max-height: calc(100dvh - 48px);
+    overflow-y: auto;
+  }
+
+  .campaign-shell:not(.battle-shell) > .map-area {
+    grid-area: content;
+    min-width: 0;
+    min-height: 0;
+    height: auto;
+    border-right: 1px solid rgba(232, 223, 200, 0.16);
+    overflow: hidden;
+  }
+
+  .campaign-shell:not(.battle-shell) > .map-area.army-area {
+    overflow: hidden;
+  }
+
+  .campaign-shell:not(.battle-shell) .army-scroll,
+  .campaign-shell:not(.battle-shell) .research-scroll {
+    height: 100%;
+    max-height: none;
+    padding-bottom: 12px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .map-stage,
+  .map-frame,
+  .world-map {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .map-camera-controls {
+    top: 6px;
+    left: 6px;
+    grid-template-columns: 40px 48px 40px 40px;
+  }
+
+  .map-camera-controls button,
+  .map-camera-controls .camera-zoom-toggle {
+    min-width: 40px;
+    width: 40px;
+    height: 40px;
+    min-height: 40px;
+  }
+
+  .map-camera-controls .camera-zoom-toggle { width: 48px; }
+
+  .race-indicator {
+    top: 6px;
+    right: 6px;
+    width: min(144px, 20vw);
+  }
+
+  .race-compact-row {
+    min-height: 24px;
+    padding-block: 1px;
+  }
+
+  .campaign-shell:not(.battle-shell) > .campaign-command-deck {
+    grid-area: command;
+    width: 100%;
+    height: auto;
+    min-width: 0;
+    min-height: 0;
+    max-height: none;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    border-top: 0;
+    border-left: 0;
+    overflow: hidden;
+  }
+
+  .campaign-command-main {
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .campaign-command-main .decision-panel,
+  .campaign-command-main .location-dock,
+  .campaign-command-main .location-dock.is-attack {
+    padding: 6px 7px 5px;
+    overflow-y: auto;
+  }
+
+  .strategic-action-panel {
+    max-height: 55%;
+    padding: 5px 6px 6px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .strategic-action-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .strategic-action-grid .action-button,
+  .tactic-option-grid .tactic-chip,
+  .recruit-option-grid button {
+    min-height: 40px;
+    padding: 5px;
+    font-size: 8px;
+  }
+
+  .tactic-option-grid,
+  .recruit-option-grid {
+    gap: 4px;
+    margin-top: 4px;
+  }
+
+  .strategic-action-feedback {
+    margin-top: 3px;
+    min-height: 10px;
+    font-size: 8.5px;
+  }
+
+  .persistent-turn-bar {
+    height: auto;
+    min-height: 52px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 116px;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 6px;
+    border-left: 0;
+    border-top: 1px solid rgba(232, 223, 200, 0.14);
+  }
+
+  .persistent-turn-bar > div { align-content: center; }
+  .persistent-turn-bar strong { font-size: 7.5px; }
+  .persistent-end-turn {
+    min-height: 42px;
+    height: 42px;
+    padding: 4px 6px;
+  }
+
+  .campaign-shell:not(.battle-shell) > .bottom-nav {
+    grid-area: nav;
+    width: 100%;
+    height: 48px;
+    min-height: 48px;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border-top: 1px solid rgba(232, 223, 200, 0.14);
+    border-left: 0;
+  }
+
+  .campaign-shell:not(.battle-shell) > .bottom-nav .nav-button {
+    min-height: 48px;
+    height: 48px;
+    padding: 0 2px;
+    font-size: 8px;
+  }
+
+  /* Event/story overlays use the extra width rather than forcing a tall card. */
+  .event-card,
+  .root-finale-card,
+  .faction-defeat-card,
+  .surface-briefing-card {
+    width: min(760px, calc(100vw - 32px));
+    max-height: calc(100dvh - 24px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .event-choice-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Battle landscape uses the width for the battlefield and keeps playback/log
+   controls in a compact right rail. The scene therefore remains large even on
+   360–430 px high phones. */
+@media (orientation: landscape) and (min-width: 600px) and (max-width: 1000px) and (max-height: 600px) {
+  .campaign-shell.battle-shell {
+    width: 100vw;
+    max-width: none;
+    height: 100dvh;
+    min-height: 0;
+    display: block;
+    padding:
+      env(safe-area-inset-top)
+      max(6px, env(safe-area-inset-right))
+      env(safe-area-inset-bottom)
+      max(6px, env(safe-area-inset-left));
+    overflow: hidden;
+  }
+
+  .battle-viewer {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    padding: 4px 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1.62fr) clamp(250px, 31vw, 330px);
+    grid-template-rows: 38px 62px minmax(0, 1fr) 36px 92px;
+    grid-template-areas:
+      "battle-header battle-header"
+      "score score"
+      "pitch commentary"
+      "pitch scrubber"
+      "pitch playback";
+    gap: 4px 7px;
+    overflow: hidden;
+  }
+
+  .battle-viewer-header {
+    grid-area: battle-header;
+    min-height: 38px;
+    height: 38px;
+    padding: 0 3px 3px;
+  }
+
+  .battle-viewer-header .eyebrow { font-size: 6px; }
+  .battle-viewer-header h2 { margin: 0; font-size: 14px; line-height: 1; }
+  .battle-viewer-header-actions { gap: 4px; }
+  .battle-viewer-header-actions button {
+    min-height: 34px;
+    height: 34px;
+    padding: 0 10px;
+  }
+
+  .battle-scoreboard {
+    grid-area: score;
+    min-height: 62px;
+    height: 62px;
+    padding: 4px 6px;
+  }
+
+  .battle-side-score {
+    min-height: 0;
+    gap: 2px;
+  }
+
+  .battle-side-identity { gap: 5px; }
+  .battle-leader-portrait {
+    width: 42px;
+    height: 42px;
+  }
+
+  .battle-side-identity strong { font-size: 11px; }
+  .battle-side-identity small,
+  .battle-side-score > span,
+  .battle-side-score > small { font-size: 6.5px; }
+  .battle-score-values b { font-size: 15px; }
+  .battle-clock strong { font-size: 12px; }
+  .battle-clock span { font-size: 6.5px; }
+
+  .battle-pitch {
+    grid-area: pitch;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    align-self: stretch;
+    border-radius: 3px;
+  }
+
+  .battle-scene-background {
+    object-fit: cover;
+    object-position: center 58%;
+  }
+
+  .battle-commentary {
+    grid-area: commentary;
+    min-width: 0;
+    min-height: 0;
+    height: auto;
+    margin: 0;
+    padding: 8px 9px;
+    overflow-y: auto;
+    align-self: stretch;
+  }
+
+  .battle-commentary strong { font-size: 11px; }
+  .battle-commentary p { font-size: 9px; line-height: 1.25; }
+  .battle-phase-label { font-size: 6.5px; }
+
+  .battle-scrubber {
+    grid-area: scrubber;
+    min-width: 0;
+    margin: 0;
+    padding: 0 2px;
+    align-self: center;
+  }
+
+  .battle-scrubber input[type='range'] { min-height: 32px; }
+
+  .battle-playback-toolbar {
+    grid-area: playback;
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+    display: grid;
+    grid-template-rows: 44px 40px;
+    gap: 4px;
+    align-content: end;
+  }
+
+  .battle-playback-controls {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr) 42px;
+    gap: 4px;
+  }
+
+  .battle-step-button,
+  .battle-play-button {
+    min-height: 42px;
+    height: 42px;
+  }
+
+  .battle-speed-controls {
+    min-height: 38px;
+    display: grid;
+    grid-template-columns: auto repeat(3, 1fr) auto;
+    align-items: center;
+    gap: 3px;
+  }
+
+  .battle-speed-controls button {
+    min-width: 0;
+    min-height: 36px;
+    height: 36px;
+    padding-inline: 5px;
+  }
+
+  .battle-scene-sector-side {
+    top: 5%;
+    bottom: 5%;
+    width: 66px;
+  }
+
+  .battle-scene-sector-chip {
+    min-height: 36px;
+    padding: 2px 3px;
+  }
+
+  .battle-scene-sector-chip b { font-size: 10px; }
+  .battle-scene-sector-lane,
+  .battle-scene-sector-condition { font-size: 5px; }
+
+  .battle-command-overlay {
+    right: 76px;
+    bottom: 7px;
+    left: 76px;
+    width: auto;
+    transform: none;
+    padding: 6px;
+  }
+
+  .battle-command-overlay-copy {
+    margin-bottom: 4px;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 6px;
+  }
+
+  .battle-command-overlay-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 3px;
+  }
+
+  .battle-command-overlay-grid button {
+    min-height: 38px;
+    padding: 4px;
+  }
+
+  .battle-command-overlay-grid strong { font-size: 6.5px; }
+  .battle-command-overlay-grid span { font-size: 6.5px; }
+  .battle-formation-legend { display: none; }
+}
+
+/* Very short landscape phones (e.g. 667×360 CSS px): trim secondary chrome,
+   never the map or the tactical scene. */
+@media (orientation: landscape) and (min-width: 600px) and (max-width: 1000px) and (max-height: 400px) {
+  .campaign-shell:not(.battle-shell) {
+    grid-template-columns: minmax(0, 1.8fr) clamp(270px, 35vw, 330px);
+    grid-template-rows: 40px minmax(0, 1fr) 44px;
+  }
+
+  .campaign-shell:not(.battle-shell) > .campaign-header {
+    grid-template-rows: 40px;
+  }
+
+  .campaign-header-main,
+  .campaign-resource-row { height: 40px; min-height: 40px; }
+  .campaign-resource-row .status-item { min-height: 40px; }
+  .campaign-header-menu { top: 40px; }
+  .campaign-header-leader img { width: 29px; height: 29px; flex-basis: 29px; }
+  .header-supply-chip { display: none; }
+  .campaign-shell:not(.battle-shell) > .bottom-nav,
+  .campaign-shell:not(.battle-shell) > .bottom-nav .nav-button { height: 44px; min-height: 44px; }
+  .persistent-turn-bar { min-height: 48px; }
+  .persistent-end-turn { min-height: 38px; height: 38px; }
+  .map-camera-controls { transform: scale(0.9); transform-origin: top left; }
+  .race-indicator { transform: scale(0.9); transform-origin: top right; }
+
+  .battle-viewer {
+    grid-template-columns: minmax(0, 1.7fr) clamp(235px, 30vw, 300px);
+    grid-template-rows: 34px 54px minmax(0, 1fr) 32px 84px;
+  }
+
+  .battle-viewer-header { height: 34px; min-height: 34px; }
+  .battle-viewer-header-actions button { height: 30px; min-height: 30px; }
+  .battle-scoreboard { height: 54px; min-height: 54px; padding-block: 2px; }
+  .battle-leader-portrait { width: 36px; height: 36px; }
+  .battle-side-identity small { display: none; }
+  .battle-commentary { padding: 5px 7px; }
+  .battle-commentary p { margin-top: 3px; }
+  .battle-playback-toolbar { grid-template-rows: 40px 36px; }
+  .battle-step-button,
+  .battle-play-button { height: 38px; min-height: 38px; }
+  .battle-speed-controls button { height: 32px; min-height: 32px; }
+  .battle-command-overlay { right: 68px; left: 68px; }
+  .battle-command-overlay-grid button { min-height: 34px; }
+}
+
+/* Stage 36 — live battle controls, orc center-only fighting, tyranid clutch */
+.tyranid-clutch-button {
+  border-color: rgba(181, 93, 116, 0.56) !important;
+  background: rgba(89, 36, 49, 0.5) !important;
+}
+.tyranid-clutch-button.is-overdue {
+  border-color: rgba(214, 75, 75, 0.72) !important;
+  background: rgba(112, 31, 31, 0.54) !important;
+}
+
+.battle-live-controls {
+  position: absolute;
+  z-index: 12;
+  left: 50%;
+  bottom: 8px;
+  transform: translateX(-50%);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(72px, 1fr));
+  gap: 5px;
+  width: min(390px, calc(100% - 150px));
+  padding: 5px;
+  border: 1px solid rgba(225, 194, 121, 0.32);
+  border-radius: 10px;
+  background: rgba(15, 13, 10, 0.78);
+  backdrop-filter: blur(3px);
+}
+.battle-live-controls button {
+  min-height: 36px;
+  border: 1px solid rgba(222, 200, 151, 0.28);
+  border-radius: 7px;
+  background: rgba(57, 48, 34, 0.9);
+  color: rgba(248, 236, 207, 0.92);
+  font: 700 8px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.battle-live-controls button.is-active {
+  border-color: #e2b64f;
+  background: rgba(126, 88, 25, 0.92);
+  color: #fff2c0;
+}
+.battle-live-controls button:disabled { opacity: 0.38; }
+.battle-live-controls > span {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: rgba(235, 222, 194, 0.58);
+  font: 600 7px/1.1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.battle-pressure-target-grid {
+  position: absolute;
+  z-index: 11;
+  inset: 8% 4% 16%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: repeat(3, 1fr);
+  pointer-events: none;
+}
+.battle-pressure-target-grid .pressure-zone {
+  pointer-events: auto;
+  border: 1px solid rgba(234, 184, 69, 0.48);
+  background: rgba(193, 125, 31, 0.10);
+  color: rgba(255, 236, 181, 0.82);
+  opacity: 0.78;
+  font: 700 7px/1.05 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.battle-pressure-target-grid .pressure-zone:hover,
+.battle-pressure-target-grid .pressure-zone:active {
+  background: rgba(220, 147, 38, 0.28);
+  opacity: 1;
+}
+.battle-pressure-target-grid .pressure-zone span,
+.battle-pressure-target-grid .pressure-zone small { display: block; }
+.battle-pressure-target-grid .pressure-zone small { margin-top: 2px; font-size: 6px; opacity: 0.76; }
+.battle-pressure-target-grid.vs-orcs .pressure-zone.is-good-target {
+  border-color: rgba(125, 211, 132, 0.72);
+  background: rgba(63, 134, 75, 0.18);
+}
+.battle-pressure-target-grid.vs-orcs .pressure-zone.is-bad-target {
+  border-color: rgba(228, 85, 69, 0.82);
+  background: rgba(153, 47, 36, 0.24);
+}
+
+.orc-flank-attack-arrows path {
+  fill: none;
+  stroke-width: 1.25;
+  stroke-dasharray: 3 2;
+  animation: orc-flank-dash 900ms linear infinite;
+}
+.orc-flank-attack-arrows.side-a path { stroke: rgba(164, 207, 119, 0.92); }
+.orc-flank-attack-arrows.side-b path { stroke: rgba(225, 142, 94, 0.92); }
+@keyframes orc-flank-dash { to { stroke-dashoffset: -10; } }
+
+.battle-scene-sector-side.is-center-only .battle-scene-sector-cards {
+  grid-template-columns: 1fr;
+}
+.battle-scene-sector-side.is-center-only {
+  width: 76px;
+}
+
+@media (max-width: 520px) {
+  .battle-live-controls {
+    width: min(330px, calc(100% - 110px));
+    bottom: 5px;
+    gap: 3px;
+  }
+  .battle-live-controls button { min-height: 32px; font-size: 7px; }
+  .battle-pressure-target-grid { inset: 9% 3% 18%; }
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .battle-live-controls {
+    left: auto;
+    right: 7px;
+    bottom: 6px;
+    transform: none;
+    width: 250px;
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .battle-live-controls button { min-height: 30px; }
+}
+
+/* Stage 37 — new-expedition intro cutscene */
+.intro-cutscene {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  width: 100vw;
+  height: 100dvh;
+  overflow: hidden;
+  background: #020504;
+  color: #f2eee2;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  cursor: default;
+}
+
+.intro-cutscene-backdrop {
+  position: absolute;
+  inset: -28px;
+  background:
+    linear-gradient(rgba(0, 0, 0, 0.36), rgba(0, 0, 0, 0.52)),
+    url('/assets/intro/orsia-descent.webp') center top / cover no-repeat;
+  filter: blur(18px) saturate(0.72);
+  transform: scale(1.08);
+  opacity: 0.62;
+}
+
+.intro-cutscene-visual {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  overflow: hidden;
+}
+
+.intro-cutscene-image {
+  display: block;
+  width: min(100vw, 682px);
+  max-width: none;
+  height: auto;
+  flex: 0 0 auto;
+  opacity: 0;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+  image-rendering: auto;
+  transition: opacity 320ms ease;
+}
+
+.intro-cutscene-image.is-ready {
+  opacity: 1;
+}
+
+.intro-cutscene-dimmer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0);
+  transition: background 900ms ease;
+}
+
+.intro-cutscene.is-finale .intro-cutscene-dimmer {
+  background: rgba(0, 0, 0, 0.24);
+}
+
+.intro-cutscene-copy {
+  position: absolute;
+  left: max(24px, env(safe-area-inset-left));
+  right: max(24px, env(safe-area-inset-right));
+  top: 58%;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  pointer-events: none;
+  text-align: center;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.82), 0 1px 2px rgba(0, 0, 0, 0.95);
+}
+
+.intro-cutscene-line {
+  display: block;
+  max-width: 94vw;
+  opacity: 0;
+  transform: translateY(10px);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(25px, 7vw, 42px);
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: 0.005em;
+}
+
+.intro-cutscene.is-finale .intro-cutscene-line-one {
+  animation: intro-line-reveal 780ms ease 360ms forwards;
+}
+
+.intro-cutscene.is-finale .intro-cutscene-line-two {
+  animation: intro-line-reveal 900ms ease 1450ms forwards;
+}
+
+@keyframes intro-line-reveal {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.intro-skip-button {
+  position: absolute;
+  left: 50%;
+  bottom: max(18px, calc(env(safe-area-inset-bottom) + 10px));
+  z-index: 3;
+  min-width: min(78vw, 300px);
+  min-height: 48px;
+  padding: 11px 18px;
+  border: 1px solid rgba(226, 213, 176, 0.52);
+  border-radius: 13px;
+  background: rgba(7, 10, 9, 0.82);
+  color: #efe7d2;
+  font-weight: 700;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 12px);
+  transition: opacity 220ms ease, transform 220ms ease, background 160ms ease;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.intro-skip-button.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, 0);
+}
+
+.intro-skip-button.is-visible:active {
+  background: rgba(41, 48, 39, 0.92);
+}
+
+@media (orientation: landscape) and (max-height: 620px) {
+  .intro-cutscene-image {
+    width: min(52vw, 90vh, 682px);
+  }
+
+  .intro-cutscene-copy {
+    top: 48%;
+    left: max(18px, env(safe-area-inset-left));
+    right: max(18px, env(safe-area-inset-right));
+  }
+
+  .intro-cutscene-line {
+    font-size: clamp(22px, 5vh, 34px);
+  }
+
+  .intro-skip-button {
+    min-width: min(46vw, 280px);
+    min-height: 44px;
+    bottom: max(10px, calc(env(safe-area-inset-bottom) + 6px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro-cutscene-dimmer,
+  .intro-skip-button,
+  .intro-cutscene-image {
+    transition-duration: 0.01ms;
+  }
+
+  .intro-cutscene.is-finale .intro-cutscene-line-one,
+  .intro-cutscene.is-finale .intro-cutscene-line-two {
+    animation-duration: 0.01ms;
+    animation-delay: 0.01ms;
+  }
+}

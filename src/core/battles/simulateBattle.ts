@@ -100,10 +100,10 @@ export function simulateBattle(
 
     const brokenBeforeA = getBrokenLanes(sideA);
     const brokenBeforeB = getBrokenLanes(sideB);
-    const basePowerA = getLanePowers(sideA, rollAResult.value, round, unitDefinitions, rules);
-    const basePowerB = getLanePowers(sideB, rollBResult.value, round, unitDefinitions, rules);
-    const powerA = applyFlankSupport(basePowerA, brokenBeforeB);
-    const powerB = applyFlankSupport(basePowerB, brokenBeforeA);
+    const basePowerA = getLanePowers(sideA, rollAResult.value, round, unitDefinitions, rules, Boolean(sideB.input.centerOnlyFormation));
+    const basePowerB = getLanePowers(sideB, rollBResult.value, round, unitDefinitions, rules, Boolean(sideA.input.centerOnlyFormation));
+    const powerA = applyFlankSupport(basePowerA, brokenBeforeB, Boolean(sideB.input.centerOnlyFormation));
+    const powerB = applyFlankSupport(basePowerB, brokenBeforeA, Boolean(sideA.input.centerOnlyFormation));
 
     const lossesRosterA: ArmyRoster = {};
     const lossesRosterB: ArmyRoster = {};
@@ -117,8 +117,8 @@ export function simulateBattle(
       const unitsBeforeB = getRosterTotal(sectorB.roster);
       if (unitsBeforeA <= 0 && unitsBeforeB <= 0) continue;
 
-      const commandEffectA = getCommandEffect(sideA.plan, round, lane);
-      const commandEffectB = getCommandEffect(sideB.plan, round, lane);
+      const commandEffectA = getCommandEffect(sideA.plan, round, lane, Boolean(sideB.input.centerOnlyFormation));
+      const commandEffectB = getCommandEffect(sideB.plan, round, lane, Boolean(sideA.input.centerOnlyFormation));
       const tacticalCasualtyTakenA = getTacticalCasualtyTakenMultiplier(
         sideA.input.tactic,
         getPowerMagnitude(powerA[lane]),
@@ -275,7 +275,9 @@ function createMutableSide(input: BattleSideInput): MutableSide {
   const initialRoster = cloneRoster(input.roster);
   const split = splitReserve(initialRoster, plan.reservePercent);
   const startingMorale = input.moraleLockedAt ?? input.morale;
-  const sectors = distributeActiveRoster(split.active, plan.formation, startingMorale);
+  const sectors = input.centerOnlyFormation
+    ? distributeCenterOnlyRoster(split.active, startingMorale)
+    : distributeActiveRoster(split.active, plan.formation, startingMorale);
   const side: MutableSide = {
     input,
     plan,
@@ -348,6 +350,14 @@ function distributeActiveRoster(
   };
 }
 
+function distributeCenterOnlyRoster(roster: ArmyRoster, morale: number): Record<BattleLane, MutableSector> {
+  return {
+    left: { roster: {}, morale, broken: true },
+    center: { roster: cloneRoster(roster), morale, broken: false },
+    right: { roster: {}, morale, broken: true },
+  };
+}
+
 function getFormationWeights(formation: BattleFormationId): Record<BattleLane, number> {
   if (formation === 'strong_center') return { left: 0.15, center: 0.7, right: 0.15 };
   if (formation === 'crescent') return { left: 0.35, center: 0.3, right: 0.35 };
@@ -382,13 +392,14 @@ function commitReserveIfDue(
     side.reserveCommitted = true;
     return;
   }
-  const sector = side.sectors[side.plan.reserveTarget];
+  const targetLane: BattleLane = side.input.centerOnlyFormation ? 'center' : side.plan.reserveTarget;
+  const sector = side.sectors[targetLane];
   sector.roster = addRosters(sector.roster, side.reserveRoster);
   sector.morale = side.input.moraleLockedAt ?? clamp(Math.round((sector.morale + side.input.morale) / 2 + 4), 0, 100);
   sector.broken = false;
   side.reserveRoster = {};
   side.reserveCommitted = true;
-  timeline.push({ at: at + 0.35, type: 'reserve_committed', round, side: sideId, lane: side.plan.reserveTarget, units });
+  timeline.push({ at: at + 0.35, type: 'reserve_committed', round, side: sideId, lane: targetLane, units });
 }
 
 function emitCommandIfAny(
@@ -410,9 +421,10 @@ function getLanePowers(
   round: number,
   unitDefinitions: UnitDefinitions,
   rules: BattleRules,
+  enemyCenterOnly: boolean,
 ): Record<BattleLane, RoundPower> {
   return Object.fromEntries(
-    LANES.map((lane) => [lane, getLanePower(side, lane, roll, round, unitDefinitions, rules)]),
+    LANES.map((lane) => [lane, getLanePower(side, lane, roll, round, unitDefinitions, rules, enemyCenterOnly)]),
   ) as Record<BattleLane, RoundPower>;
 }
 
@@ -423,11 +435,12 @@ function getLanePower(
   round: number,
   unitDefinitions: UnitDefinitions,
   rules: BattleRules,
+  enemyCenterOnly: boolean,
 ): RoundPower {
   const sector = side.sectors[lane];
   if (sector.broken || getRosterTotal(sector.roster) <= 0) return { attack: 0, defense: 0 };
   const tactic = rules.tactics[side.input.tactic];
-  const command = getCommandEffect(side.plan, round, lane);
+  const command = getCommandEffect(side.plan, round, lane, enemyCenterOnly);
   let rawAttack = 0;
   let rawDefense = 0;
 
@@ -463,19 +476,31 @@ function getLanePower(
 function applyFlankSupport(
   own: Record<BattleLane, RoundPower>,
   enemyBroken: Set<BattleLane>,
+  enemyCenterOnly: boolean,
 ): Record<BattleLane, RoundPower> {
   const next = {
     left: { ...own.left },
     center: { ...own.center },
     right: { ...own.right },
   };
+  if (enemyCenterOnly) {
+    // Orcs expose no side sectors. Flank troops therefore curl around the central mass
+    // from the first round instead of wasting attacks against empty lanes.
+    next.center.attack += own.left.attack * 0.55 + own.right.attack * 0.55;
+    return next;
+  }
   if (enemyBroken.has('left')) next.center.attack += own.left.attack * 0.25;
   if (enemyBroken.has('right')) next.center.attack += own.right.attack * 0.25;
   if (enemyBroken.has('left') && enemyBroken.has('right')) next.center.attack *= 1.12;
   return next;
 }
 
-function getCommandEffect(plan: BattlePlan, round: number, lane: BattleLane): CommandEffect {
+function getCommandEffect(
+  plan: BattlePlan,
+  round: number,
+  lane: BattleLane,
+  enemyCenterOnly = false,
+): CommandEffect {
   const index = COMMAND_ROUNDS.indexOf(round as (typeof COMMAND_ROUNDS)[number]);
   const command = index >= 0 ? plan.commands[index] : undefined;
   const neutral: CommandEffect = { attackMultiplier: 1, defenseMultiplier: 1, casualtyTakenMultiplier: 1, moraleLossMultiplier: 1 };
@@ -488,6 +513,14 @@ function getCommandEffect(plan: BattlePlan, round: number, lane: BattleLane): Co
   }
   const target = command === 'press_left' ? 'left' : command === 'press_right' ? 'right' : 'center';
   if (lane !== target) return neutral;
+  if (enemyCenterOnly) {
+    if (target === 'center') {
+      // Pushing directly into an orc central mass is actively counterproductive.
+      return { attackMultiplier: 0.82, defenseMultiplier: 0.88, casualtyTakenMultiplier: 1.16, moraleLossMultiplier: 1.08 };
+    }
+    // Side pressure is the intended answer: those troops wrap into the center through applyFlankSupport.
+    return { attackMultiplier: 1.46, defenseMultiplier: 0.96, casualtyTakenMultiplier: 1.03, moraleLossMultiplier: 1.01 };
+  }
   return { attackMultiplier: 1.28, defenseMultiplier: 0.92, casualtyTakenMultiplier: 1.07, moraleLossMultiplier: 1.04 };
 }
 
@@ -516,6 +549,7 @@ function applySectorMoraleLoss(
 }
 
 function applyEncirclementPressure(side: MutableSide, brokenBefore: Set<BattleLane>): void {
+  if (side.input.centerOnlyFormation) return;
   const brokenFlanks = Number(brokenBefore.has('left')) + Number(brokenBefore.has('right'));
   if (brokenFlanks <= 0 || side.sectors.center.broken) return;
   side.sectors.center.morale = clamp(side.sectors.center.morale - brokenFlanks * 3, 0, 100);
@@ -617,6 +651,10 @@ function enforceMoraleLock(side: MutableSide): void {
 
 function isBroken(side: MutableSide, rules: BattleRules): boolean {
   if (side.organizedRetreat) return true;
+  if (side.input.centerOnlyFormation) {
+    const centerUnits = getRosterTotal(side.sectors.center.roster) + getRosterTotal(side.reserveRoster);
+    return centerUnits <= 0 || side.morale <= rules.breakMoraleThreshold || side.sectors.center.broken;
+  }
   const remainingUnits = getRosterTotal(aggregateSideRoster(side));
   if (remainingUnits <= 0) return true;
   const remainingRatio = remainingUnits / Math.max(1, side.initialUnits);
@@ -656,7 +694,9 @@ function getFinalStrength(side: MutableSide, unitDefinitions: UnitDefinitions): 
     if (!unit) throw new Error(`Missing UnitDefinition for ${unitTypeId}`);
     raw += amount * (unit.attack + unit.defense);
   }
-  const positionalIntegrity = Math.max(0.55, 1 - LANES.filter((lane) => side.sectors[lane].broken).length * 0.16);
+  const positionalIntegrity = side.input.centerOnlyFormation
+    ? 1
+    : Math.max(0.55, 1 - LANES.filter((lane) => side.sectors[lane].broken).length * 0.16);
   return raw * (0.55 + side.morale * 0.0045) * (side.input.unitPowerMultiplier ?? 1) * positionalIntegrity;
 }
 
@@ -699,6 +739,7 @@ function buildSideResult(
     moraleAfter: side.morale,
     plan: clonePlan(side.plan),
     sectorState: snapshotSide(side),
+    centerOnlyFormation: Boolean(side.input.centerOnlyFormation),
   };
 }
 
@@ -723,6 +764,7 @@ function getBrokenLanes(side: MutableSide): Set<BattleLane> {
 }
 
 function isEncircled(side: MutableSide): boolean {
+  if (side.input.centerOnlyFormation) return false;
   return side.sectors.left.broken && side.sectors.right.broken;
 }
 

@@ -205,41 +205,26 @@ describe('attackCity', () => {
     });
   });
 
-  it('applies Tyranid casualty resistance against assault', () => {
-    const makeState = (withResistance: boolean) => {
-      const state = createPrototypeGameState(55);
-      ensureOrsiaFaction(state, 'orsia-tyranids');
-      if (!withResistance) state.factions['orsia-tyranids'].traits = [];
-      state.cities['moss-market'].ownerFactionId = 'orsia-tyranids';
-      state.cities['moss-market'].garrison = {
-        roster: { 'orssian-guard': 20, 'orssian-slingers': 8 },
-        morale: 78,
-      };
-      state.armies['player-main'].roster = { 'expedition-infantry': 30, 'expedition-rangers': 8 };
-      state.armies['player-main'].morale = 85;
-      return state;
-    };
+  it('creates a Tyranid egg clutch after the player captures a Tyranid city', () => {
+    const state = createPrototypeGameState(55);
+    ensureOrsiaFaction(state, 'orsia-tyranids');
+    state.cities['moss-market'].ownerFactionId = 'orsia-tyranids';
+    state.cities['moss-market'].garrison = { roster: {}, morale: 0 };
 
-    const resistant = attackCity(
-      makeState(true),
-      prototypeMap,
-      { ...input(), tactic: 'assault' },
-      deps,
-    );
-    const baseline = attackCity(
-      makeState(false),
-      prototypeMap,
-      { ...input(), tactic: 'assault' },
-      deps,
-    );
+    const result = attackCity(state, prototypeMap, input(), deps);
 
-    expect(resistant.ok).toBe(true);
-    expect(baseline.ok).toBe(true);
-    if (!resistant.ok || !baseline.ok || !resistant.battle || !baseline.battle) return;
-    expect(resistant.battle.sides.B.totalLosses).toBeLessThan(baseline.battle.sides.B.totalLosses);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.captured).toBe(true);
+    expect(result.state.campaign.tyranidEggClutches['moss-market']).toMatchObject({
+      cityId: 'moss-market',
+      tyranidFactionId: 'orsia-tyranids',
+      capturedTurn: state.turn,
+      deadlineTurn: state.turn + 3,
+    });
   });
 
-  it('marks a captured FGU city with a persistent corruption income penalty', () => {
+  it('marks a captured Lateki city with a persistent federal income subsidy', () => {
     const state = createPrototypeGameState(71);
     ensureOrsiaFaction(state, 'orsia-lateki');
     state.cities['moss-market'].ownerFactionId = 'orsia-lateki';
@@ -250,7 +235,7 @@ describe('attackCity', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.captured).toBe(true);
-    expect(result.state.cities['moss-market'].incomeMultiplier).toBeCloseTo(0.6);
+    expect(result.state.cities['moss-market'].incomeMultiplier).toBeCloseTo(1.4);
   });
 
 });

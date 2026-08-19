@@ -9,6 +9,13 @@ export type LeaderId = string;
 export type UnitTypeId = string;
 export type StrategicActionKind = 'move' | 'attack' | 'recruit' | 'rest' | 'claim_root';
 
+export type TyranidEggClutchState = {
+  cityId: CityId;
+  tyranidFactionId: FactionId;
+  capturedTurn: number;
+  deadlineTurn: number;
+};
+
 export type PendingFactionEventState = {
   eventId: string;
   factionId: FactionId;
@@ -71,6 +78,7 @@ export type CampaignState = {
   completedResearchIds: string[];
   pendingFactionEvent: PendingFactionEventState | null;
   resolvedFactionEventIds: string[];
+  tyranidEggClutches: Record<CityId, TyranidEggClutchState>;
   preRootLayoutId: string;
   preRootLocationOrder: NodeId[];
   extensionLocationOrder: NodeId[];

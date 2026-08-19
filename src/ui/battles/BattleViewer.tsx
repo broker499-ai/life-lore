@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type ReactNode } from 'react';
 import type { BattleCommandId, BattleSideId, BattleTacticId } from '@/core/battles/BattleTypes';
 import type { GameState } from '@/core/state/GameState';
 import {
@@ -30,15 +30,6 @@ import { getBattleBackgroundSrc } from '@/data/battles/battleBackgrounds';
 
 const PLAYBACK_SPEEDS: BattlePlaybackSpeed[] = [1, 2, 4];
 const MAX_RAF_DELTA_MS = 64;
-const LIVE_COMMANDS: Array<{ id: BattleCommandId; label: string; hint: string }> = [
-  { id: 'press_left', label: 'Давить слева', hint: '+атака на левом фланге' },
-  { id: 'press_center', label: 'Давить центр', hint: '+атака в центре' },
-  { id: 'press_right', label: 'Давить справа', hint: '+атака на правом фланге' },
-  { id: 'general_assault', label: 'Общий натиск', hint: '+атака, но выше риск' },
-  { id: 'hold_line', label: 'Держать строй', hint: '+защита и стойкость' },
-  { id: 'none', label: 'Не вмешиваться', hint: 'Сохранить текущий ход боя' },
-];
-const COMMAND_DECISION_ROUNDS = [2, 4] as const;
 
 export function BattleViewer({
   report,
@@ -50,7 +41,7 @@ export function BattleViewer({
   report: BattleReport;
   cityName: string;
   state: GameState;
-  onIssueCommand?: (command: BattleCommandId) => boolean;
+  onIssueCommand?: (command: BattleCommandId, round: 2 | 4) => boolean;
   onClose: () => void;
 }) {
   const presentation = useMemo(() => buildBattlePresentation(report.result), [report.result]);
@@ -59,9 +50,8 @@ export function BattleViewer({
   const [elapsedMs, setElapsedMs] = useState(0);
   const [speed, setSpeed] = useState<BattlePlaybackSpeed>(1);
   const [isPlaying, setIsPlaying] = useState(() => !prefersReducedMotion());
-  const [pendingCommandRound, setPendingCommandRound] = useState<number | null>(null);
   const [commandSubmitting, setCommandSubmitting] = useState(false);
-  const [skipDecisionPrompts, setSkipDecisionPrompts] = useState(false);
+  const [pressureTargeting, setPressureTargeting] = useState(false);
   const lastRafTimeRef = useRef<number | null>(null);
 
   const sample = useMemo(
@@ -69,18 +59,17 @@ export function BattleViewer({
     [elapsedMs, presentation.frames, track],
   );
 
-  const commandsUsed = report.result.sides.A.plan.commands.length;
-  const nextDecision = useMemo(() => {
-    if (skipDecisionPrompts || !onIssueCommand || commandsUsed >= COMMAND_DECISION_ROUNDS.length) return null;
-    const round = COMMAND_DECISION_ROUNDS[commandsUsed];
-    const frameIndex = presentation.frames.findIndex((frame) => frame.round === round && frame.phase === 'opening');
-    if (frameIndex < 0) return null;
-    return { round, elapsedMs: getBattleFrameTimeMs(track, frameIndex) };
-  }, [commandsUsed, onIssueCommand, presentation.frames, skipDecisionPrompts, track]);
-
   const fromFrame = presentation.frames[sample.fromIndex] ?? presentation.frames[0];
   const toFrame = presentation.frames[sample.toIndex] ?? fromFrame;
   const eventFrame = chooseEventFrame(fromFrame, toFrame, sample.progress);
+  const currentRound = eventFrame?.round ?? 0;
+  const nextCommandRound: 2 | 4 | null = useMemo(() => {
+    if (!onIssueCommand) return null;
+    const commands = report.result.sides.A.plan.commands;
+    if (currentRound < 2 && commands[0] === undefined) return 2;
+    if (currentRound < 4 && commands[1] === undefined) return 4;
+    return null;
+  }, [currentRound, onIssueCommand, report.result.sides.A.plan.commands]);
   const isLast = track.durationMs <= 0 || elapsedMs >= track.durationMs - 0.5;
   const displayedFrameIndex = eventFrame?.index ?? 0;
 
@@ -108,22 +97,6 @@ export function BattleViewer({
     if (isLast && isPlaying) setIsPlaying(false);
   }, [isLast, isPlaying]);
 
-  useEffect(() => {
-    if (!nextDecision || pendingCommandRound !== null) return;
-    if (elapsedMs + 0.5 < nextDecision.elapsedMs) return;
-    setElapsedMs(nextDecision.elapsedMs);
-    setIsPlaying(false);
-    setPendingCommandRound(nextDecision.round);
-  }, [elapsedMs, nextDecision, pendingCommandRound]);
-
-  useEffect(() => {
-    if (pendingCommandRound === null) return;
-    const decisionIndex = COMMAND_DECISION_ROUNDS.indexOf(pendingCommandRound as 2 | 4);
-    if (decisionIndex < 0 || commandsUsed < decisionIndex + 1) return;
-    setPendingCommandRound(null);
-    setCommandSubmitting(false);
-    setIsPlaying(true);
-  }, [commandsUsed, pendingCommandRound]);
 
   if (!fromFrame || !toFrame || !eventFrame) return null;
 
@@ -158,19 +131,24 @@ export function BattleViewer({
   }
 
   function handleSkipBattle() {
-    setSkipDecisionPrompts(true);
-    setPendingCommandRound(null);
+    setPressureTargeting(false);
     setCommandSubmitting(false);
     setIsPlaying(false);
     setElapsedMs(track.durationMs);
   }
 
   function handleCommand(command: BattleCommandId) {
-    if (!onIssueCommand || pendingCommandRound === null || commandSubmitting) return;
+    if (!onIssueCommand || nextCommandRound === null || commandSubmitting) return;
     setCommandSubmitting(true);
-    setIsPlaying(false);
-    const accepted = onIssueCommand(command);
+    const accepted = onIssueCommand(command, nextCommandRound);
     if (!accepted) setCommandSubmitting(false);
+    else window.setTimeout(() => setCommandSubmitting(false), 80);
+    setPressureTargeting(false);
+  }
+
+  function handlePressureTarget(lane: BattleLane) {
+    const command: BattleCommandId = lane === 'left' ? 'press_left' : lane === 'right' ? 'press_right' : 'press_center';
+    handleCommand(command);
   }
 
   return (
@@ -181,11 +159,6 @@ export function BattleViewer({
           <h2>{cityName}</h2>
         </div>
         <div className="battle-viewer-header-actions">
-          {!isLast ? (
-            <button type="button" className="battle-skip-header-button" onClick={handleSkipBattle} disabled={commandSubmitting}>
-              ⏭ Бой
-            </button>
-          ) : null}
           <button type="button" className="text-button" onClick={onClose}>
             К карте
           </button>
@@ -216,10 +189,18 @@ export function BattleViewer({
         defenderSnapshot={sideB}
         attackerPlan={report.result.sides.A.plan}
         defenderPlan={report.result.sides.B.plan}
-        pendingCommandRound={pendingCommandRound}
-        commandSubmitting={commandSubmitting}
-        commandsUsed={commandsUsed}
-        onCommand={onIssueCommand ? handleCommand : undefined}
+        attackerCenterOnly={Boolean(report.result.sides.A.centerOnlyFormation)}
+        defenderCenterOnly={Boolean(report.result.sides.B.centerOnlyFormation)}
+        pressureTargeting={pressureTargeting}
+        onPressureTarget={onIssueCommand && nextCommandRound !== null ? handlePressureTarget : undefined}
+        liveControls={onIssueCommand && !isLast ? (
+          <div className="battle-live-controls" role="group" aria-label="Вмешательство в бой">
+            <button type="button" disabled={nextCommandRound === null || commandSubmitting} onClick={() => handleCommand('hold_line')}>Оборона</button>
+            <button type="button" className={pressureTargeting ? 'is-active' : ''} disabled={nextCommandRound === null || commandSubmitting} onClick={() => setPressureTargeting((value) => !value)}>Натиск</button>
+            <button type="button" disabled={nextCommandRound === null || commandSubmitting} onClick={() => handleCommand('none')}>Не вмешиваться</button>
+            <span>{nextCommandRound ? `на ${nextCommandRound}-й раунд` : 'приказы исчерпаны'}</span>
+          </div>
+        ) : null}
       />
 
       <div className="battle-commentary" aria-live="polite">
@@ -237,7 +218,6 @@ export function BattleViewer({
           step={1}
           value={Math.min(elapsedMs, track.durationMs)}
           onChange={handleScrub}
-          disabled={pendingCommandRound !== null}
         />
         <span>
           {displayedFrameIndex + 1}/{presentation.frames.length}
@@ -249,7 +229,7 @@ export function BattleViewer({
           <button
             type="button"
             className="secondary-button battle-step-button"
-            disabled={elapsedMs <= 0 || pendingCommandRound !== null}
+            disabled={elapsedMs <= 0}
             onClick={handlePrevious}
             aria-label="Предыдущее событие"
           >
@@ -259,15 +239,14 @@ export function BattleViewer({
             type="button"
             className="primary-button battle-play-button"
             onClick={togglePlayback}
-            disabled={pendingCommandRound !== null}
-            aria-pressed={isPlaying && !isLast}
+              aria-pressed={isPlaying && !isLast}
           >
             {isLast ? '↻ Повторить' : isPlaying ? 'Ⅱ Пауза' : '▶ Продолжить'}
           </button>
           <button
             type="button"
             className="secondary-button battle-step-button"
-            disabled={isLast || pendingCommandRound !== null}
+            disabled={isLast}
             onClick={handleNext}
             aria-label="Следующее событие"
           >
@@ -288,6 +267,9 @@ export function BattleViewer({
               ×{value}
             </button>
           ))}
+          {!isLast ? (
+            <button type="button" className="battle-skip-button" onClick={handleSkipBattle}>⏭ Пропустить</button>
+          ) : null}
           {isLast ? (
             <button type="button" className="battle-skip-button is-result" onClick={onClose}>
               К карте
@@ -304,16 +286,20 @@ function BattleSceneSectorHud({
   defender,
   attackerPlan,
   defenderPlan,
+  attackerCenterOnly,
+  defenderCenterOnly,
 }: {
   attacker: BattlePresentationSide;
   defender: BattlePresentationSide;
   attackerPlan: import('@/core/battles/BattleTypes').BattlePlan;
   defenderPlan: import('@/core/battles/BattleTypes').BattlePlan;
+  attackerCenterOnly: boolean;
+  defenderCenterOnly: boolean;
 }) {
   return (
     <div className="battle-scene-sector-hud" aria-label="Состояние флангов">
-      <BattleSceneSectorSide side="A" snapshot={attacker} plan={attackerPlan} />
-      <BattleSceneSectorSide side="B" snapshot={defender} plan={defenderPlan} />
+      <BattleSceneSectorSide side="A" snapshot={attacker} plan={attackerPlan} centerOnly={attackerCenterOnly} />
+      <BattleSceneSectorSide side="B" snapshot={defender} plan={defenderPlan} centerOnly={defenderCenterOnly} />
     </div>
   );
 }
@@ -322,15 +308,17 @@ function BattleSceneSectorSide({
   side,
   snapshot,
   plan,
+  centerOnly,
 }: {
   side: BattleSideId;
   snapshot: BattlePresentationSide;
   plan: import('@/core/battles/BattleTypes').BattlePlan;
+  centerOnly: boolean;
 }) {
   return (
-    <div className={`battle-scene-sector-side side-${side.toLowerCase()}`}>
+    <div className={`battle-scene-sector-side side-${side.toLowerCase()}${centerOnly ? ' is-center-only' : ''}`}>
       <div className="battle-scene-sector-cards">
-        {(['left', 'center', 'right'] as const).map((lane) => {
+        {(centerOnly ? (['center'] as const) : (['left', 'center', 'right'] as const)).map((lane) => {
           const sector = snapshot.sectorState.sectors[lane];
           const condition = sector.broken ? 'БЕЖИТ' : sector.morale < 35 ? 'ДРОЖИТ' : sector.morale < 60 ? 'НАПРЯЖЁН' : 'ДЕРЖИТСЯ';
           return (
@@ -344,7 +332,7 @@ function BattleSceneSectorSide({
         })}
       </div>
       <small>
-        {snapshot.sectorState.reserveCommitted
+        {centerOnly ? 'Только центральный фланг · ' : ''}{snapshot.sectorState.reserveCommitted
           ? `Резерв введён · ${getFormationLabel(plan.formation)}`
           : `Резерв ${Math.max(0, Math.round(snapshot.sectorState.reserveUnits))} → ${getLaneLabel(plan.reserveTarget)}`}
       </small>
@@ -396,10 +384,10 @@ function SideScore({
         <b>{units}</b>
         <span>бойцов</span>
       </div>
-      <div className="morale-track" aria-label={`Мораль ${morale}`}>
+      <div className="morale-track" aria-label={`Моральная паника ${morale}`}>
         <i style={{ width: `${morale}%` }} />
       </div>
-      <small>Мораль {morale} · потери {losses}</small>
+      <small>Моральная паника {morale} · потери {losses}</small>
     </div>
   );
 }
@@ -419,10 +407,11 @@ function BattlePitch({
   defenderSnapshot,
   attackerPlan,
   defenderPlan,
-  pendingCommandRound,
-  commandSubmitting,
-  commandsUsed,
-  onCommand,
+  attackerCenterOnly,
+  defenderCenterOnly,
+  pressureTargeting,
+  onPressureTarget,
+  liveControls,
 }: {
   fromFrame: BattlePresentationFrame;
   toFrame: BattlePresentationFrame;
@@ -438,10 +427,11 @@ function BattlePitch({
   defenderSnapshot: BattlePresentationSide;
   attackerPlan: import('@/core/battles/BattleTypes').BattlePlan;
   defenderPlan: import('@/core/battles/BattleTypes').BattlePlan;
-  pendingCommandRound: number | null;
-  commandSubmitting: boolean;
-  commandsUsed: number;
-  onCommand?: (command: BattleCommandId) => void;
+  attackerCenterOnly: boolean;
+  defenderCenterOnly: boolean;
+  pressureTargeting: boolean;
+  onPressureTarget?: (lane: BattleLane) => void;
+  liveControls?: ReactNode;
 }) {
   const pressureFrom = getPressureShift(fromFrame);
   const pressureTo = getPressureShift(toFrame);
@@ -480,7 +470,7 @@ function BattlePitch({
 
   return (
     <div
-      className={`battle-pitch continuous-motion phase-${eventFrame.phase}${hasImpact ? ' has-impact' : ''}${pendingCommandRound !== null ? ' is-command-paused' : ''}`}
+      className={`battle-pitch continuous-motion phase-${eventFrame.phase}${hasImpact ? ' has-impact' : ''}${pressureTargeting ? ' is-pressure-targeting' : ''}`}
       style={{ '--battle-impact-opacity': impact.opacity, backgroundImage: `url("${backgroundSrc}")` } as CSSProperties}
     >
       <img className="battle-scene-background" src={backgroundSrc} alt="" aria-hidden="true" draggable={false} />
@@ -490,6 +480,8 @@ function BattlePitch({
         defender={defenderSnapshot}
         attackerPlan={attackerPlan}
         defenderPlan={defenderPlan}
+        attackerCenterOnly={attackerCenterOnly}
+        defenderCenterOnly={defenderCenterOnly}
       />
       <svg viewBox="0 0 100 100" role="img" aria-label="Поле боя">
         <defs>
@@ -525,6 +517,9 @@ function BattlePitch({
           />
         ))}
 
+        {defenderCenterOnly ? <OrcFlankAttackArrows side="A" battleTime={battleTime} /> : null}
+        {attackerCenterOnly ? <OrcFlankAttackArrows side="B" battleTime={battleTime} /> : null}
+
         <VolleyPaths side="A" dots={dotsA} phase={eventFrame.phase} battleTime={battleTime} pressureShift={pressureShift} />
         <VolleyPaths side="B" dots={dotsB} phase={eventFrame.phase} battleTime={battleTime} pressureShift={pressureShift} />
         <MeleeVectors side="A" dots={dotsA} phase={eventFrame.phase} battleTime={battleTime} tactic={attackerTactic} />
@@ -544,23 +539,58 @@ function BattlePitch({
         <span><i className="legend-line" /> линия</span>
         <span><i className="legend-ranged" /> стрелки</span>
       </div>
-      {pendingCommandRound !== null && onCommand ? (
-        <div className="battle-command-overlay" role="group" aria-label={`Приказ перед раундом ${pendingCommandRound}`}>
-          <div className="battle-command-overlay-copy">
-            <strong>Приказ перед {pendingCommandRound}-м раундом</strong>
-            <span>{commandSubmitting ? 'Пересчитываем…' : `Приказов осталось: ${Math.max(0, 2 - commandsUsed)}`}</span>
-          </div>
-          <div className="battle-command-overlay-grid">
-            {LIVE_COMMANDS.map((command) => (
-              <button key={command.id} type="button" disabled={commandSubmitting} onClick={() => onCommand(command.id)}>
-                <strong>{command.label}</strong>
-                <span>{command.hint}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
+      {liveControls}
+      {pressureTargeting && onPressureTarget ? <PressureTargetOverlay onTarget={onPressureTarget} defenderCenterOnly={defenderCenterOnly} /> : null}
     </div>
+  );
+}
+
+function PressureTargetOverlay({
+  onTarget,
+  defenderCenterOnly,
+}: {
+  onTarget: (lane: BattleLane) => void;
+  defenderCenterOnly: boolean;
+}) {
+  const lanes: Array<{ lane: BattleLane; label: string }> = [
+    { lane: 'left', label: 'Левый фланг' },
+    { lane: 'center', label: 'Центр' },
+    { lane: 'right', label: 'Правый фланг' },
+  ];
+  return (
+    <div className={`battle-pressure-target-grid${defenderCenterOnly ? ' vs-orcs' : ''}`} aria-label="Выберите направление натиска">
+      {lanes.flatMap(({ lane, label }) => ['own', 'enemy'].map((half) => (
+        <button
+          key={`${lane}-${half}`}
+          type="button"
+          className={`pressure-zone lane-${lane} half-${half}${defenderCenterOnly && lane === 'center' ? ' is-bad-target' : ''}${defenderCenterOnly && lane !== 'center' ? ' is-good-target' : ''}`}
+          onClick={() => onTarget(lane)}
+          aria-label={`${label}, ${half === 'own' ? 'наша половина' : 'половина противника'}`}
+        >
+          <span>{label}</span>
+          {defenderCenterOnly ? <small>{lane === 'center' ? 'лобовой нажим хуже' : 'обход усилен'}</small> : null}
+        </button>
+      )))}
+    </div>
+  );
+}
+
+function OrcFlankAttackArrows({ side, battleTime }: { side: BattleSideId; battleTime: number }) {
+  const phase = (battleTime % 1.5) / 1.5;
+  const opacity = 0.42 + Math.sin(phase * Math.PI * 2) * 0.14;
+  if (side === 'A') {
+    return (
+      <g className="orc-flank-attack-arrows side-a" style={{ opacity }}>
+        <path d="M31 24 C39 25, 44 37, 51 48" />
+        <path d="M31 76 C39 75, 44 63, 51 52" />
+      </g>
+    );
+  }
+  return (
+    <g className="orc-flank-attack-arrows side-b" style={{ opacity }}>
+      <path d="M69 24 C61 25, 56 37, 49 48" />
+      <path d="M69 76 C61 75, 56 63, 49 52" />
+    </g>
   );
 }
 

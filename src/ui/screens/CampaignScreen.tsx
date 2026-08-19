@@ -7,6 +7,8 @@ import {
 } from '@/core/cities/attackCity';
 import type { RecruitmentOffer } from '@/core/cities/CityDefinition';
 import { getEffectiveCityRecruitmentOffers } from '@/core/cities/cityTraits';
+import { clearTyranidEggClutch, getClearTyranidEggClutchAvailability } from '@/core/cities/clearTyranidEggClutch';
+import { getTyranidEggClutchStatus } from '@/core/cities/tyranidEggClutch';
 import {
   getRecruitAtCityAvailability,
   recruitAtCity,
@@ -106,6 +108,7 @@ type PendingMovement = PlayerMovementAnimation & (
 );
 
 type ActivePlayerBattle = {
+  kind?: 'city_attack' | 'tyranid_cleanup';
   sourceState: GameState;
   cityId: string;
   originNodeId: string | null;
@@ -220,6 +223,12 @@ export function CampaignScreen({
     () => currentCityDefinition ? getEffectiveCityRecruitmentOffers(currentCityDefinition) : [],
     [currentCityDefinition],
   );
+  const currentTyranidClutchStatus = currentCityDefinition
+    ? getTyranidEggClutchStatus(state, playerNodeId)
+    : null;
+  const currentTyranidClutchAvailability = currentTyranidClutchStatus
+    ? getClearTyranidEggClutchAvailability(state, { armyId: 'player-main', cityId: playerNodeId })
+    : null;
 
   const neighboringNodeIds = useMemo(
     () => getNeighborNodeIds(campaignMap, playerNodeId),
@@ -478,6 +487,7 @@ export function CampaignScreen({
 
     const normalizedContext: ActivePlayerBattle = {
       ...context,
+      kind: 'city_attack',
       plan: { ...result.battle.sides.A.plan, commands: [...result.battle.sides.A.plan.commands] },
     };
     setActivePlayerBattle(normalizedContext);
@@ -499,27 +509,44 @@ export function CampaignScreen({
 
     if (result.captured) {
       setFeedback(
-        `Победа: ${cityName} захвачен. Потери ${attacker.totalLosses}, защитники потеряли ${defender.totalLosses}. Мораль ${attacker.moraleAfter}.${cityArtifactText}`,
+        `Победа: ${cityName} захвачен. Потери ${attacker.totalLosses}, защитники потеряли ${defender.totalLosses}. Моральная паника ${attacker.moraleAfter}.${cityArtifactText}`,
       );
     } else if (attacker.outcome === 'retreat') {
       setFeedback(
-        `Организованный отход от ${cityName}. Потери ${attacker.totalLosses}, защитники потеряли ${defender.totalLosses}. Армия вернулась к ${originName}. Мораль ${attacker.moraleAfter}.`,
+        `Организованный отход от ${cityName}. Потери ${attacker.totalLosses}, защитники потеряли ${defender.totalLosses}. Армия вернулась к ${originName}. Моральная паника ${attacker.moraleAfter}.`,
       );
     } else {
       setFeedback(
-        `Штурм отбит. Потери ${attacker.totalLosses}, защитники потеряли ${defender.totalLosses}. Армия отступила к ${originName}. Мораль ${attacker.moraleAfter}.`,
+        `Штурм отбит. Потери ${attacker.totalLosses}, защитники потеряли ${defender.totalLosses}. Армия отступила к ${originName}. Моральная паника ${attacker.moraleAfter}.`,
       );
     }
   }
 
-  function handleIssueBattleCommand(command: BattleCommandId): boolean {
+  function handleIssueBattleCommand(command: BattleCommandId, round: 2 | 4): boolean {
     if (!activePlayerBattle || !battleReport) return false;
-    if (activePlayerBattle.plan.commands.length >= 2) return false;
-
+    const commands = [...activePlayerBattle.plan.commands];
+    const slot = round === 2 ? 0 : 1;
+    if (commands[slot] !== undefined) return false;
+    while (commands.length < slot) commands.push('none');
+    commands[slot] = command;
     const nextPlan: BattlePlan = {
       ...activePlayerBattle.plan,
-      commands: [...activePlayerBattle.plan.commands, command].slice(0, 2),
+      commands: commands.slice(0, 2),
     };
+    if (activePlayerBattle.kind === 'tyranid_cleanup') {
+      const rerun = clearTyranidEggClutch(
+        activePlayerBattle.sourceState,
+        { armyId: 'player-main', cityId: activePlayerBattle.cityId, tactic: activePlayerBattle.tactic, battlePlan: nextPlan },
+        { unitDefinitions: prototypeUnits, battleRules: prototypeBattleRules },
+      );
+      if (!rerun.ok) {
+        setFeedback('Не удалось пересчитать зачистку кладки после приказа.');
+        return false;
+      }
+      applyTyranidCleanupOutcome(rerun, { ...activePlayerBattle, plan: nextPlan });
+      return true;
+    }
+
     const sourceMap = getCampaignMap(activePlayerBattle.sourceState);
     const rerun = attackCity(
       activePlayerBattle.sourceState,
@@ -582,6 +609,51 @@ export function CampaignScreen({
     setView('map');
   }
 
+  function handleClearTyranidClutch(cityId: string) {
+    const result = clearTyranidEggClutch(
+      state,
+      { armyId: 'player-main', cityId, tactic: selectedTactic, battlePlan },
+      { unitDefinitions: prototypeUnits, battleRules: prototypeBattleRules },
+    );
+    if (!result.ok) {
+      const message = result.error === 'deadline_expired'
+        ? 'Срок зачистки кладки истёк. При уходе экспедиции город снова станет тиранидским.'
+        : result.error === 'strategic_action_spent'
+          ? 'На этом ходу действие уже использовано.'
+          : 'Зачистку кладки сейчас провести нельзя.';
+      setFeedback(message);
+      return;
+    }
+    applyTyranidCleanupOutcome(result, {
+      kind: 'tyranid_cleanup',
+      sourceState: state,
+      cityId,
+      originNodeId: cityId,
+      tactic: selectedTactic,
+      attackSupplyCost: 0,
+      plan: { ...result.battle.sides.A.plan, commands: [...result.battle.sides.A.plan.commands] },
+    });
+  }
+
+  function applyTyranidCleanupOutcome(
+    result: Extract<ReturnType<typeof clearTyranidEggClutch>, { ok: true }>,
+    context: ActivePlayerBattle,
+  ) {
+    setState(result.state);
+    setActivePlayerBattle({ ...context, kind: 'tyranid_cleanup', plan: { ...result.battle.sides.A.plan, commands: [...result.battle.sides.A.plan.commands] } });
+    setBattleReport({
+      cityId: context.cityId,
+      result: result.battle,
+      attackerTactic: context.tactic,
+      defenderTactic: 'balanced',
+    });
+    setView('battle');
+    const attacker = result.battle.sides.A;
+    setFeedback(result.cleared
+      ? `Кладка тиранидов уничтожена. Потери экспедиции: ${attacker.totalLosses}.`
+      : `Зачистка кладки не удалась. Потери экспедиции: ${attacker.totalLosses}. Кладка остаётся активной.`);
+  }
+
   function handleRest(cityId: string) {
     const city = prototypeCities[cityId];
     if (!city) return;
@@ -620,7 +692,7 @@ export function CampaignScreen({
     setBattleReport(null);
     const event = result.events[0];
     const unitName = prototypeUnits[event.unitTypeId]?.shortName ?? event.unitTypeId;
-    setFeedback(`Нанято: ${unitName} +${event.amount} за ${event.cost}. Короткий привал: мораль +${event.moraleRestored}. Припасы не пополнялись.${state.campaign.developerMode ? ' DEV: можно действовать снова.' : ' Действие хода использовано.'}`);
+    setFeedback(`Нанято: ${unitName} +${event.amount} за ${event.cost}. Короткий привал: моральная паника +${event.moraleRestored}. Припасы не пополнялись.${state.campaign.developerMode ? ' DEV: можно действовать снова.' : ' Действие хода использовано.'}`);
   }
 
   function handleResolveEvent(choiceId: string) {
@@ -763,7 +835,7 @@ export function CampaignScreen({
     const rivalText = aiAction?.type === 'ai_action_taken' ? ` ${describeAiAction(aiAction.action, aiAction.targetId, rivalName, campaignMap)} ` : ' ';
     const supplyText =
       supplyPressure?.type === 'supply_pressure_applied'
-        ? ` Снабжение ${supplyPressure.supplyPercent}%: мораль −${supplyPressure.moraleLost}.`
+        ? ` Снабжение ${supplyPressure.supplyPercent}%: моральная паника −${supplyPressure.moraleLost}.`
         : '';
     setFeedback(`Ход ${state.turn} завершён.${rivalText}${incomeText}${upkeepText}${supplyText} Армия снова может действовать.`);
   }
@@ -945,6 +1017,8 @@ export function CampaignScreen({
               currentCityDefinition={currentCityDefinition}
               currentRecruitmentOffers={currentRecruitmentOffers}
               currentCityControlled={currentCityControlled}
+              tyranidClutchStatus={currentTyranidClutchStatus}
+              tyranidClutchAvailability={currentTyranidClutchAvailability}
               restAvailability={restAvailability}
               recruitAvailabilityByUnitTypeId={recruitAvailabilityByUnitTypeId}
               unitDefinitions={prototypeUnits}
@@ -958,6 +1032,7 @@ export function CampaignScreen({
               onAttack={handleAttack}
               onTacticChange={setSelectedTactic}
               onBattlePlanChange={setBattlePlan}
+              onClearTyranidClutch={handleClearTyranidClutch}
               onRest={handleRest}
               onRecruit={handleRecruit}
             />

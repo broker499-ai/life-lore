@@ -23,7 +23,7 @@ import { factionIgnoresMorale } from '@/core/leaders/LeaderAbility';
 import { prototypeArtifacts } from '@/data/artifacts/prototypeArtifacts';
 import { MAX_ACTIVE_ARTIFACTS, rebuildActiveArtifactTraits } from '@/core/artifacts/artifactLoadout';
 
-export const CURRENT_SAVE_VERSION = 19 as const;
+export const CURRENT_SAVE_VERSION = 20 as const;
 const LEGACY_DEFAULT_UNIT_TYPE_ID = 'expedition-infantry';
 const LEGACY_RIVAL_FACTION_ID = 'meridian-company';
 const LEGACY_RESEARCH_COSTS_V14: Record<string, number> = {
@@ -60,12 +60,13 @@ type LegacyCampaignStateV10 = {
 };
 type LegacyCampaignStateV11 = LegacyCampaignStateV10 & { discoveredNodeIds: NodeId[] };
 type LegacyFactionStateV13 = Omit<FactionState, 'specimensCollected'>;
-type LegacyCampaignStateV13 = Omit<CampaignState, 'developerMode' | 'activeArtifactIds' | 'cityArtifactClaimedIds' | 'pendingBriefingId' | 'resolvedBriefingIds' | 'preRootLayoutId' | 'preRootLocationOrder' | 'extensionLocationOrder' | 'factionCapitalCityIds'>;
-type LegacyCampaignStateV14 = Omit<CampaignState, 'developerMode' | 'activeArtifactIds' | 'preRootLayoutId' | 'preRootLocationOrder' | 'extensionLocationOrder' | 'factionCapitalCityIds'>;
-type LegacyCampaignStateV15 = Omit<CampaignState, 'developerMode' | 'preRootLayoutId' | 'preRootLocationOrder' | 'extensionLocationOrder' | 'factionCapitalCityIds'>;
-type LegacyCampaignStateV16 = Omit<CampaignState, 'developerMode' | 'preRootLayoutId' | 'preRootLocationOrder' | 'factionCapitalCityIds'>;
-type LegacyCampaignStateV17 = Omit<CampaignState, 'developerMode' | 'preRootLayoutId' | 'preRootLocationOrder'>;
-type LegacyCampaignStateV18 = Omit<CampaignState, 'preRootLayoutId' | 'preRootLocationOrder'>;
+type LegacyCampaignStateV13 = Omit<CampaignState, 'tyranidEggClutches' | 'developerMode' | 'activeArtifactIds' | 'cityArtifactClaimedIds' | 'pendingBriefingId' | 'resolvedBriefingIds' | 'preRootLayoutId' | 'preRootLocationOrder' | 'extensionLocationOrder' | 'factionCapitalCityIds'>;
+type LegacyCampaignStateV14 = Omit<CampaignState, 'tyranidEggClutches' | 'developerMode' | 'activeArtifactIds' | 'preRootLayoutId' | 'preRootLocationOrder' | 'extensionLocationOrder' | 'factionCapitalCityIds'>;
+type LegacyCampaignStateV15 = Omit<CampaignState, 'tyranidEggClutches' | 'developerMode' | 'preRootLayoutId' | 'preRootLocationOrder' | 'extensionLocationOrder' | 'factionCapitalCityIds'>;
+type LegacyCampaignStateV16 = Omit<CampaignState, 'tyranidEggClutches' | 'developerMode' | 'preRootLayoutId' | 'preRootLocationOrder' | 'factionCapitalCityIds'>;
+type LegacyCampaignStateV17 = Omit<CampaignState, 'tyranidEggClutches' | 'developerMode' | 'preRootLayoutId' | 'preRootLocationOrder'>;
+type LegacyCampaignStateV18 = Omit<CampaignState, 'preRootLayoutId' | 'preRootLocationOrder' | 'tyranidEggClutches'>;
+type LegacyCampaignStateV19 = Omit<CampaignState, 'tyranidEggClutches'>;
 type LegacyCityStateV4 = Omit<CityState, 'garrison'>;
 type LegacyArmyStateV3 = {
   id: ArmyId;
@@ -81,6 +82,7 @@ type LegacyGameStateV15 = Omit<GameState, 'campaign'> & { campaign: LegacyCampai
 type LegacyGameStateV16 = Omit<GameState, 'campaign'> & { campaign: LegacyCampaignStateV16 };
 type LegacyGameStateV17 = Omit<GameState, 'campaign'> & { campaign: LegacyCampaignStateV17 };
 type LegacyGameStateV18 = Omit<GameState, 'campaign'> & { campaign: LegacyCampaignStateV18 };
+type LegacyGameStateV19 = Omit<GameState, 'campaign'> & { campaign: LegacyCampaignStateV19 };
 type LegacyGameStateV11 = Omit<LegacyGameStateV13, 'campaign'> & { campaign: LegacyCampaignStateV11 };
 type LegacyGameStateV10 = Omit<LegacyGameStateV11, 'campaign'> & { campaign: LegacyCampaignStateV10 };
 type LegacyGameStateV9 = Omit<LegacyGameStateV10, 'campaign'> & { campaign: LegacyCampaignStateV9 };
@@ -124,7 +126,8 @@ export type SaveFileV15 = { version: 15; state: LegacyGameStateV15 };
 export type SaveFileV16 = { version: 16; state: LegacyGameStateV16 };
 export type SaveFileV17 = { version: 17; state: LegacyGameStateV17 };
 export type SaveFileV18 = { version: 18; state: LegacyGameStateV18 };
-export type SaveFileV19 = { version: typeof CURRENT_SAVE_VERSION; state: GameState };
+export type SaveFileV19 = { version: 19; state: LegacyGameStateV19 };
+export type SaveFileV20 = { version: typeof CURRENT_SAVE_VERSION; state: GameState };
 export type SaveFile =
   | SaveFileV1
   | SaveFileV2
@@ -144,10 +147,11 @@ export type SaveFile =
   | SaveFileV16
   | SaveFileV17
   | SaveFileV18
-  | SaveFileV19;
+  | SaveFileV19
+  | SaveFileV20;
 
 export function serializeGame(state: GameState): string {
-  const save: SaveFileV19 = { version: CURRENT_SAVE_VERSION, state };
+  const save: SaveFileV20 = { version: CURRENT_SAVE_VERSION, state };
   return JSON.stringify(save);
 }
 
@@ -158,6 +162,7 @@ export function deserializeGame(serialized: string): GameState {
   }
 
   if (parsed.version === CURRENT_SAVE_VERSION) return parsed.state as GameState;
+  if (parsed.version === 19) return migrateV19ToV20(parsed.state as LegacyGameStateV19);
 
   let v18: LegacyGameStateV18;
   if (parsed.version === 18) v18 = parsed.state as LegacyGameStateV18;
@@ -180,7 +185,22 @@ export function deserializeGame(serialized: string): GameState {
   else if (parsed.version === 1) v18 = migrateV17ToV18(migrateV16ToV17(migrateV15ToV16(migrateV14ToV15(migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(migrateV9ToV10(migrateV8ToV9(migrateV7ToV8(migrateV6ToV7(migrateV5ToV6(migrateV4ToV5(migrateV3ToV4(migrateV1ToV3(parsed.state as LegacyGameStateV1))))))))))))))));
   else throw new Error('Unsupported or invalid save file');
 
-  return migrateV18ToV19(v18);
+  return migrateV19ToV20(migrateV18ToV19(v18));
+}
+
+function migrateV19ToV20(state: LegacyGameStateV19): GameState {
+  const factions = { ...state.factions } as GameState['factions'];
+  for (const factionId of ['orsia-orcs', 'orsia-tyranids', 'orsia-lateki']) {
+    const faction = factions[factionId];
+    const definition = orsiaSubfactionById[factionId];
+    if (!faction || !definition) continue;
+    factions[factionId] = { ...faction, traits: definition.traits.map((trait) => ({ ...trait })) };
+  }
+  return {
+    ...state,
+    factions,
+    campaign: { ...state.campaign, tyranidEggClutches: {} },
+  };
 }
 
 function migrateV18ToV19(state: LegacyGameStateV18): GameState {
@@ -259,6 +279,7 @@ function migrateV18ToV19(state: LegacyGameStateV18): GameState {
       preRootLocationOrder: [],
       factionCapitalCityIds,
       pendingFactionEvent,
+      tyranidEggClutches: {},
     },
   };
 
@@ -355,6 +376,7 @@ function migrateV14ToV15(state: LegacyGameStateV14): LegacyGameStateV15 {
       extensionLocationOrder: [],
       factionCapitalCityIds: {},
       developerMode: false,
+      tyranidEggClutches: {},
     },
   } as GameState;
   const rebuilt = synchronizePlayerMapKnowledge(

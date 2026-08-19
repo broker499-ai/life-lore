@@ -405,3 +405,36 @@ describe('Stage 22 faction battle effects', () => {
     expect(result.winnerFactionId).toBe('expedition');
   });
 });
+
+describe('Stage 36 Orc center-only formation', () => {
+  it('places all Orc units in the center and makes flank pressure better than frontal pressure', () => {
+    const makeInput = (command: 'press_left' | 'press_center') => ({
+      battleId: `orc-center-${command}`,
+      scale: 'battle' as const,
+      sideA: {
+        factionId: 'expedition',
+        roster: { 'expedition-infantry': 50, 'expedition-rangers': 30 },
+        morale: 80,
+        tactic: 'balanced' as const,
+        plan: { formation: 'crescent' as const, reservePercent: 0 as const, reserveTarget: 'center' as const, commands: [command], retreatMoraleThreshold: null },
+      },
+      sideB: {
+        factionId: 'orsia-orcs',
+        roster: { 'orssian-guard': 70 },
+        morale: 80,
+        tactic: 'balanced' as const,
+        plan: { formation: 'line' as const, reservePercent: 0 as const, reserveTarget: 'center' as const, commands: [], retreatMoraleThreshold: null },
+        centerOnlyFormation: true,
+      },
+    });
+
+    const flank = simulateBattle(makeInput('press_left'), createRngState(1), prototypeUnits, prototypeBattleRules);
+    const frontal = simulateBattle(makeInput('press_center'), createRngState(1), prototypeUnits, prototypeBattleRules);
+
+    expect(flank.sides.B.centerOnlyFormation).toBe(true);
+    expect(flank.sides.B.sectorState.sectors.left.units).toBe(0);
+    expect(flank.sides.B.sectorState.sectors.right.units).toBe(0);
+    expect(flank.sides.B.remainingUnits).toBeLessThanOrEqual(frontal.sides.B.remainingUnits);
+    expect(flank.sides.B.moraleAfter).toBeLessThanOrEqual(frontal.sides.B.moraleAfter);
+  });
+});

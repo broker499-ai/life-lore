@@ -10,8 +10,9 @@ import {
 import { CampaignScreen } from '@/ui/screens/CampaignScreen';
 import { LeaderSelectScreen } from '@/ui/screens/LeaderSelectScreen';
 import { MainMenuScreen } from '@/ui/screens/MainMenuScreen';
+import { IntroCutscene } from '@/ui/screens/IntroCutscene';
 
-type AppScreen = 'menu' | 'leader-select' | 'campaign';
+type AppScreen = 'menu' | 'leader-select' | 'intro' | 'campaign';
 
 export function App() {
   const [screen, setScreen] = useState<AppScreen>('menu');
@@ -43,10 +44,15 @@ export function App() {
           const seed = Date.now() >>> 0;
           setGameState(createPrototypeGameState(seed, leaderId));
           setCampaignUi(getDefaultCampaignUiSnapshot());
-          setScreen('campaign');
+          setScreen('intro');
         }}
       />
     );
+  }
+
+
+  if (screen === 'intro') {
+    return <IntroCutscene onComplete={() => setScreen('campaign')} />;
   }
 
   if (!gameState) {

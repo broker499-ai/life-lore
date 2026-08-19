@@ -1,5 +1,5 @@
-const CACHE = 'koren-zhivoznaniya-stage34-v1';
-const APP_SHELL = ['/', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
+const CACHE = 'koren-zhivoznaniya-stage37-intro-cutscene-v1';
+const APP_SHELL = ['/', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png', '/assets/intro/orsia-descent.webp'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(APP_SHELL)));

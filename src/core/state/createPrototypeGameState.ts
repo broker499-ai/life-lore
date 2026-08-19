@@ -211,6 +211,7 @@ export function createPrototypeGameState(
       completedResearchIds: [],
       pendingFactionEvent: null,
       resolvedFactionEventIds: [],
+      tyranidEggClutches: {},
       preRootLayoutId: preRootMapRoll.layoutId,
       preRootLocationOrder: preRootMapRoll.locationOrder,
       extensionLocationOrder: extensionOrder.order,

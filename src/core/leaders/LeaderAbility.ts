@@ -21,6 +21,8 @@ export type FactionTrait = (
   | { type: 'battle_unit_power_multiplier'; multiplier: number }
   | { type: 'initial_garrison_size_multiplier_range'; minMultiplier: number; maxMultiplier: number }
   | { type: 'captured_city_income_multiplier'; multiplier: number }
+  | { type: 'center_only_formation' }
+  | { type: 'post_capture_egg_clutch'; deadlineTurns: number; hatchlingUnitTypeId: string; hatchlingCount: number; morale: number }
   | { type: 'root_claim_supply_cost_multiplier'; multiplier: number }
 ) & { source?: string };
 
@@ -144,6 +146,15 @@ export function getInitialGarrisonSizeMultiplierRange(state: GameState, factionI
 
 export function getCapturedCityIncomeMultiplier(state: GameState, factionId: FactionId): number {
   return multiplyTraits(state, factionId, 'captured_city_income_multiplier', (trait) => trait.multiplier);
+}
+
+
+export function factionUsesCenterOnlyFormation(state: GameState, factionId: FactionId): boolean {
+  return getFactionTrait(state, factionId, 'center_only_formation') !== null;
+}
+
+export function getPostCaptureEggClutch(state: GameState, factionId: FactionId) {
+  return getFactionTrait(state, factionId, 'post_capture_egg_clutch');
 }
 
 export function getRootClaimSupplyCostMultiplier(state: GameState, factionId: FactionId): number {

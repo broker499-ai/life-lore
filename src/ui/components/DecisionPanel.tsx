@@ -7,6 +7,8 @@ import type { CityDefinition, RecruitmentOffer } from '@/core/cities/CityDefinit
 import { getEffectiveCityRest, getEffectiveCityTaxIncome } from '@/core/cities/cityTraits';
 import type { RecruitAtCityAvailability, RecruitAtCityError } from '@/core/cities/recruitAtCity';
 import type { RestAtCityAvailability, RestAtCityError } from '@/core/cities/restAtCity';
+import type { ClearTyranidEggClutchAvailability } from '@/core/cities/clearTyranidEggClutch';
+import type { TyranidEggClutchStatus } from '@/core/cities/tyranidEggClutch';
 import type { RootClaimAvailability } from '@/core/campaign/rootObjective';
 import type { MapNode } from '@/core/map/MapGraph';
 import type { MapNodeVisibility } from '@/core/map/MapVisibility';
@@ -17,7 +19,7 @@ import type { TranslationKey } from '@/i18n/ru';
 import { t } from '@/i18n/t';
 
 const TACTICS: Array<{ id: BattleTacticId; label: string; title: string; hint: string }> = [
-  { id: 'assault', label: 'Натиск', title: 'При равных силах рискованнее, зато при большом превосходстве резко снижает собственные потери. Если бой тянется с 3-го раунда, мораль падает быстрее.', hint: 'Паритет: риск ↑ · превосходство: потери ↓ · с 3-го раунда мораль ↓' },
+  { id: 'assault', label: 'Натиск', title: 'При равных силах рискованнее, зато при большом превосходстве резко снижает собственные потери. Если бой тянется с 3-го раунда, моральная паника падает быстрее.', hint: 'Паритет: риск ↑ · превосходство: потери ↓ · с 3-го раунда моральная паника ↓' },
   { id: 'balanced', label: 'Стандарт', title: 'Средний риск. При превосходстве снижает потери умеренно.', hint: 'Средний риск; при превосходстве потери снижаются умеренно' },
   { id: 'cautious', label: 'Осторожно', title: 'Лучше бережёт людей при равных силах, но при большом превосходстве становится медленным и сравнительно более затратным.', hint: 'Паритет: потери ↓ · большое превосходство: сравнительные потери ↑' },
   { id: 'flank', label: 'Обход', title: 'Манёвр с усилением стрелковых частей и умеренным риском.', hint: 'Манёвр: усиление стрелков и умеренный риск' },
@@ -266,6 +268,8 @@ export function StrategicActionBar({
   currentCityDefinition,
   currentRecruitmentOffers,
   currentCityControlled,
+  tyranidClutchStatus,
+  tyranidClutchAvailability,
   restAvailability,
   recruitAvailabilityByUnitTypeId,
   unitDefinitions,
@@ -279,6 +283,7 @@ export function StrategicActionBar({
   onAttack,
   onTacticChange,
   onBattlePlanChange,
+  onClearTyranidClutch,
   onRest,
   onRecruit,
 }: {
@@ -295,6 +300,8 @@ export function StrategicActionBar({
   currentCityDefinition: CityDefinition | null;
   currentRecruitmentOffers: RecruitmentOffer[];
   currentCityControlled: boolean;
+  tyranidClutchStatus: TyranidEggClutchStatus | null;
+  tyranidClutchAvailability: ClearTyranidEggClutchAvailability | null;
   restAvailability: RestAtCityAvailability | null;
   recruitAvailabilityByUnitTypeId: Record<string, RecruitAtCityAvailability>;
   unitDefinitions: UnitDefinitions;
@@ -308,6 +315,7 @@ export function StrategicActionBar({
   onAttack: (cityId: string) => void;
   onTacticChange: (tactic: BattleTacticId) => void;
   onBattlePlanChange: (plan: BattlePlan) => void;
+  onClearTyranidClutch: (cityId: string) => void;
   onRest: (cityId: string) => void;
   onRecruit: (cityId: string, offer: RecruitmentOffer) => void;
 }) {
@@ -388,6 +396,19 @@ export function StrategicActionBar({
 
         {showCurrentCityActions && currentCityId ? (
           <>
+            {tyranidClutchStatus ? (
+              <button
+                type="button"
+                className={`secondary-button action-button tyranid-clutch-button${tyranidClutchStatus.overdue ? ' is-overdue' : ''}`}
+                disabled={!tyranidClutchAvailability?.canClear}
+                title={tyranidClutchStatus.overdue
+                  ? 'Срок зачистки истёк. После ухода армии город вернётся тиранидам.'
+                  : `До созревания кладки: ${tyranidClutchStatus.turnsRemaining} ход.`}
+                onClick={() => onClearTyranidClutch(currentCityId)}
+              >
+                {tyranidClutchStatus.overdue ? 'Кладка созрела' : `Зачистить кладку · ${tyranidClutchStatus.turnsRemaining}`}
+              </button>
+            ) : null}
             <button
               type="button"
               className="secondary-button action-button rest-button"
@@ -487,7 +508,7 @@ export function StrategicActionBar({
           <PlanSection title="Командование во время боя">
             <div className="battle-live-orders-note">
               <strong>2 приказа</strong>
-              <span>Бой автоматически остановится перед 2-м и 4-м раундами. В этот момент можно усилить сектор, приказать общий натиск, удерживать строй или не вмешиваться.</span>
+              <span>До двух вмешательств за бой. Бой не ставится на паузу: можно включить оборону или натиск и выбрать сектор прямо на поле.</span>
             </div>
           </PlanSection>
 
@@ -497,7 +518,7 @@ export function StrategicActionBar({
               checked={battlePlan.retreatMoraleThreshold !== null}
               onChange={(event: ChangeEvent<HTMLInputElement>) => onBattlePlanChange({ ...battlePlan, retreatMoraleThreshold: event.target.checked ? 30 : null })}
             />
-            <span><strong>Организованный отход</strong><small>Отступить, если общая мораль упадёт до 30, вместо риска полного разгрома.</small></span>
+            <span><strong>Организованный отход</strong><small>Отступить, если общая моральная паника упадёт до 30, вместо риска полного разгрома.</small></span>
           </label>
         </div>
       ) : null}
@@ -676,7 +697,7 @@ function getRecruitDisabledReason(availability: RecruitAtCityAvailability | null
 export function getRestErrorMessage(error: RestAtCityError): string {
   switch (error) {
     case 'strategic_action_spent': return 'Стратегическое действие этого хода уже использовано.';
-    case 'nothing_to_restore': return 'Припасы и мораль уже на максимуме.';
+    case 'nothing_to_restore': return 'Припасы и моральная паника уже на максимуме.';
     case 'city_not_controlled': return 'Отдых доступен только в своём городе.';
     case 'army_not_in_city': return 'Армия должна находиться в городе.';
     case 'army_not_found': return 'Основная армия не найдена.';

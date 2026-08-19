@@ -14,6 +14,8 @@ import {
   getMoraleDamageInflictedMultiplier,
   getRandomBattleMoraleGain,
   getSupplyActionCostMultiplier,
+  factionUsesCenterOnlyFormation,
+  getPostCaptureEggClutch,
 } from '@/core/leaders/LeaderAbility';
 import type { UnitDefinitions } from '@/core/armies/UnitDefinition';
 import type {
@@ -31,6 +33,7 @@ import {
 } from '@/core/map/MapGraph';
 import { synchronizePlayerMapKnowledge } from '@/core/map/MapVisibility';
 import type { ArmyId, ArmyState, CityId, GameState } from '@/core/state/GameState';
+import { applyTyranidReversionAfterArmyDeparture } from '@/core/cities/tyranidEggClutch';
 import { getSupplyAdjustedActionCost, getSupplyStatus, type SupplyStatus } from '@/core/supply/Supply';
 
 export type AttackCityError =
@@ -170,7 +173,11 @@ export function attackCity(
     return {
       ok: true,
       state: synchronizePlayerMapKnowledge(
-        captureCityWithoutBattle(stateWithCost, input.armyId, input.cityId),
+        applyTyranidReversionAfterArmyDeparture(
+          state,
+          captureCityWithoutBattle(stateWithCost, input.armyId, input.cityId),
+          input.armyId,
+        ),
         graph,
       ),
       battle: null,
@@ -204,6 +211,7 @@ export function attackCity(
         casualtyTakenMultiplier: getIncomingCasualtyMultiplier(state, army.factionId, 'cautious'),
         unitPowerMultiplier: getBattleUnitPowerMultiplier(state, army.factionId),
         randomMoraleGain: getRandomBattleMoraleGain(state, army.factionId) ?? undefined,
+        centerOnlyFormation: factionUsesCenterOnlyFormation(state, army.factionId),
       },
       sideB: {
         factionId: defenderFactionId,
@@ -225,6 +233,7 @@ export function attackCity(
           getBattleUnitPowerMultiplier(state, defenderFactionId) *
           getCityDefenderUnitPowerMultiplier(dependencies.cityDefinitions[city.id]),
         randomMoraleGain: getRandomBattleMoraleGain(state, defenderFactionId) ?? undefined,
+        centerOnlyFormation: factionUsesCenterOnlyFormation(state, defenderFactionId),
       },
     },
     state.rng.battles,
@@ -272,8 +281,24 @@ export function attackCity(
     }
   }
 
+  const capturedEggTrait = attackerWon && city.ownerFactionId
+    ? getPostCaptureEggClutch(state, city.ownerFactionId)
+    : null;
+  const nextEggClutches = { ...stateWithCost.campaign.tyranidEggClutches };
+  if (attackerWon && army.factionId === state.playerFactionId && capturedEggTrait && city.ownerFactionId) {
+    nextEggClutches[city.id] = {
+      cityId: city.id,
+      tyranidFactionId: city.ownerFactionId,
+      capturedTurn: state.turn,
+      deadlineTurn: state.turn + capturedEggTrait.deadlineTurns,
+    };
+  } else if (attackerWon) {
+    delete nextEggClutches[city.id];
+  }
+
   const nextState: GameState = {
     ...stateWithCost,
+    campaign: { ...stateWithCost.campaign, tyranidEggClutches: nextEggClutches },
     rng: {
       ...state.rng,
       battles: battle.rngState,
@@ -286,7 +311,7 @@ export function attackCity(
             ...city,
             ownerFactionId: army.factionId,
             garrison: { roster: {}, morale: 0 },
-            incomeMultiplier: Math.min(
+            incomeMultiplier: applyCapturedCityIncomeMultiplier(
               city.incomeMultiplier ?? 1,
               getCapturedCityIncomeMultiplier(state, city.ownerFactionId ?? NEUTRAL_DEFENDER_FACTION_ID),
             ),
@@ -327,7 +352,10 @@ export function attackCity(
 
   return {
     ok: true,
-    state: synchronizePlayerMapKnowledge(reaction.state, graph),
+    state: synchronizePlayerMapKnowledge(
+      applyTyranidReversionAfterArmyDeparture(state, reaction.state, input.armyId),
+      graph,
+    ),
     battle,
     captured: attackerWon,
     events,
@@ -373,9 +401,23 @@ function captureCityWithoutBattle(state: GameState, armyId: ArmyId, cityId: City
   const army = state.armies[armyId];
   const city = state.cities[cityId];
   if (!army || !city) throw new Error('Cannot capture missing city or army');
+  const capturedOwnerFactionId = city.ownerFactionId;
+  const eggTrait = capturedOwnerFactionId ? getPostCaptureEggClutch(state, capturedOwnerFactionId) : null;
+  const tyranidEggClutches = { ...state.campaign.tyranidEggClutches };
+  if (army.factionId === state.playerFactionId && capturedOwnerFactionId && eggTrait) {
+    tyranidEggClutches[cityId] = {
+      cityId,
+      tyranidFactionId: capturedOwnerFactionId,
+      capturedTurn: state.turn,
+      deadlineTurn: state.turn + eggTrait.deadlineTurns,
+    };
+  } else {
+    delete tyranidEggClutches[cityId];
+  }
 
   return {
     ...state,
+    campaign: { ...state.campaign, tyranidEggClutches },
     armies: {
       ...state.armies,
       [armyId]: { ...army, nodeId: cityId },
@@ -386,10 +428,18 @@ function captureCityWithoutBattle(state: GameState, armyId: ArmyId, cityId: City
         ...city,
         ownerFactionId: army.factionId,
         garrison: { roster: {}, morale: 0 },
-        incomeMultiplier: Math.min(city.incomeMultiplier ?? 1, getCapturedCityIncomeMultiplier(state, city.ownerFactionId ?? NEUTRAL_DEFENDER_FACTION_ID)),
+        incomeMultiplier: applyCapturedCityIncomeMultiplier(
+          city.incomeMultiplier ?? 1,
+          getCapturedCityIncomeMultiplier(state, capturedOwnerFactionId ?? NEUTRAL_DEFENDER_FACTION_ID),
+        ),
       },
     },
   };
+}
+
+function applyCapturedCityIncomeMultiplier(current: number, capturedFromMultiplier: number): number {
+  if (capturedFromMultiplier >= 1) return Math.max(current, capturedFromMultiplier);
+  return Math.min(current, capturedFromMultiplier);
 }
 
 function findDefendingArmy(
