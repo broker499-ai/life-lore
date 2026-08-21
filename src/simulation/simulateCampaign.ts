@@ -6,33 +6,29 @@ import { getEffectiveCityRecruitmentOffers } from '@/core/cities/cityTraits';
 import { recruitAtCity } from '@/core/cities/recruitAtCity';
 import { restAtCity } from '@/core/cities/restAtCity';
 import { getEventChoiceAvailability, resolveLocationEvent, triggerLocationEvent } from '@/core/events/LocationEvent';
-import { resolveCityVisitArtifact } from '@/core/artifacts/resolveCityVisitArtifact';
 import { acknowledgeSurfaceBriefing, triggerAvailableSurfaceBriefing } from '@/core/story/SurfaceBriefing';
 import { canUseRiverDoubleMove } from '@/core/leaders/LeaderAbility';
 import { getCampaignMap, isExtensionUnlocked, FALSE_ROOT_NODE_ID } from '@/core/map/extensionMap';
 import { getNeighborNodeIds, type MapGraph } from '@/core/map/MapGraph';
 import { moveArmy } from '@/core/map/moveArmy';
-import { completeResearch } from '@/core/research/completeResearch';
 import { createPrototypeGameState, PLAYER_ARMY_ID, RIVAL_ARMY_ID, RIVAL_FACTION_ID } from '@/core/state/createPrototypeGameState';
 import type { GameState } from '@/core/state/GameState';
 import { advanceTurn } from '@/core/turns/advanceTurn';
 import { prototypeArtifacts } from '@/data/artifacts/prototypeArtifacts';
-import { cityVisitArtifactByCityId } from '@/data/artifacts/cityVisitArtifacts';
 import { prototypeBattleRules } from '@/data/battles/prototypeBattleRules';
 import { getPrototypeRootObjectiveRules, prototypeCampaignRules } from '@/data/campaign/prototypeRules';
 import { prototypeCities } from '@/data/cities/prototypeCities';
 import { prototypeEvents } from '@/data/events/prototypeEvents';
 import { prototypeLeaderById, prototypeLeaders } from '@/data/leaders/prototypeLeader';
-import { prototypeResearch } from '@/data/research/prototypeResearch';
 import { prototypeSurfaceBriefings } from '@/data/story/prototypeSurfaceBriefings';
 import { prototypeUnits } from '@/data/units/prototypeUnits';
 
-export type SimulationStrategy = 'balanced' | 'aggressive' | 'research' | 'artifact' | 'rush';
+export type SimulationStrategy = 'balanced' | 'aggressive' | 'knowledge' | 'artifact' | 'rush';
 
 export const simulationStrategies: readonly SimulationStrategy[] = [
   'balanced',
   'aggressive',
-  'research',
+  'knowledge',
   'artifact',
   'rush',
 ];
@@ -58,8 +54,8 @@ export type CampaignSimulationResult = {
   rivalCities: number;
   playerMoney: number;
   playerSupplies: number;
-  specimensAvailable: number;
-  specimensCollected: number;
+  knowledgeAvailable: number;
+  knowledge: number;
   playerUnits: number;
   maxPlayerUnits: number;
   playerBattles: number;
@@ -69,7 +65,7 @@ export type CampaignSimulationResult = {
   rivalActions: number;
   artifactsFound: number;
   activeArtifacts: number;
-  researchCompleted: number;
+  legacyResearchCompleted: number;
   poiResolved: number;
   actionCounts: Record<string, number>;
   tacticCounts: Record<BattleTacticId, number>;
@@ -82,8 +78,8 @@ export type CampaignSimulationResult = {
 
 type MutableMetrics = Omit<CampaignSimulationResult,
   'status' | 'endingReason' | 'turns' | 'playerCities' | 'rivalCities' | 'playerMoney' | 'playerSupplies' |
-  'specimensAvailable' | 'specimensCollected' | 'playerUnits' | 'artifactsFound' | 'activeArtifacts' |
-  'researchCompleted' | 'poiResolved' | 'extensionOrder' | 'activeOrsiaFactions' | 'rivalLeaderId' | 'rivalOrganizationId'
+  'knowledgeAvailable' | 'knowledge' | 'playerUnits' | 'artifactsFound' | 'activeArtifacts' |
+  'legacyResearchCompleted' | 'poiResolved' | 'extensionOrder' | 'activeOrsiaFactions' | 'rivalLeaderId' | 'rivalOrganizationId'
 >;
 
 export function simulateCampaign(options: CampaignSimulationOptions): CampaignSimulationResult {
@@ -111,7 +107,6 @@ export function simulateCampaign(options: CampaignSimulationOptions): CampaignSi
     const beforeActionSpent = state.factions[state.playerFactionId]?.strategicActionSpent ?? false;
     state = autoAcknowledgeBriefings(state);
     state = autoResolvePendingEvent(state, options.strategy, metrics, options.verbose);
-    state = autoResearch(state, options.strategy, options.verbose);
 
     const rootRules = getPrototypeRootObjectiveRules(state);
     const rootAvailability = getRootClaimAvailability(state, {
@@ -141,8 +136,7 @@ export function simulateCampaign(options: CampaignSimulationOptions): CampaignSi
       actionAttempts += 1;
       state = autoAcknowledgeBriefings(state);
       state = autoResolvePendingEvent(state, options.strategy, metrics, options.verbose);
-      state = autoResearch(state, options.strategy, options.verbose);
-      if (state.campaign.pendingEventId) break;
+        if (state.campaign.pendingEventId) break;
 
       const faction = state.factions[state.playerFactionId];
       if (!faction) break;
@@ -228,9 +222,9 @@ function chooseAndExecutePlayerAction(
       }
     }
 
-    const baseRecruitTarget = strategy === 'aggressive' ? 34 : strategy === 'rush' ? 28 : strategy === 'research' ? 40 : 38;
+    const baseRecruitTarget = strategy === 'aggressive' ? 34 : strategy === 'rush' ? 28 : strategy === 'knowledge' ? 40 : 38;
     const recruitTarget = isExtensionUnlocked(state)
-      ? Math.max(baseRecruitTarget, strategy === 'aggressive' ? 58 : strategy === 'rush' ? 54 : strategy === 'research' ? 72 : 66)
+      ? Math.max(baseRecruitTarget, strategy === 'aggressive' ? 58 : strategy === 'rush' ? 54 : strategy === 'knowledge' ? 72 : 66)
       : baseRecruitTarget;
     if (units < recruitTarget) {
       const offers = getEffectiveCityRecruitmentOffers(currentCityDef)
@@ -260,8 +254,8 @@ function chooseAndExecutePlayerAction(
   const city = state.cities[nextNodeId];
 
   if (!movementOnly && city && city.ownerFactionId !== state.playerFactionId) {
-    const regroupUnitThreshold = strategy === 'aggressive' ? 20 : strategy === 'rush' ? 22 : strategy === 'research' ? 34 : 30;
-    const regroupMoraleThreshold = strategy === 'aggressive' ? 28 : strategy === 'rush' ? 34 : strategy === 'research' ? 52 : 44;
+    const regroupUnitThreshold = strategy === 'aggressive' ? 20 : strategy === 'rush' ? 22 : strategy === 'knowledge' ? 34 : 30;
+    const regroupMoraleThreshold = strategy === 'aggressive' ? 28 : strategy === 'rush' ? 34 : strategy === 'knowledge' ? 52 : 44;
     if (units < regroupUnitThreshold || army.morale < regroupMoraleThreshold) {
       const regroupPath = pathToNearestOwnedCity(state, graph, army.nodeId);
       const backNodeId = regroupPath?.[1];
@@ -323,15 +317,6 @@ function processArrival(
   verbose: boolean,
 ): GameState {
   let next = state;
-  if (next.cities[nodeId]?.ownerFactionId === next.playerFactionId) {
-    next = resolveCityVisitArtifact(next, {
-      cityId: nodeId,
-      factionId: next.playerFactionId,
-      armyId: PLAYER_ARMY_ID,
-      supplyCap: prototypeCampaignRules.supplyCap,
-      moraleCap: prototypeCampaignRules.moraleCap,
-    }, cityVisitArtifactByCityId, prototypeArtifacts).state;
-  }
   next = triggerLocationEvent(next, nodeId, prototypeEvents).state;
   if (nodeId === FALSE_ROOT_NODE_ID && metrics.falseRootTurn === null) metrics.falseRootTurn = next.turn;
   const wasUnlocked = isExtensionUnlocked(next);
@@ -375,44 +360,18 @@ function chooseEventChoice(state: GameState, event: (typeof prototypeEvents)[str
   if (event.id === 'false-root-revelation') return available[0];
 
   const artifactChoices = available.filter((choice) => choice.effects.some((effect) => effect.type === 'artifact'));
-  const specimenChoices = available.filter((choice) => choice.effects.some((effect) => effect.type === 'specimens' && effect.amount > 0));
+  const knowledgeChoices = available.filter((choice) => choice.effects.some((effect) => effect.type === 'knowledge' && effect.amount > 0));
   const positiveMoraleChoices = available.filter((choice) => choice.effects.some((effect) => effect.type === 'morale' && effect.amount > 0));
 
   if (strategy === 'artifact' && artifactChoices[0]) return artifactChoices[0];
-  if ((strategy === 'research' || strategy === 'rush') && specimenChoices[0]) return specimenChoices[0];
-  if (strategy === 'aggressive') return artifactChoices[0] ?? positiveMoraleChoices[0] ?? specimenChoices[0] ?? available[0];
+  if ((strategy === 'knowledge' || strategy === 'rush') && knowledgeChoices[0]) return knowledgeChoices[0];
+  if (strategy === 'aggressive') return artifactChoices[0] ?? positiveMoraleChoices[0] ?? knowledgeChoices[0] ?? available[0];
 
   const collected = state.factions[state.playerFactionId]?.specimensCollected ?? 0;
-  if (strategy === 'balanced' && collected < 6 && specimenChoices[0]) return specimenChoices[0];
-  return artifactChoices[0] ?? specimenChoices[0] ?? positiveMoraleChoices[0] ?? available[0];
+  if (strategy === 'balanced' && collected < 8 && knowledgeChoices[0]) return knowledgeChoices[0];
+  return artifactChoices[0] ?? knowledgeChoices[0] ?? positiveMoraleChoices[0] ?? available[0];
 }
 
-function autoResearch(state: GameState, strategy: SimulationStrategy, verbose = false): GameState {
-  let next = state;
-  const priorities: Record<SimulationStrategy, string[]> = {
-    rush: ['anomaly-office-resonance', 'anomaly-root-signal', 'flora-field-rations', 'fauna-tunnel-tracks'],
-    research: ['anomaly-office-resonance', 'anomaly-root-signal', 'flora-field-rations', 'fauna-tunnel-tracks', 'flora-root-tonics', 'fauna-pack-logistics'],
-    aggressive: ['flora-field-rations', 'flora-root-tonics', 'anomaly-office-resonance', 'anomaly-root-signal'],
-    artifact: ['flora-field-rations', 'fauna-tunnel-tracks', 'anomaly-office-resonance'],
-    balanced: ['flora-field-rations', 'anomaly-office-resonance', 'anomaly-root-signal', 'flora-root-tonics', 'fauna-tunnel-tracks', 'fauna-pack-logistics'],
-  };
-
-  let changed = true;
-  while (changed) {
-    changed = false;
-    const graph = getCampaignMap(next);
-    for (const researchId of priorities[strategy]) {
-      if (next.campaign.completedResearchIds.includes(researchId)) continue;
-      const result = completeResearch(next, { factionId: next.playerFactionId, researchId }, prototypeResearch, graph);
-      if (!result.ok) continue;
-      next = result.state;
-      changed = true;
-      log(verbose, next.turn, `RESEARCH ${researchId}`);
-      break;
-    }
-  }
-  return next;
-}
 
 function autoAcknowledgeBriefings(state: GameState): GameState {
   let next = triggerAvailableSurfaceBriefing(state, prototypeSurfaceBriefings);
@@ -429,7 +388,7 @@ function autoAcknowledgeBriefings(state: GameState): GameState {
 function choosePlayerTactic(strategy: SimulationStrategy, state: GameState, cityId: string): BattleTacticId {
   if (strategy === 'aggressive') return 'assault';
   if (strategy === 'rush') return 'assault';
-  if (strategy === 'research') return 'cautious';
+  if (strategy === 'knowledge') return 'cautious';
   if (strategy === 'artifact') return 'flank';
   const attacker = getPlayerUnits(state);
   const defender = Object.values(state.cities[cityId]?.garrison.roster ?? {}).reduce((sum, amount) => sum + (amount ?? 0), 0);
@@ -511,12 +470,12 @@ function finalizeResult(
     rivalCities: Object.values(state.cities).filter((city) => city.ownerFactionId === RIVAL_FACTION_ID).length,
     playerMoney: round(playerFaction?.resources.money ?? 0),
     playerSupplies: round(playerFaction?.resources.supplies ?? 0),
-    specimensAvailable: playerFaction?.resources.specimens ?? 0,
-    specimensCollected: playerFaction?.specimensCollected ?? 0,
+    knowledgeAvailable: playerFaction?.resources.specimens ?? 0,
+    knowledge: playerFaction?.specimensCollected ?? 0,
     playerUnits: getPlayerUnits(state),
     artifactsFound: state.campaign.artifactIds.length,
     activeArtifacts: state.campaign.activeArtifactIds.length,
-    researchCompleted: state.campaign.completedResearchIds.length,
+    legacyResearchCompleted: 0,
     poiResolved: state.campaign.resolvedEventIds.length,
     extensionOrder: state.campaign.extensionLocationOrder.join('>'),
     activeOrsiaFactions: Object.values(state.factions)

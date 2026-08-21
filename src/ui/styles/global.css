@@ -6702,7 +6702,7 @@ button:disabled {
    vertically and keeps every primary action reachable without scrolling the
    whole page.
    ====================================================================== */
-@media (orientation: landscape) and (min-width: 600px) and (max-width: 1000px) and (max-height: 600px) {
+@media (min-width: 600px) and (max-width: 1000px) and (max-height: 600px) and (min-aspect-ratio: 4/3) {
   html,
   body,
   #root {
@@ -6961,7 +6961,7 @@ button:disabled {
 /* Battle landscape uses the width for the battlefield and keeps playback/log
    controls in a compact right rail. The scene therefore remains large even on
    360–430 px high phones. */
-@media (orientation: landscape) and (min-width: 600px) and (max-width: 1000px) and (max-height: 600px) {
+@media (min-width: 600px) and (max-width: 1000px) and (max-height: 600px) and (min-aspect-ratio: 4/3) {
   .campaign-shell.battle-shell {
     width: 100vw;
     max-width: none;
@@ -7162,7 +7162,7 @@ button:disabled {
 
 /* Very short landscape phones (e.g. 667×360 CSS px): trim secondary chrome,
    never the map or the tactical scene. */
-@media (orientation: landscape) and (min-width: 600px) and (max-width: 1000px) and (max-height: 400px) {
+@media (min-width: 600px) and (max-width: 1000px) and (max-height: 400px) and (min-aspect-ratio: 4/3) {
   .campaign-shell:not(.battle-shell) {
     grid-template-columns: minmax(0, 1.8fr) clamp(270px, 35vw, 330px);
     grid-template-rows: 40px minmax(0, 1fr) 44px;
@@ -7313,7 +7313,7 @@ button:disabled {
   .battle-pressure-target-grid { inset: 9% 3% 18%; }
 }
 
-@media (orientation: landscape) and (max-height: 520px) {
+@media (max-height: 520px) and (min-aspect-ratio: 4/3) {
   .battle-live-controls {
     left: auto;
     right: 7px;
@@ -7371,15 +7371,35 @@ button:disabled {
   transform: translate3d(0, 0, 0);
   will-change: transform;
   image-rendering: auto;
-  transition: opacity 320ms ease;
+  transition: opacity 820ms ease;
 }
 
 .intro-cutscene-image.is-ready {
   opacity: 1;
 }
 
+.intro-underground-cover {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  right: 0;
+  top: clamp(112px, 15.5vh, 158px);
+  bottom: 0;
+  pointer-events: none;
+  background: #000;
+  opacity: 1;
+  transition: opacity 1350ms ease-in-out;
+}
+
+.intro-cutscene.is-reveal .intro-underground-cover,
+.intro-cutscene.is-scroll .intro-underground-cover,
+.intro-cutscene.is-finale .intro-underground-cover {
+  opacity: 0;
+}
+
 .intro-cutscene-dimmer {
   position: absolute;
+  z-index: 3;
   inset: 0;
   pointer-events: none;
   background: rgba(0, 0, 0, 0);
@@ -7392,14 +7412,16 @@ button:disabled {
 
 .intro-cutscene-copy {
   position: absolute;
+  z-index: 4;
   left: max(24px, env(safe-area-inset-left));
   right: max(24px, env(safe-area-inset-right));
-  top: 58%;
+  top: 50%;
   display: grid;
   justify-items: center;
   gap: 10px;
   pointer-events: none;
   text-align: center;
+  transform: translateY(-50%);
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.82), 0 1px 2px rgba(0, 0, 0, 0.95);
 }
 
@@ -7432,7 +7454,7 @@ button:disabled {
   position: absolute;
   left: 50%;
   bottom: max(18px, calc(env(safe-area-inset-bottom) + 10px));
-  z-index: 3;
+  z-index: 5;
   min-width: min(78vw, 300px);
   min-height: 48px;
   padding: 11px 18px;
@@ -7459,13 +7481,13 @@ button:disabled {
   background: rgba(41, 48, 39, 0.92);
 }
 
-@media (orientation: landscape) and (max-height: 620px) {
+@media (max-height: 620px) and (min-aspect-ratio: 4/3) {
   .intro-cutscene-image {
     width: min(52vw, 90vh, 682px);
   }
 
   .intro-cutscene-copy {
-    top: 48%;
+    top: 50%;
     left: max(18px, env(safe-area-inset-left));
     right: max(18px, env(safe-area-inset-right));
   }
@@ -7483,6 +7505,7 @@ button:disabled {
 
 @media (prefers-reduced-motion: reduce) {
   .intro-cutscene-dimmer,
+  .intro-underground-cover,
   .intro-skip-button,
   .intro-cutscene-image {
     transition-duration: 0.01ms;
@@ -7493,4 +7516,2011 @@ button:disabled {
     animation-duration: 0.01ms;
     animation-delay: 0.01ms;
   }
+}
+
+/* Stage 39 — knowledge corruption, consequential artifacts and battle juice. */
+.campaign-resource-row .status-item.is-knowledge strong {
+  color: #c2a2d7;
+}
+
+.artifact-danger-warning {
+  display: block;
+  margin-top: 5px;
+  color: #d85d55 !important;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.artifact-threat-note {
+  color: rgba(214, 111, 101, .76) !important;
+}
+
+.campaign-shell.knowledge-stage-1,
+.campaign-shell.knowledge-stage-2 {
+  position: relative;
+  isolation: isolate;
+}
+
+.campaign-shell.knowledge-stage-1::before,
+.campaign-shell.knowledge-stage-2::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  pointer-events: none;
+}
+
+.campaign-shell.knowledge-stage-1::before {
+  background:
+    radial-gradient(circle at 50% 44%, transparent 52%, rgba(0,0,0,.24) 100%),
+    linear-gradient(180deg, rgba(39,7,8,.04), rgba(0,0,0,.08));
+  mix-blend-mode: multiply;
+}
+
+.campaign-shell.knowledge-stage-2::before {
+  background:
+    radial-gradient(circle at 50% 42%, transparent 36%, rgba(8,0,0,.30) 78%, rgba(0,0,0,.48) 100%),
+    repeating-linear-gradient(112deg, transparent 0 47px, rgba(94,12,12,.035) 48px 49px, transparent 50px 91px);
+  mix-blend-mode: multiply;
+}
+
+.knowledge-stage-1 .map-stage,
+.knowledge-stage-1 .campaign-command-deck,
+.knowledge-stage-1 .campaign-header {
+  filter: brightness(.93) saturate(.92);
+}
+
+.knowledge-stage-2 .map-stage {
+  filter: brightness(.76) saturate(.78) contrast(1.08);
+}
+
+.knowledge-stage-2 .campaign-command-deck,
+.knowledge-stage-2 .campaign-header,
+.knowledge-stage-2 .bottom-nav {
+  filter: brightness(.84) saturate(.78);
+}
+
+.knowledge-corruption-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 81;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.knowledge-corruption-overlay i {
+  position: absolute;
+  width: 54px;
+  height: 22px;
+  border: 1px solid rgba(124, 25, 25, .24);
+  border-radius: 55% 45% 55% 45%;
+  opacity: .23;
+  transform: rotate(-11deg);
+}
+
+.knowledge-corruption-overlay i::after {
+  content: "";
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 7px; height: 7px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: rgba(151, 30, 27, .28);
+  box-shadow: 0 0 9px rgba(151, 30, 27, .18);
+}
+
+.knowledge-corruption-overlay i:nth-child(1) { left: 4%; top: 33%; }
+.knowledge-corruption-overlay i:nth-child(2) { right: 5%; top: 62%; transform: rotate(14deg) scale(.8); }
+.knowledge-corruption-overlay i:nth-child(3) { left: 45%; bottom: 7%; transform: rotate(-4deg) scale(.65); }
+.knowledge-stage-1 .knowledge-corruption-overlay i:nth-child(n+2) { display: none; }
+.knowledge-stage-2 .knowledge-corruption-overlay i { animation: knowledge-eye-pulse 6.5s ease-in-out infinite; }
+.knowledge-stage-2 .knowledge-corruption-overlay i:nth-child(2) { animation-delay: -2.3s; }
+.knowledge-stage-2 .knowledge-corruption-overlay i:nth-child(3) { animation-delay: -4.1s; }
+
+@keyframes knowledge-eye-pulse {
+  0%, 72%, 100% { opacity: .08; }
+  78%, 88% { opacity: .34; }
+}
+
+.battle-pitch.has-dramatic {
+  animation: battle-camera-kick .24s ease-out 1;
+}
+
+@keyframes battle-camera-kick {
+  0% { transform: translate3d(0,0,0); }
+  22% { transform: translate3d(-2px,1px,0); }
+  46% { transform: translate3d(2px,-1px,0); }
+  72% { transform: translate3d(-1px,0,0); }
+  100% { transform: translate3d(0,0,0); }
+}
+
+.battle-dramatic-banner {
+  position: absolute;
+  z-index: 13;
+  left: 50%;
+  top: 48%;
+  transform: translate(-50%, -50%);
+  min-width: min(72%, 360px);
+  padding: 10px 14px;
+  text-align: center;
+  background: rgba(8, 7, 5, .84);
+  border: 1px solid rgba(214, 174, 76, .75);
+  box-shadow: 0 0 0 1px rgba(0,0,0,.65), 0 6px 24px rgba(0,0,0,.4);
+  animation: battle-banner-hit .8s cubic-bezier(.18,.9,.24,1) both;
+  pointer-events: none;
+}
+
+.battle-dramatic-banner strong,
+.battle-dramatic-banner span { display: block; }
+.battle-dramatic-banner strong {
+  color: #ebc95c;
+  font-size: clamp(16px, 3.7vw, 25px);
+  letter-spacing: .08em;
+  text-shadow: 0 1px 0 #000;
+}
+.battle-dramatic-banner span { margin-top: 3px; color: rgba(239,231,205,.76); font-size: 11px; }
+.battle-dramatic-banner.is-danger { border-color: rgba(180,55,47,.8); }
+.battle-dramatic-banner.is-danger strong { color: #df6e61; }
+
+@keyframes battle-banner-hit {
+  0% { opacity: 0; transform: translate(-50%,-50%) scale(.72); }
+  18% { opacity: 1; transform: translate(-50%,-50%) scale(1.06); }
+  38% { transform: translate(-50%,-50%) scale(1); }
+  78% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%,-53%) scale(.98); }
+}
+
+.battle-impact-shockwave {
+  position: absolute;
+  z-index: 12;
+  left: 50%; top: 50%;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  border: 2px solid rgba(235,201,92,.55);
+  transform: translate(-50%,-50%);
+  animation: battle-shockwave .65s ease-out both;
+  pointer-events: none;
+}
+.battle-pitch.is-danger .battle-impact-shockwave { border-color: rgba(188,51,43,.62); }
+@keyframes battle-shockwave {
+  from { opacity: .8; width: 20px; height: 20px; }
+  to { opacity: 0; width: 75%; height: 75%; }
+}
+
+.battle-blood-spray { fill: #7d1617; stroke: #8f1d1b; stroke-width: .5; }
+.battle-blood-spray path { fill: none; stroke-linecap: round; stroke-width: 1.05; }
+
+@media (prefers-reduced-motion: reduce) {
+  .knowledge-stage-2 .knowledge-corruption-overlay i,
+  .battle-pitch.has-dramatic,
+  .battle-dramatic-banner,
+  .battle-impact-shockwave { animation: none !important; }
+}
+
+/* Stage 40 — readable battle juice, risky recruitment and POI field rests. */
+.battle-dramatic-banner {
+  animation-duration: 1.65s;
+  min-width: min(78%, 390px);
+  padding: 13px 16px;
+}
+
+.battle-dramatic-banner strong {
+  font-size: clamp(18px, 4.4vw, 29px);
+}
+
+.battle-dramatic-banner span {
+  margin-top: 5px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+@keyframes battle-banner-hit {
+  0% { opacity: 0; transform: translate(-50%,-50%) scale(.72); }
+  11% { opacity: 1; transform: translate(-50%,-50%) scale(1.07); }
+  24% { transform: translate(-50%,-50%) scale(1); }
+  76% { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+  92% { opacity: .92; }
+  100% { opacity: 0; transform: translate(-50%,-53%) scale(.98); }
+}
+
+.battle-pitch.has-dramatic {
+  animation-duration: .62s;
+}
+
+.battle-impact-shockwave {
+  animation-duration: 1.15s;
+  border-width: 3px;
+}
+
+.battle-blood-spray {
+  fill: #9b1719;
+  stroke: #bd2725;
+  stroke-width: .72;
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,.7));
+}
+
+.battle-blood-spray path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-width: 1.38;
+}
+
+.battle-blood-spray .blood-secondary-streak {
+  stroke-width: .84;
+  opacity: .9;
+}
+
+.battle-blood-spray.is-pink {
+  fill: #db5a93;
+  stroke: #f080b2;
+}
+
+.battle-blood-spray.is-guaranteed {
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,.82));
+}
+
+.recruit-slider-panel {
+  display: grid;
+  gap: 11px;
+  padding: 12px;
+  border: 1px solid rgba(194, 161, 89, .34);
+  border-radius: 13px;
+  background: rgba(17, 14, 10, .93);
+}
+
+.recruit-slider-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.recruit-slider-head > div {
+  display: grid;
+  gap: 2px;
+}
+
+.recruit-slider-head strong {
+  color: var(--paper-90);
+  font-size: 13px;
+}
+
+.recruit-slider-head span {
+  color: var(--mute);
+  font-size: 9px;
+}
+
+.recruit-slider-head b {
+  color: var(--root);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 22px;
+}
+
+.recruit-range-wrap {
+  position: relative;
+  padding: 14px 0 19px;
+}
+
+.recruit-range-wrap input[type='range'] {
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+  accent-color: var(--root);
+}
+
+.recruit-safe-limit {
+  position: absolute;
+  left: var(--safe-limit-position);
+  bottom: 2px;
+  width: 2px;
+  height: 14px;
+  transform: translateX(-1px);
+  background: #7fa06a;
+  pointer-events: none;
+}
+
+.recruit-safe-limit::before {
+  content: '';
+  position: absolute;
+  top: -28px;
+  left: -1px;
+  width: 2px;
+  height: 28px;
+  background: linear-gradient(to top, rgba(127,160,106,.75), rgba(127,160,106,.08));
+}
+
+.recruit-safe-limit span {
+  position: absolute;
+  top: 15px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  color: #9cb58a;
+  font-size: 8px;
+  font-style: normal;
+}
+
+.recruit-risk-note {
+  display: grid;
+  gap: 3px;
+  padding: 8px 9px;
+  border-left: 2px solid #768f63;
+  background: rgba(86, 109, 72, .08);
+}
+
+.recruit-risk-note strong,
+.recruit-risk-note span { display: block; }
+.recruit-risk-note strong { color: #acc39a; font-size: 10px; }
+.recruit-risk-note span { color: var(--mute); font-size: 9px; line-height: 1.35; }
+
+.recruit-risk-note.is-risky {
+  border-left-color: #b76736;
+  background: rgba(155, 71, 37, .09);
+}
+.recruit-risk-note.is-risky strong { color: #dda067; }
+
+.recruit-lock-note {
+  padding: 8px 9px;
+  border: 1px solid rgba(160, 59, 45, .35);
+  border-radius: 8px;
+  color: #cb7568;
+  background: rgba(116, 31, 26, .10);
+  font-size: 9px;
+}
+
+.recruit-confirm {
+  min-height: 46px;
+}
+.recruit-confirm.is-risky {
+  border-color: rgba(185, 102, 47, .7);
+  background: linear-gradient(180deg, #6f4c24, #493116);
+}
+
+.poi-short-rest-button {
+  border-color: rgba(113, 145, 104, .42);
+}
+
+@media (orientation: landscape) and (max-height: 560px) {
+  .recruit-slider-panel { gap: 7px; padding: 8px 10px; }
+  .recruit-range-wrap { padding-top: 7px; }
+  .recruit-risk-note { padding: 6px 8px; }
+}
+
+/* ======================================================================
+   Stage 41 — explicit recruitment confirmation, continuous battle motion,
+   direct cross-lane flanking, global impact splatter and expanded DEV mode.
+   ====================================================================== */
+
+/* Recruitment opens as a real sheet above the bottom deck. The Stage 40
+   inline panel could be clipped by the deck's fixed mobile height, hiding the
+   confirmation button below the slider. */
+.recruit-slider-panel {
+  position: absolute;
+  z-index: 52;
+  right: 6px;
+  bottom: calc(100% + 6px);
+  left: 6px;
+  max-height: min(68dvh, 540px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-shadow: 0 -12px 36px rgba(0, 0, 0, .54);
+  scrollbar-width: thin;
+}
+
+.recruit-confirm {
+  position: sticky;
+  z-index: 2;
+  bottom: 0;
+  width: 100%;
+  min-height: 52px;
+  box-shadow: 0 -6px 18px rgba(10, 8, 6, .82);
+  font-weight: 800;
+}
+
+/* Sector cards are now the flank-maneuver controls themselves. */
+.battle-scene-sector-hud.is-flank-targeting,
+.battle-scene-sector-hud.is-flank-targeting .battle-scene-sector-side,
+.battle-scene-sector-chip.is-interactive {
+  pointer-events: auto;
+}
+
+button.battle-scene-sector-chip {
+  appearance: none;
+  width: 100%;
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.battle-scene-sector-chip.is-interactive {
+  transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
+}
+
+.battle-scene-sector-chip.is-interactive:active {
+  transform: scale(.96);
+}
+
+.battle-scene-sector-chip.is-selected-source {
+  border-color: #dfbd59 !important;
+  background: rgba(94, 72, 28, .76) !important;
+  box-shadow: 0 0 0 2px rgba(223, 189, 89, .18), 0 0 18px rgba(223, 189, 89, .30);
+}
+
+.battle-scene-sector-chip.is-valid-flank-target {
+  border-color: #e58652 !important;
+  background: rgba(118, 52, 28, .64) !important;
+  animation: battle-flank-target-pulse 760ms ease-in-out infinite alternate;
+}
+
+.battle-flank-target-hint {
+  position: absolute;
+  z-index: 7;
+  top: 7px;
+  left: 50%;
+  max-width: calc(100% - 190px);
+  transform: translateX(-50%);
+  padding: 5px 9px;
+  border: 1px solid rgba(224, 150, 76, .64);
+  border-radius: 999px;
+  background: rgba(27, 15, 10, .84);
+  color: #f0c078;
+  font: 700 7px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: .045em;
+  text-align: center;
+  pointer-events: none;
+}
+
+.battle-flank-redirect path {
+  fill: none;
+  stroke: #d9bc66;
+  stroke-width: 1.25;
+  stroke-linecap: round;
+  stroke-dasharray: 4 3;
+  filter: drop-shadow(0 0 1.2px rgba(255, 210, 96, .75));
+}
+
+/* No visual reset between rounds: forces keep working at the contact line.
+   The tiny oscillation in BattleFormation now gives short give-and-take
+   retreats instead of a stop / reset / advance rhythm. */
+.battle-pitch.phase-morale .battle-dots.side-a .battle-unit-glyph,
+.battle-pitch.phase-morale .battle-dots.side-b .battle-unit-glyph {
+  animation-name: battle-unit-lunge;
+  animation-duration: .66s;
+}
+
+.battle-pitch.phase-morale .battle-dots.side-a .battle-unit-glyph { --battle-lunge: 1.05px; }
+.battle-pitch.phase-morale .battle-dots.side-b .battle-unit-glyph { --battle-lunge: -1.05px; }
+
+/* A battle always has at least one unmistakable full-screen impact. Local
+   lane splashes remain in the SVG; this layer occasionally escapes the pitch. */
+.battle-global-blood {
+  position: fixed;
+  z-index: 140;
+  inset: -5vh -5vw;
+  width: 110vw;
+  height: 110vh;
+  overflow: visible;
+  pointer-events: none;
+  opacity: .84;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .5));
+  animation: battle-global-splatter-in 820ms cubic-bezier(.2,.8,.2,1) both;
+}
+
+.battle-global-blood path,
+.battle-global-blood circle {
+  fill: #8f171b;
+  stroke: #3c080a;
+  stroke-width: .28;
+}
+
+.battle-global-blood.is-pink path,
+.battle-global-blood.is-pink circle {
+  fill: #e54e9b;
+  stroke: #72204d;
+}
+
+.battle-viewer.has-global-blood-impact {
+  animation: battle-screen-hit 430ms cubic-bezier(.22,.61,.36,1) 1;
+}
+
+@keyframes battle-flank-target-pulse {
+  from { box-shadow: 0 0 0 1px rgba(229,134,82,.08); }
+  to { box-shadow: 0 0 0 3px rgba(229,134,82,.22), 0 0 18px rgba(229,134,82,.26); }
+}
+
+@keyframes battle-global-splatter-in {
+  0% { opacity: 0; transform: scale(.84) rotate(-2deg); }
+  18% { opacity: .95; transform: scale(1.02) rotate(.3deg); }
+  72% { opacity: .78; }
+  100% { opacity: .25; transform: scale(1.04); }
+}
+
+@keyframes battle-screen-hit {
+  0%, 100% { transform: translate3d(0,0,0); }
+  18% { transform: translate3d(-5px,2px,0); }
+  34% { transform: translate3d(4px,-2px,0); }
+  52% { transform: translate3d(-3px,1px,0); }
+  70% { transform: translate3d(2px,0,0); }
+}
+
+@media (max-width: 700px) {
+  .recruit-slider-panel {
+    right: 4px;
+    left: 4px;
+    max-height: min(72dvh, 510px);
+  }
+  .battle-flank-target-hint {
+    top: 4px;
+    max-width: calc(100% - 138px);
+    font-size: 6px;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 560px) {
+  .recruit-slider-panel {
+    position: fixed;
+    top: max(6px, env(safe-area-inset-top));
+    right: max(8px, env(safe-area-inset-right));
+    bottom: max(6px, env(safe-area-inset-bottom));
+    left: auto;
+    width: min(360px, 42vw);
+    max-height: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .battle-viewer.has-global-blood-impact,
+  .battle-global-blood,
+  .battle-scene-sector-chip.is-valid-flank-target {
+    animation: none;
+  }
+}
+
+/* Stage 42 — weakened / routed sectors become visually unstable instead of
+   disappearing instantly. The dashed outline makes a flank failure readable
+   even when several unit dots overlap. */
+.battle-unit-slot.is-weakened .battle-unit-body {
+  opacity: .62;
+  stroke-dasharray: 1.6 1.15;
+  filter: saturate(.72) brightness(.74);
+}
+.battle-unit-slot.is-weakened .battle-unit-weapon { opacity: .58; }
+.battle-unit-slot.is-broken-lane .battle-unit-body {
+  opacity: .38;
+  stroke-dasharray: 1.2 1.5;
+  filter: grayscale(.35) brightness(.56);
+}
+.battle-unit-slot.is-broken-lane .battle-unit-glyph {
+  animation-duration: .42s !important;
+}
+
+/* ======================================================================
+   Stage 42 — recruitment sheet rebuilt so the range can never be hidden by
+   the confirmation control. The button participates in normal flow instead
+   of sticking over the slider, while the sheet itself remains scrollable.
+   ====================================================================== */
+.recruit-slider-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: min(72dvh, 610px);
+  overflow-y: auto;
+  padding-bottom: 12px;
+}
+.recruit-confirm {
+  position: static !important;
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: 52px;
+  margin-top: 2px;
+  box-shadow: none;
+}
+.recruit-range-wrap {
+  position: relative;
+  z-index: 2;
+  flex: 0 0 auto;
+  min-height: 76px;
+  padding: 10px 3px 22px;
+}
+.recruit-range-wrap input[type='range'] {
+  position: relative;
+  z-index: 3;
+  display: block;
+  width: 100%;
+  min-height: 48px;
+}
+.recruit-unit-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+.recruit-unit-tabs button,
+.unique-recruitment-list button {
+  min-height: 42px;
+  border: 1px solid rgba(194,161,89,.22);
+  border-radius: 8px;
+  background: rgba(255,255,255,.025);
+  color: var(--paper-70);
+  font: 700 9px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-align: left;
+  padding: 7px 8px;
+}
+.recruit-unit-tabs button.is-active {
+  border-color: rgba(221,180,74,.78);
+  background: rgba(154,112,35,.2);
+  color: var(--paper-100);
+}
+.recruit-home-recovery-note {
+  padding: 7px 9px;
+  border-left: 2px solid #8f7650;
+  background: rgba(126,95,48,.08);
+  color: #b9a580;
+  font-size: 8px;
+}
+.recruit-home-recovery-note.is-ready {
+  border-left-color: #7da067;
+  color: #a9c795;
+}
+.unique-recruitment-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 5px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(194,161,89,.18);
+}
+.unique-recruitment-list > strong {
+  grid-column: 1 / -1;
+  color: #d7bd79;
+  font-size: 9px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.unique-recruitment-list button span,
+.unique-recruitment-list button small { display: block; }
+.unique-recruitment-list button small { margin-top: 3px; color: var(--mute); font-size: 7px; }
+.sirius-boss-button {
+  border-color: rgba(185,88,116,.55) !important;
+  color: #e3a6b7 !important;
+}
+@media (max-width: 430px) {
+  .recruit-slider-panel { max-height: min(68dvh, 560px); }
+  .recruit-unit-tabs, .unique-recruitment-list { grid-template-columns: 1fr 1fr; }
+}
+
+.recruit-unit-summary {
+  display: grid;
+  gap: 4px;
+  padding: 7px 9px;
+  border-left: 2px solid rgba(194, 161, 89, .34);
+  background: rgba(255, 255, 255, .018);
+}
+.recruit-unit-summary span {
+  color: var(--paper-70);
+  font-size: 9px;
+  line-height: 1.35;
+}
+.recruit-unit-summary small {
+  color: #d4ad58;
+  font-size: 9px;
+  letter-spacing: .02em;
+}
+
+/* Stage 42: direct battlefield tapping. The whole friendly half is divided into
+   three lane hit areas; after choosing one, only the corresponding/adjacent
+   enemy lane hit areas wake up. This makes flanking possible by tapping the
+   actual battlefield instead of aiming at small HUD cards. */
+.battle-flank-tap-grid {
+  position: absolute;
+  z-index: 11;
+  inset: 7% 2% 9%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  pointer-events: none;
+}
+.battle-flank-tap-side {
+  display: grid;
+  grid-template-rows: 1fr .9fr 1fr;
+  min-width: 0;
+}
+.battle-flank-tap-zone {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+.battle-flank-tap-side.is-enemy .battle-flank-tap-zone:not(.is-valid-target) {
+  pointer-events: none;
+}
+.battle-flank-tap-zone.is-selected {
+  background: radial-gradient(circle at 45% 50%, rgba(157, 202, 109, .14), transparent 68%);
+  box-shadow: inset 0 0 0 1px rgba(171, 207, 126, .28);
+}
+.battle-flank-tap-zone.is-valid-target {
+  background: radial-gradient(circle at 55% 50%, rgba(218, 163, 78, .12), transparent 70%);
+  box-shadow: inset 0 0 0 1px rgba(218, 163, 78, .23);
+  animation: battle-target-breathe 1.25s ease-in-out infinite;
+}
+@keyframes battle-target-breathe {
+  0%,100% { opacity: .52; }
+  50% { opacity: 1; }
+}
+
+/* ======================================================================
+   Stage 43 — recruitment is a real modal sheet, independent from the
+   clipped campaign command deck. Nothing in the sheet may cover the unit
+   choice, range control or confirmation button.
+   ====================================================================== */
+.recruit-modal-layer {
+  position: fixed;
+  z-index: 420;
+  inset: 0;
+  pointer-events: none;
+}
+
+.recruit-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: rgba(3, 3, 3, .58);
+  backdrop-filter: blur(1.5px);
+  -webkit-backdrop-filter: blur(1.5px);
+  pointer-events: auto;
+}
+
+.recruit-sheet-modal.recruit-slider-panel {
+  position: absolute !important;
+  z-index: 2;
+  left: 50% !important;
+  right: auto !important;
+  top: auto !important;
+  bottom: max(12px, env(safe-area-inset-bottom)) !important;
+  width: min(620px, calc(100vw - 24px));
+  height: min(78dvh, 720px);
+  max-height: none !important;
+  padding: 14px 15px 16px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  transform: translateX(-50%);
+  border: 1px solid rgba(205, 169, 82, .58);
+  border-radius: 16px 16px 10px 10px;
+  background: rgba(18, 15, 11, .985);
+  box-shadow: 0 -22px 60px rgba(0, 0, 0, .7), 0 0 0 1px rgba(255,255,255,.025) inset;
+  pointer-events: auto;
+  scrollbar-width: thin;
+}
+
+.recruit-sheet-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  align-items: start;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(229, 215, 181, .13);
+}
+
+.recruit-sheet-header > div {
+  display: grid;
+  gap: 3px;
+}
+
+.recruit-sheet-header > div > strong {
+  color: var(--paper-100);
+  font-family: 'Old Standard TT', Georgia, serif;
+  font-size: 20px;
+  line-height: 1.05;
+}
+
+.recruit-sheet-header > div > small {
+  color: var(--mute);
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.recruit-sheet-close {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid rgba(229, 215, 181, .18);
+  border-radius: 9px;
+  background: rgba(255,255,255,.025);
+  color: var(--paper-70);
+  font: 400 28px/1 serif;
+  touch-action: manipulation;
+}
+
+.recruit-section-label {
+  margin-top: 1px;
+  color: #cba850;
+  font: 700 9px/1.2 'IBM Plex Mono', monospace;
+  letter-spacing: .065em;
+  text-transform: uppercase;
+}
+
+.recruit-sheet-modal .recruit-unit-tabs {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.recruit-sheet-modal .recruit-unit-tabs button {
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  min-height: 58px;
+  padding: 8px 9px;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.recruit-sheet-modal .recruit-unit-tabs button strong,
+.recruit-sheet-modal .recruit-unit-tabs button span {
+  display: block;
+}
+
+.recruit-sheet-modal .recruit-unit-tabs button strong {
+  color: inherit;
+  font-size: 9px;
+  line-height: 1.15;
+}
+
+.recruit-sheet-modal .recruit-unit-tabs button span {
+  color: var(--mute);
+  font-size: 7px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.recruit-sheet-modal .recruit-slider-head {
+  padding: 8px 10px;
+  border: 1px solid rgba(198, 167, 100, .13);
+  border-radius: 9px;
+  background: rgba(255,255,255,.018);
+}
+
+.recruit-sheet-modal .recruit-range-wrap {
+  min-height: 94px;
+  padding: 4px 8px 25px;
+  border: 1px solid rgba(201, 162, 74, .18);
+  border-radius: 11px;
+  background: rgba(0, 0, 0, .18);
+}
+
+.recruit-range-numbers {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  min-height: 26px;
+  color: var(--mute);
+  font: 600 9px/1 'IBM Plex Mono', monospace;
+}
+
+.recruit-range-numbers strong {
+  color: #e1b64f;
+  font-size: 16px;
+}
+
+.recruit-range-numbers span:last-child { text-align: right; }
+
+.recruit-sheet-modal .recruit-range-wrap input[type='range'] {
+  appearance: none;
+  -webkit-appearance: none;
+  display: block;
+  width: 100%;
+  height: 48px;
+  min-height: 48px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: pan-y;
+}
+
+.recruit-sheet-modal .recruit-range-wrap input[type='range']::-webkit-slider-runnable-track {
+  height: 8px;
+  border: 1px solid rgba(207, 181, 114, .25);
+  border-radius: 999px;
+  background: #302b21;
+}
+
+.recruit-sheet-modal .recruit-range-wrap input[type='range']::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 30px;
+  height: 30px;
+  margin-top: -12px;
+  border: 3px solid #1d1912;
+  border-radius: 50%;
+  background: #ddb24b;
+  box-shadow: 0 0 0 2px rgba(221,178,75,.42);
+}
+
+.recruit-sheet-modal .recruit-range-wrap input[type='range']::-moz-range-track {
+  height: 8px;
+  border: 1px solid rgba(207, 181, 114, .25);
+  border-radius: 999px;
+  background: #302b21;
+}
+
+.recruit-sheet-modal .recruit-range-wrap input[type='range']::-moz-range-thumb {
+  width: 26px;
+  height: 26px;
+  border: 3px solid #1d1912;
+  border-radius: 50%;
+  background: #ddb24b;
+  box-shadow: 0 0 0 2px rgba(221,178,75,.42);
+}
+
+.recruit-sheet-modal .recruit-safe-limit {
+  bottom: 7px;
+}
+
+.recruit-sheet-modal .recruit-confirm {
+  position: static !important;
+  display: block;
+  width: 100%;
+  min-height: 56px;
+  margin: 2px 0 0;
+  flex: 0 0 auto;
+  box-shadow: none !important;
+  font-size: 11px;
+  letter-spacing: .08em;
+}
+
+.recruit-sheet-modal .unique-recruitment-list {
+  margin-top: 2px;
+  padding-bottom: max(4px, env(safe-area-inset-bottom));
+}
+
+@media (max-width: 700px) {
+  .recruit-sheet-modal.recruit-slider-panel {
+    left: 8px !important;
+    right: 8px !important;
+    bottom: max(8px, env(safe-area-inset-bottom)) !important;
+    width: auto;
+    height: min(84dvh, 720px);
+    padding: 12px 12px 14px;
+    transform: none;
+    border-radius: 15px 15px 8px 8px;
+  }
+
+  .recruit-sheet-modal .recruit-unit-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .recruit-sheet-modal .recruit-unit-tabs button {
+    min-height: 54px;
+  }
+}
+
+@media (max-height: 560px) and (min-aspect-ratio: 4/3) {
+  .recruit-sheet-modal.recruit-slider-panel {
+    top: max(8px, env(safe-area-inset-top)) !important;
+    right: max(8px, env(safe-area-inset-right)) !important;
+    bottom: max(8px, env(safe-area-inset-bottom)) !important;
+    left: auto !important;
+    width: min(62vw, 620px);
+    height: auto;
+    max-height: none !important;
+    transform: none;
+  }
+
+  .recruit-sheet-modal .recruit-unit-tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .recruit-sheet-modal .recruit-unit-tabs button {
+    min-height: 48px;
+  }
+
+  .recruit-sheet-modal .recruit-range-wrap {
+    min-height: 84px;
+  }
+}
+
+/* Stage 44 — risky recruitment roll feedback. */
+.recruit-roll-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 960;
+  display: grid;
+  place-items: center;
+  pointer-events: all;
+  overflow: hidden;
+  background: rgba(4, 3, 3, 0.18);
+  animation: recruit-roll-overlay-life 1.1s ease both;
+}
+
+.recruit-roll-overlay::before {
+  content: '';
+  position: absolute;
+  inset: -12%;
+  background: radial-gradient(circle at center, rgba(231, 188, 82, 0.14), transparent 48%);
+  opacity: 0.9;
+}
+
+.recruit-roll-overlay.is-fail::before {
+  background: radial-gradient(circle at center, rgba(190, 18, 28, 0.22), rgba(25, 0, 4, 0.08) 48%, transparent 70%);
+}
+
+.recruit-roll-overlay img {
+  position: relative;
+  width: clamp(220px, 58vmin, 500px);
+  max-width: 78vw;
+  max-height: 72vh;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+  filter: drop-shadow(0 18px 26px rgba(0, 0, 0, 0.58));
+  animation: recruit-roll-die-life 1.1s cubic-bezier(.2,.82,.2,1) both;
+}
+
+.recruit-roll-overlay.is-success img {
+  filter: drop-shadow(0 0 18px rgba(214, 168, 65, 0.22)) drop-shadow(0 18px 26px rgba(0, 0, 0, 0.58));
+}
+
+.recruit-roll-overlay.is-fail img {
+  filter: drop-shadow(0 0 24px rgba(201, 13, 28, 0.38)) drop-shadow(0 18px 28px rgba(0, 0, 0, 0.62));
+}
+
+.recruit-roll-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.recruit-roll-overlay.is-success .recruit-roll-flash {
+  background: radial-gradient(circle at center, rgba(243, 208, 124, 0.3), transparent 54%);
+  animation: recruit-roll-success-flash 1.1s ease-out both;
+}
+
+.recruit-roll-overlay.is-fail .recruit-roll-flash {
+  background: rgba(153, 0, 14, 0.22);
+  animation: recruit-roll-fail-flash 1.1s ease-out both;
+}
+
+.campaign-shell.is-recruitment-fail-shake {
+  animation: recruitment-fail-screen-shake 0.62s cubic-bezier(.36,.07,.19,.97) both;
+  transform-origin: center;
+}
+
+@keyframes recruit-roll-overlay-life {
+  0% { opacity: 0; }
+  10% { opacity: 1; }
+  78% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes recruit-roll-die-life {
+  0% { opacity: 0; transform: scale(.62) rotate(-7deg); }
+  16% { opacity: 1; transform: scale(1.08) rotate(1deg); }
+  27% { transform: scale(1) rotate(0); }
+  80% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(.96); }
+}
+
+@keyframes recruit-roll-success-flash {
+  0%, 8% { opacity: 0; }
+  15% { opacity: 1; }
+  42%, 100% { opacity: 0; }
+}
+
+@keyframes recruit-roll-fail-flash {
+  0% { opacity: 0; }
+  8% { opacity: .9; }
+  18% { opacity: .18; }
+  30% { opacity: .55; }
+  52%, 100% { opacity: 0; }
+}
+
+@keyframes recruitment-fail-screen-shake {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(0); }
+  10% { transform: translate3d(-9px, 2px, 0) rotate(-.35deg); }
+  20% { transform: translate3d(8px, -3px, 0) rotate(.3deg); }
+  32% { transform: translate3d(-7px, -1px, 0) rotate(-.25deg); }
+  44% { transform: translate3d(6px, 3px, 0) rotate(.2deg); }
+  58% { transform: translate3d(-4px, 1px, 0) rotate(-.12deg); }
+  72% { transform: translate3d(3px, -1px, 0) rotate(.08deg); }
+  86% { transform: translate3d(-1px, 0, 0) rotate(0); }
+}
+
+@media (max-width: 600px) {
+  .recruit-roll-overlay img {
+    width: min(78vw, 390px);
+    max-height: 68vh;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .campaign-shell.is-recruitment-fail-shake { animation: none; }
+  .recruit-roll-overlay,
+  .recruit-roll-overlay img,
+  .recruit-roll-flash { animation: none; opacity: 1; transform: none; }
+}
+
+/* ======================================================================
+   Stage 45 — Battle 3.0: reactive flank command UX.
+   No command buttons: the battlefield itself is the control surface.
+   ====================================================================== */
+.battle-lane-status-overlay {
+  position: absolute;
+  z-index: 13;
+  inset: 7% 1.5% 9%;
+  pointer-events: none;
+}
+
+.battle-lane-status-side {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 72px;
+}
+.battle-lane-status-side.side-a { left: 0; }
+.battle-lane-status-side.side-b { right: 0; }
+
+.battle-lane-rail {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 24%;
+  width: 100%;
+  transform: translateY(-50%);
+}
+.battle-lane-status-side.side-a .battle-lane-rail { flex-direction: row; }
+.battle-lane-status-side.side-b .battle-lane-rail { flex-direction: row-reverse; text-align: right; }
+.battle-lane-rail.lane-left { top: 20%; }
+.battle-lane-rail.lane-center { top: 50%; }
+.battle-lane-rail.lane-right { top: 80%; }
+
+.battle-lane-rail-bar {
+  position: relative;
+  width: 5px;
+  height: 48px;
+  flex: 0 0 5px;
+  overflow: hidden;
+  border: 1px solid rgba(225, 209, 173, .36);
+  background: rgba(4, 6, 5, .72);
+  box-shadow: 0 0 0 1px rgba(0,0,0,.45);
+}
+.battle-lane-rail-bar i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: block;
+  min-height: 2px;
+  background: #9fc87f;
+  transition: height 520ms ease;
+}
+.battle-lane-status-side.side-b .battle-lane-rail-bar i { background: #db8b6b; }
+.battle-lane-rail.is-broken .battle-lane-rail-bar {
+  border-style: dashed;
+  opacity: .46;
+  filter: grayscale(.5);
+}
+.battle-lane-rail.is-selected .battle-lane-rail-bar {
+  box-shadow: 0 0 0 2px rgba(199, 225, 144, .35), 0 0 14px rgba(172, 211, 113, .22);
+}
+
+.battle-lane-rail-label {
+  display: inline-block;
+  max-width: 62px;
+  padding: 3px 4px;
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 3px;
+  background: rgba(7, 8, 7, .72);
+  color: rgba(225, 219, 202, .78);
+  font: 700 6.2px/1.15 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.battle-lane-rail-label.side-b { color: #e5b596; }
+.battle-lane-status-side.side-b .lane-left .battle-lane-rail-label,
+.battle-lane-status-side.side-b .lane-center .battle-lane-rail-label,
+.battle-lane-status-side.side-b .lane-right .battle-lane-rail-label { max-width: 74px; }
+
+.battle-reactive-hint {
+  position: absolute;
+  z-index: 14;
+  left: 50%;
+  bottom: 7px;
+  width: min(78%, 520px);
+  transform: translateX(-50%);
+  padding: 5px 8px;
+  border: 1px solid rgba(203, 175, 95, .24);
+  border-radius: 999px;
+  background: rgba(8, 8, 7, .76);
+  color: rgba(224, 214, 184, .66);
+  text-align: center;
+  font: 700 6.5px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: .055em;
+  pointer-events: none;
+  transition: opacity 180ms ease, border-color 180ms ease, color 180ms ease;
+}
+.battle-reactive-hint.is-targeting {
+  border-color: rgba(204, 173, 85, .56);
+  color: rgba(241, 223, 168, .94);
+}
+.battle-reactive-hint.is-cooldown {
+  color: rgba(210, 175, 116, .62);
+  opacity: .72;
+}
+
+.battle-pitch.is-command-cooldown .battle-flank-tap-grid { opacity: .72; }
+.battle-pitch.is-flank-targeting .battle-contact-line { opacity: .72; }
+
+/* Routed dots stop "fighting" instead of continuing their idle lunge. */
+.battle-unit-slot.is-broken-lane .battle-unit-glyph {
+  animation: none !important;
+}
+.battle-unit-slot.is-broken-lane .battle-unit-body {
+  stroke-dasharray: 1.1 1.55;
+  opacity: .30;
+  filter: grayscale(.55) brightness(.48);
+}
+.battle-unit-slot.is-weakened .battle-unit-body {
+  stroke-dasharray: 1.5 1.1;
+  filter: saturate(.62) brightness(.68);
+}
+
+/* Direct tapping stays generous on phones. */
+.battle-flank-tap-grid {
+  inset: 7% 1% 8%;
+}
+.battle-flank-tap-zone.is-selected {
+  background: radial-gradient(circle at 44% 50%, rgba(161, 211, 103, .18), transparent 70%);
+  box-shadow: inset 0 0 0 1px rgba(177, 219, 119, .42);
+}
+.battle-flank-tap-zone.is-valid-target {
+  background: radial-gradient(circle at 56% 50%, rgba(230, 169, 72, .16), transparent 71%);
+  box-shadow: inset 0 0 0 1px rgba(230, 169, 72, .34);
+}
+
+@media (max-width: 520px) {
+  .battle-lane-status-side { width: 54px; }
+  .battle-lane-rail-bar { height: 38px; width: 4px; flex-basis: 4px; }
+  .battle-lane-rail-label { max-width: 48px; padding: 2px 3px; font-size: 5.2px; }
+  .battle-lane-status-side.side-b .battle-lane-rail-label { max-width: 56px; }
+  .battle-reactive-hint { bottom: 5px; width: 82%; font-size: 5.7px; padding: 4px 6px; }
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .battle-lane-rail-bar { height: 32px; }
+  .battle-lane-rail-label { font-size: 5px; }
+  .battle-reactive-hint { font-size: 5.2px; bottom: 3px; }
+}
+
+/* ======================================================================
+   Stage 46 — readable tactical postures, interrupted rest, unique recruit beacon.
+   ====================================================================== */
+.battle-tactical-modes {
+  pointer-events: none;
+}
+
+.battle-tactical-glyph {
+  opacity: .72;
+  transition: opacity 180ms ease, transform 260ms ease;
+}
+.battle-tactical-glyph > circle:first-child {
+  fill: rgba(7, 8, 8, .74);
+  stroke-width: .75;
+}
+.battle-tactical-glyph.side-a > circle:first-child { stroke: rgba(171, 218, 127, .96); }
+.battle-tactical-glyph.side-b > circle:first-child { stroke: rgba(226, 145, 107, .96); }
+.battle-tactical-glyph path {
+  fill: none;
+  stroke-width: 1.15;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.battle-tactical-glyph.side-a path { stroke: #c8e6a4; }
+.battle-tactical-glyph.side-b path { stroke: #efb08c; }
+.battle-tactical-glyph.is-defend path {
+  fill: rgba(164, 198, 123, .18);
+  stroke-width: 1.05;
+}
+.battle-tactical-glyph.is-cautious path { stroke-width: .9; }
+.battle-tactical-glyph .battle-tactical-pupil {
+  fill: currentColor;
+  stroke: none;
+}
+.battle-tactical-glyph.side-a .battle-tactical-pupil { color: #c8e6a4; }
+.battle-tactical-glyph.side-b .battle-tactical-pupil { color: #efb08c; }
+.battle-tactical-glyph text {
+  font: 800 4.1px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  fill: rgba(235, 225, 195, .94);
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, .86);
+  stroke-width: .65px;
+}
+.battle-tactical-glyph.is-rest {
+  opacity: .58;
+  animation: battle-rest-breathe 1.45s ease-in-out infinite;
+}
+.battle-tactical-glyph.is-rest_broken {
+  opacity: .88;
+  animation: battle-rest-interrupted 520ms ease-out both;
+}
+.battle-tactical-glyph.is-rest_broken > circle:first-child {
+  stroke: rgba(235, 91, 68, .95);
+  fill: rgba(75, 12, 9, .78);
+}
+
+.battle-tactical-direction {
+  fill: none;
+  stroke-width: 2.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: .74;
+  filter: drop-shadow(0 0 2px rgba(0,0,0,.9));
+}
+.battle-tactical-direction.side-a { stroke: rgba(190, 226, 139, .96); }
+.battle-tactical-direction.side-b { stroke: rgba(235, 148, 103, .96); }
+.battle-tactical-direction.is-cautious {
+  stroke-dasharray: 3.4 1.6;
+  stroke-width: 1.8;
+}
+
+@keyframes battle-rest-breathe {
+  0%, 100% { opacity: .48; }
+  50% { opacity: .72; }
+}
+@keyframes battle-rest-interrupted {
+  0% { opacity: 0; }
+  35% { opacity: 1; }
+  100% { opacity: .88; }
+}
+
+.recruit-toggle.has-unique-recruit {
+  position: relative;
+  isolation: isolate;
+  border-color: rgba(222, 177, 72, .72);
+  box-shadow: 0 0 0 1px rgba(222, 177, 72, .18), 0 0 18px rgba(220, 164, 47, .24);
+}
+.recruit-toggle.has-unique-recruit::before,
+.recruit-toggle.has-unique-recruit::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: -5px;
+  border: 1px solid rgba(233, 188, 81, .55);
+  border-radius: inherit;
+  pointer-events: none;
+  animation: unique-recruit-ripple 1.75s ease-out infinite;
+}
+.recruit-toggle.has-unique-recruit::after {
+  animation-delay: .86s;
+}
+.recruit-toggle.is-unique-ready {
+  background: linear-gradient(180deg, rgba(91, 70, 25, .66), rgba(39, 33, 19, .82));
+  color: #f4d979;
+  box-shadow: 0 0 0 1px rgba(239, 201, 91, .28), 0 0 26px rgba(226, 173, 52, .4);
+}
+@keyframes unique-recruit-ripple {
+  0% { transform: scale(.97); opacity: .7; }
+  70% { opacity: .18; }
+  100% { transform: scale(1.12); opacity: 0; }
+}
+
+@media (max-width: 520px) {
+  .battle-tactical-glyph { opacity: .76; }
+  .battle-tactical-direction { stroke-width: 2.45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .battle-tactical-glyph.is-rest,
+  .battle-tactical-glyph.is-rest_broken,
+  .recruit-toggle.has-unique-recruit::before,
+  .recruit-toggle.has-unique-recruit::after {
+    animation: none;
+  }
+}
+
+/* ======================================================================
+   Stage 47 — readable event overlays, scoped cautious reset and result seal.
+   UI-event timing is deliberately real-time and independent from ×1/×2/×4.
+   ====================================================================== */
+.battle-commentary.is-positive {
+  border-color: rgba(100, 178, 91, .48);
+  background: linear-gradient(90deg, rgba(22, 62, 27, .42), rgba(15, 17, 13, .82));
+}
+.battle-commentary.is-positive strong,
+.battle-commentary.is-positive .battle-phase-label {
+  color: #9edb86;
+}
+.battle-commentary.is-danger {
+  border-color: rgba(190, 66, 55, .5);
+  background: linear-gradient(90deg, rgba(76, 20, 18, .44), rgba(18, 13, 12, .84));
+}
+.battle-commentary.is-danger strong,
+.battle-commentary.is-danger .battle-phase-label {
+  color: #e47c6e;
+}
+
+.battle-dramatic-banner {
+  animation-name: battle-banner-readable;
+  animation-duration: 1.3s;
+  animation-timing-function: cubic-bezier(.18,.9,.24,1);
+}
+.battle-dramatic-banner.is-positive {
+  border-color: rgba(105, 187, 91, .86);
+  background: linear-gradient(180deg, rgba(12, 39, 17, .92), rgba(7, 15, 8, .94));
+  box-shadow: 0 0 0 1px rgba(0,0,0,.72), 0 0 28px rgba(86, 165, 74, .2), 0 8px 28px rgba(0,0,0,.52);
+}
+.battle-dramatic-banner.is-positive strong {
+  color: #9fe085;
+  text-shadow: 0 1px 0 #000, 0 0 12px rgba(124, 209, 102, .26);
+}
+.battle-dramatic-banner.is-danger {
+  border-color: rgba(196, 62, 51, .9);
+  background: linear-gradient(180deg, rgba(65, 13, 12, .94), rgba(18, 7, 7, .95));
+  box-shadow: 0 0 0 1px rgba(0,0,0,.72), 0 0 28px rgba(174, 48, 42, .2), 0 8px 28px rgba(0,0,0,.52);
+}
+.battle-dramatic-banner.is-danger strong { color: #e56e61; }
+.battle-pitch.is-positive .battle-impact-shockwave { border-color: rgba(137, 204, 101, .7); }
+.battle-pitch.is-danger .battle-impact-shockwave { border-color: rgba(205, 65, 53, .7); }
+
+@keyframes battle-banner-readable {
+  0% { opacity: 0; transform: translate(-50%,-50%) scale(.7) rotate(-1.5deg); }
+  10% { opacity: 1; transform: translate(-50%,-50%) scale(1.07) rotate(.5deg); }
+  20% { transform: translate(-50%,-50%) scale(1) rotate(0); }
+  88% { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%,-53%) scale(.98); }
+}
+
+/* Assault now uses dedicated PNG UI assets instead of the old crossed SVG strokes. */
+.battle-tactical-glyph.is-assault > circle:first-child {
+  fill: rgba(4, 7, 5, .68);
+  stroke-width: .55;
+}
+.battle-assault-icon-image {
+  opacity: .72;
+  filter: drop-shadow(0 0 1.6px rgba(0,0,0,.92));
+  pointer-events: none;
+}
+.battle-tactical-glyph.side-b .battle-assault-icon-image {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scaleX(-1);
+}
+
+/* Interrupted rest: orange Z Z Z with a crack through the sleeping mark. */
+.battle-tactical-glyph.is-rest_broken {
+  color: #ef9b3f;
+  opacity: .94;
+}
+.battle-tactical-glyph.is-rest_broken > circle:first-child {
+  stroke: rgba(241, 151, 54, .98);
+  fill: rgba(72, 35, 8, .82);
+}
+.battle-tactical-glyph.is-rest_broken .battle-rest-broken-zzz {
+  fill: #f0a148;
+  stroke: rgba(27, 10, 2, .94);
+  stroke-width: .72px;
+  font-size: 2.8px;
+  letter-spacing: -.15px;
+}
+.battle-tactical-glyph.is-rest_broken .battle-rest-broken-crack {
+  fill: none;
+  stroke: #ffad4f;
+  stroke-width: 1.05;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  filter: drop-shadow(0 0 .6px rgba(80, 27, 0, .95));
+}
+
+/* A narrow three-lane strip around the contact line is the neutral target.
+   It becomes tappable only after the player has selected the matching lane. */
+.battle-flank-tap-grid { position: absolute; }
+.battle-flank-neutral-side {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  bottom: 0;
+  left: 43%;
+  right: 43%;
+  display: grid;
+  grid-template-rows: 1fr .9fr 1fr;
+  pointer-events: none;
+}
+.battle-flank-neutral-zone {
+  appearance: none;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  pointer-events: none;
+  touch-action: manipulation;
+}
+.battle-flank-neutral-zone.is-valid-clear {
+  pointer-events: auto;
+  background:
+    radial-gradient(ellipse at center, rgba(205, 181, 107, .18), rgba(103, 119, 80, .08) 42%, transparent 72%);
+  box-shadow: inset 0 0 0 1px rgba(214, 195, 133, .34);
+  animation: battle-neutral-target-breathe 1.15s ease-in-out infinite;
+}
+@keyframes battle-neutral-target-breathe {
+  0%, 100% { opacity: .5; }
+  50% { opacity: .95; }
+}
+
+/* Final seal lives on the battlefield and blocks exit until explicitly tapped. */
+.battle-result-stamp {
+  position: absolute;
+  z-index: 40;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 7px;
+  width: 100%;
+  border: 0;
+  background: radial-gradient(circle at center, rgba(5, 5, 4, .22), rgba(4, 3, 3, .62) 64%, rgba(3, 2, 2, .78));
+  color: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+  overflow: hidden;
+  animation: battle-result-backdrop-in .34s ease-out both;
+}
+.battle-result-stamp::before,
+.battle-result-stamp::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(72%, 410px);
+  aspect-ratio: 1.85 / 1;
+  transform: translate(-50%, -50%) rotate(-4deg);
+  border: 5px double currentColor;
+  border-radius: 12px 18px 9px 15px;
+  opacity: .82;
+  filter: drop-shadow(0 8px 12px rgba(0,0,0,.62));
+  animation: battle-result-seal-hit .56s cubic-bezier(.14,.9,.18,1.18) both;
+}
+.battle-result-stamp::after {
+  width: min(76%, 440px);
+  border-width: 1px;
+  border-style: dashed;
+  opacity: .32;
+  transform: translate(-50%, -50%) rotate(-1deg);
+  animation-delay: .06s;
+}
+.battle-result-stamp.is-victory { color: #b6d878; }
+.battle-result-stamp.is-defeat { color: #a9312c; }
+.battle-result-stamp.is-victory::before {
+  box-shadow: 0 0 0 2px rgba(207, 173, 75, .32), 0 0 36px rgba(119, 175, 83, .25), 0 8px 18px rgba(0,0,0,.62);
+}
+.battle-result-stamp.is-defeat::before {
+  box-shadow: 0 0 0 2px rgba(93, 14, 12, .54), 0 0 38px rgba(132, 25, 23, .29), 0 8px 18px rgba(0,0,0,.68);
+}
+.battle-result-stamp-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(54%, 300px);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%) rotate(8deg);
+  border: 2px dotted currentColor;
+  border-radius: 50%;
+  opacity: .22;
+  animation: battle-result-ring .8s ease-out both;
+}
+.battle-result-stamp strong {
+  position: relative;
+  z-index: 2;
+  transform: rotate(-4deg);
+  font: 900 clamp(32px, 9vw, 70px)/.9 'Old Standard TT', Georgia, serif;
+  letter-spacing: .08em;
+  text-shadow: 0 3px 0 rgba(0,0,0,.82), 0 0 18px rgba(0,0,0,.42);
+  animation: battle-result-title-hit .54s cubic-bezier(.12,.88,.18,1.18) both;
+}
+.battle-result-stamp.is-victory strong {
+  color: #b7dd81;
+  text-shadow: 0 3px 0 rgba(31,48,21,.92), 0 0 16px rgba(197, 169, 71, .32);
+}
+.battle-result-stamp.is-defeat strong {
+  color: #b43a34;
+  text-shadow: 0 3px 0 rgba(48, 5, 5, .94), 0 0 18px rgba(142, 30, 26, .38);
+}
+.battle-result-stamp small {
+  position: relative;
+  z-index: 2;
+  margin-top: 34px;
+  padding: 4px 8px;
+  border: 1px solid currentColor;
+  background: rgba(5,4,3,.65);
+  color: rgba(236, 226, 199, .76);
+  font: 700 7px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: .08em;
+}
+.battle-result-stamp.is-dismissing {
+  pointer-events: none;
+  animation: battle-result-stamp-out .52s ease-in both;
+}
+.battle-result-stamp.is-dismissing::before,
+.battle-result-stamp.is-dismissing::after,
+.battle-result-stamp.is-dismissing strong,
+.battle-result-stamp.is-dismissing small,
+.battle-result-stamp.is-dismissing .battle-result-stamp-ring {
+  animation: battle-result-content-out .52s ease-in both;
+}
+@keyframes battle-result-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes battle-result-seal-hit {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(1.55) rotate(-12deg); }
+  58% { opacity: .98; transform: translate(-50%, -50%) scale(.96) rotate(-3deg); }
+  100% { opacity: .82; transform: translate(-50%, -50%) scale(1) rotate(-4deg); }
+}
+@keyframes battle-result-title-hit {
+  0% { opacity: 0; transform: scale(1.72) rotate(-10deg); filter: blur(2px); }
+  62% { opacity: 1; transform: scale(.94) rotate(-3deg); filter: blur(0); }
+  100% { opacity: 1; transform: scale(1) rotate(-4deg); }
+}
+@keyframes battle-result-ring {
+  from { opacity: .58; transform: translate(-50%, -50%) scale(.35) rotate(-18deg); }
+  to { opacity: .22; transform: translate(-50%, -50%) scale(1) rotate(8deg); }
+}
+@keyframes battle-result-stamp-out {
+  from { opacity: 1; }
+  to { opacity: 0; background: rgba(0,0,0,0); }
+}
+@keyframes battle-result-content-out {
+  from { opacity: 1; }
+  to { opacity: 0; transform: scale(.88) rotate(2deg); }
+}
+
+@media (max-width: 520px) {
+  .battle-flank-neutral-side { left: 41.5%; right: 41.5%; }
+  .battle-result-stamp small { margin-top: 26px; font-size: 6px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .battle-dramatic-banner,
+  .battle-flank-neutral-zone.is-valid-clear,
+  .battle-result-stamp,
+  .battle-result-stamp::before,
+  .battle-result-stamp::after,
+  .battle-result-stamp strong,
+  .battle-result-stamp-ring {
+    animation: none !important;
+  }
+}
+
+/* Stage 48 — persistent pre-battle flank management. */
+.flank-management { display: grid; gap: 12px; margin-top: 16px; }
+.flank-management-heading { display: flex; justify-content: space-between; gap: 14px; align-items: end; }
+.flank-management-heading h3 { margin: 2px 0 0; }
+.flank-management-heading > span { max-width: 48ch; font-size: .78rem; opacity: .72; text-align: right; }
+.flank-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.flank-card { min-width: 0; padding: 10px; border: 1px solid rgba(231,224,197,.18); background: rgba(10,12,12,.48); border-radius: 10px; }
+.flank-card.has-unique { border-color: rgba(235,198,64,.62); box-shadow: inset 0 0 18px rgba(235,198,64,.07); }
+.flank-card header { display: flex; justify-content: space-between; gap: 6px; font-size: .76rem; }
+.flank-card header span, .flank-card small { opacity: .68; }
+.flank-groups { display: grid; gap: 6px; min-height: 62px; margin: 9px 0; }
+.flank-group { display: flex; gap: 6px; align-items: flex-start; font-size: .72rem; }
+.flank-group > i { width: 9px; height: 9px; flex: 0 0 auto; margin-top: 3px; border-radius: 50%; background: #9aa49a; box-shadow: 0 0 0 1px rgba(255,255,255,.2); }
+.flank-group.is-unique > i, .unit-glyph.is-unique { background: #e0b82e; box-shadow: 0 0 9px rgba(240,197,52,.55); }
+.flank-group div { display: grid; gap: 2px; min-width: 0; }
+.flank-group span { overflow-wrap: anywhere; }
+.flank-empty { opacity: .48; font-size: .72rem; }
+.flank-swap-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.flank-swap-row button { min-height: 40px; border-radius: 9px; border: 1px solid rgba(231,224,197,.24); background: rgba(33,37,35,.9); color: inherit; font: inherit; }
+.unit-card.is-unique { border-color: rgba(235,198,64,.42); }
+@media (max-width: 620px) {
+  .flank-management-heading { align-items: start; flex-direction: column; }
+  .flank-management-heading > span { text-align: left; }
+  .flank-grid { gap: 5px; }
+  .flank-card { padding: 8px 6px; }
+  .flank-card header { display: grid; }
+  .flank-group { font-size: .65rem; }
+  .flank-swap-row { grid-template-columns: 1fr; }
+}
+
+/* Stage 48 — four battle stages and unique-unit markers. */
+.battle-dramatic-banner.is-neutral { border-color: rgba(201,169,78,.82); box-shadow: 0 0 24px rgba(184,148,48,.18); }
+.battle-dramatic-banner.is-neutral strong { color: #e2c76c; }
+.battle-unit-slot.is-unique .battle-unit-body { fill: #e2b92f; stroke: #fff0a6; filter: drop-shadow(0 0 1.8px rgba(238,194,47,.75)); }
+.battle-unit-slot.is-unique .battle-unit-weapon, .battle-unit-slot.is-unique .battle-unit-role-mark { stroke: #6b4b0c; fill: #6b4b0c; }
+
+/* Stage 49 — direct manipulation of persistent flank groups. */
+.flank-management-actions {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+  max-width: 52ch;
+  text-align: right;
+}
+.flank-management-actions > span {
+  font-size: .75rem;
+  opacity: .68;
+}
+.flank-auto-button {
+  min-height: 38px;
+  padding: 7px 12px;
+  border: 1px solid rgba(205, 184, 112, .46);
+  border-radius: 9px;
+  background: rgba(55, 48, 28, .92);
+  color: #ead995;
+  font: inherit;
+  font-size: .76rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+  cursor: pointer;
+}
+.flank-auto-button:hover { background: rgba(78, 66, 34, .96); }
+.flank-card {
+  transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+.flank-card.is-drop-target {
+  border-color: rgba(125, 190, 110, .82);
+  background: rgba(32, 66, 35, .7);
+  box-shadow: inset 0 0 24px rgba(102, 187, 93, .14), 0 0 0 2px rgba(115, 196, 101, .1);
+}
+.flank-card.is-swap-target {
+  border-color: rgba(218, 180, 75, .9);
+  box-shadow: inset 0 0 24px rgba(218, 180, 75, .14), 0 0 0 2px rgba(218, 180, 75, .1);
+}
+.flank-title-zone {
+  position: relative;
+  min-height: 42px;
+  align-items: center;
+  padding: 6px 22px 6px 7px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  cursor: grab;
+  user-select: none;
+  transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+.flank-title-zone:active { cursor: grabbing; }
+.flank-title-zone:hover { background: rgba(255,255,255,.035); }
+.flank-title-zone.is-selected {
+  border-color: rgba(218, 180, 75, .72);
+  background: rgba(75, 61, 28, .44);
+  box-shadow: inset 0 0 12px rgba(218, 180, 75, .08);
+}
+.flank-title-grip {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  opacity: .4;
+  font-style: normal;
+  letter-spacing: -3px;
+  transform: translateY(-50%) rotate(90deg);
+}
+.flank-groups { align-content: start; }
+.flank-group {
+  position: relative;
+  min-height: 34px;
+  align-items: center;
+  padding: 6px 22px 6px 7px;
+  border: 1px solid rgba(231,224,197,.1);
+  border-radius: 7px;
+  background: rgba(18, 21, 20, .8);
+  cursor: grab;
+  user-select: none;
+  touch-action: pan-y;
+  transition: opacity 120ms ease, border-color 120ms ease, background 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+.flank-group:active { cursor: grabbing; }
+.flank-group:hover { border-color: rgba(231,224,197,.24); background: rgba(30, 34, 31, .94); }
+.flank-group.is-selected {
+  border-color: rgba(126, 174, 214, .82);
+  background: rgba(31, 52, 68, .8);
+  box-shadow: 0 0 0 2px rgba(96, 156, 205, .1);
+}
+.flank-group.is-drag-source { opacity: .4; transform: scale(.97); }
+.flank-group.is-merge-target {
+  z-index: 2;
+  border-color: rgba(111, 205, 102, .96);
+  background: rgba(28, 73, 35, .96);
+  box-shadow: 0 0 0 2px rgba(116, 211, 106, .24), 0 0 18px rgba(83, 186, 78, .24);
+  transform: scale(1.025);
+}
+.flank-group-grip {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  opacity: .38;
+  font-size: .9rem;
+  line-height: 1;
+  transform: translateY(-50%);
+  touch-action: none;
+}
+.flank-merge-label {
+  position: absolute;
+  z-index: 3;
+  top: -9px;
+  right: 4px;
+  padding: 2px 5px;
+  border: 1px solid rgba(177, 239, 157, .58);
+  border-radius: 4px;
+  background: #1e4b26;
+  color: #c9f5ba;
+  font-size: .56rem;
+  font-style: normal;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+.flank-grid.is-dragging .flank-empty { opacity: .8; color: #b7cdb1; }
+
+/* Stage 49 — post-battle navigation lives on the enemy lower flank. */
+.battle-return-map-button {
+  position: absolute;
+  z-index: 45;
+  right: 4.5%;
+  bottom: 5.5%;
+  display: grid;
+  min-width: clamp(150px, 27%, 230px);
+  min-height: 58px;
+  place-items: center;
+  gap: 1px;
+  padding: 9px 16px;
+  border: 2px solid rgba(211, 190, 119, .74);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(41, 38, 29, .96), rgba(18, 18, 15, .98));
+  box-shadow: 0 9px 26px rgba(0,0,0,.46), inset 0 0 16px rgba(217,191,107,.08);
+  color: #eadcae;
+  cursor: pointer;
+  text-shadow: 0 1px 0 #000;
+  animation: battle-return-map-in 300ms cubic-bezier(.2,.9,.25,1.25) both;
+}
+.battle-return-map-button span {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(15px, 2.1vw, 21px);
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+.battle-return-map-button small {
+  color: rgba(231,224,197,.63);
+  font-size: 8px;
+  letter-spacing: .05em;
+}
+.battle-return-map-button:hover {
+  border-color: rgba(236, 211, 126, .98);
+  background: linear-gradient(180deg, rgba(58, 51, 34, .98), rgba(25, 23, 17, .98));
+}
+@keyframes battle-return-map-in {
+  from { opacity: 0; transform: translateY(12px) scale(.88); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (max-width: 620px) {
+  .flank-management-actions { justify-items: stretch; max-width: none; width: 100%; text-align: left; }
+  .flank-management-actions > span { text-align: left; }
+  .flank-auto-button { width: 100%; }
+  .flank-title-zone { min-height: 48px; padding: 6px 18px 6px 5px; }
+  .flank-group { min-height: 42px; padding: 6px 18px 6px 5px; }
+  .flank-group-grip { right: 3px; }
+  .battle-return-map-button {
+    right: 3%;
+    bottom: 4%;
+    min-width: 42%;
+    min-height: 54px;
+    padding: 7px 9px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flank-card,
+  .flank-title-zone,
+  .flank-group,
+  .battle-return-map-button { transition: none !important; animation: none !important; }
+}
+
+/* Stage 50 — reliable pointer drag/merge and inline group splitting. */
+.flank-group-shell {
+  display: grid;
+  min-width: 0;
+  gap: 0;
+}
+.flank-group {
+  /* Stage 49 used pan-y, allowing the browser to cancel a vertical drag as page scrolling.
+     Group manipulation now owns the pointer gesture on both touch and mouse. */
+  touch-action: none;
+  -webkit-user-drag: none;
+}
+.flank-group-split-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+  max-height: 0;
+  padding: 0 3px;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(-7px) scaleY(.78);
+  transform-origin: top;
+  pointer-events: none;
+  transition: max-height 180ms ease, padding 180ms ease, opacity 150ms ease, transform 180ms ease;
+}
+.flank-group-shell.is-open .flank-group-split-actions {
+  max-height: 68px;
+  padding: 5px 3px 2px;
+  opacity: 1;
+  transform: translateY(0) scaleY(1);
+  pointer-events: auto;
+}
+.flank-group-split-actions button {
+  min-width: 0;
+  min-height: 30px;
+  padding: 4px 5px;
+  border: 1px solid rgba(136, 174, 202, .42);
+  border-radius: 6px;
+  background: rgba(25, 43, 55, .94);
+  color: #c9ddec;
+  font: inherit;
+  font-size: .62rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.flank-group-split-actions button:hover:not(:disabled) {
+  border-color: rgba(151, 204, 238, .78);
+  background: rgba(35, 61, 78, .98);
+}
+.flank-group-split-actions button:disabled {
+  opacity: .34;
+  cursor: default;
+}
+.flank-group-split-actions > span {
+  grid-column: 1 / -1;
+  font-size: .57rem;
+  color: rgba(230, 202, 102, .76);
+  text-align: center;
+}
+.army-group-drag-ghost {
+  position: fixed;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: min(160px, 42vw);
+  min-height: 38px;
+  padding: 7px 10px;
+  border: 1px solid rgba(166, 202, 225, .72);
+  border-radius: 8px;
+  background: rgba(18, 27, 31, .92);
+  box-shadow: 0 8px 24px rgba(0,0,0,.55), 0 0 0 2px rgba(104, 161, 198, .14);
+  opacity: .9;
+  transform: translate(-50%, -56%) scale(.96) rotate(-1deg);
+  pointer-events: none;
+  user-select: none;
+}
+.army-group-drag-ghost > i {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #aab6b1;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.22);
+}
+.army-group-drag-ghost > div {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+.army-group-drag-ghost span {
+  overflow-wrap: anywhere;
+  color: #e4ece8;
+  font-size: .66rem;
+  font-weight: 700;
+}
+.flank-grid.is-dragging .flank-card {
+  border-style: dashed;
+}
+.flank-grid.is-dragging .flank-card.is-drop-target,
+.flank-grid.is-dragging .flank-group.is-merge-target {
+  border-style: solid;
+}
+
+@media (max-width: 620px) {
+  .flank-group-split-actions button { min-height: 34px; font-size: .6rem; }
+  .army-group-drag-ghost { width: min(150px, 46vw); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flank-group-split-actions { transition: none !important; }
 }

@@ -47,7 +47,7 @@ describe('location events and artifacts', () => {
     expect(triggerLocationEvent(resolved.state, 'warehouse-2', prototypeEvents).events).toHaveLength(0);
   });
 
-  it('artifact choice gives no specimens and Vlados strengthens the persistent artifact bonus x1.5', () => {
+  it('artifact choice gives one knowledge and Vlados strengthens the persistent artifact bonus x1.5', () => {
     const normal = triggerLocationEvent(reachWarehouse('artemios'), 'warehouse-2', prototypeEvents).state;
     const vlados = triggerLocationEvent(reachWarehouse('vlados'), 'warehouse-2', prototypeEvents).state;
 
@@ -70,10 +70,10 @@ describe('location events and artifacts', () => {
     if (!normalResult.ok || !vladosResult.ok) throw new Error('expected event resolution');
     expect(normalResult.state.factions.expedition.resources.money).toBe(120);
     expect(vladosResult.state.factions.expedition.resources.money).toBe(120);
-    expect(normalResult.state.factions.expedition.resources.specimens).toBe(0);
-    expect(vladosResult.state.factions.expedition.resources.specimens).toBe(0);
-    expect(normalResult.state.factions.expedition.specimensCollected).toBe(0);
-    expect(vladosResult.state.factions.expedition.specimensCollected).toBe(0);
+    expect(normalResult.state.factions.expedition.resources.specimens).toBe(1);
+    expect(vladosResult.state.factions.expedition.resources.specimens).toBe(1);
+    expect(normalResult.state.factions.expedition.specimensCollected).toBe(1);
+    expect(vladosResult.state.factions.expedition.specimensCollected).toBe(1);
     expect(getCityIncomeMultiplier(normalResult.state, 'expedition')).toBeCloseTo(1.18);
     expect(getCityIncomeMultiplier(vladosResult.state, 'expedition')).toBeCloseTo(1.27);
     expect(vladosResult.state.campaign.artifactIds).toContain('apple-skeleton');

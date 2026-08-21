@@ -116,9 +116,9 @@ function buildSummary(results: CampaignSimulationResult[], generatedAt: string):
 function toCsv(results: CampaignSimulationResult[]): string {
   const simpleKeys: Array<keyof CampaignSimulationResult> = [
     'seed','leaderId','strategy','status','endingReason','turns','falseRootTurn','extensionUnlockedTurn',
-    'playerCities','rivalCities','playerMoney','playerSupplies','specimensAvailable','specimensCollected',
+    'playerCities','rivalCities','playerMoney','playerSupplies','knowledgeAvailable','knowledge',
     'playerUnits','maxPlayerUnits','playerBattles','playerBattleWins','playerBattleLosses','playerCasualties',
-    'rivalActions','artifactsFound','activeArtifacts','researchCompleted','poiResolved','extensionOrder',
+    'rivalActions','artifactsFound','activeArtifacts','legacyResearchCompleted','poiResolved','extensionOrder',
     'activeOrsiaFactions','rivalLeaderId','rivalOrganizationId','stuckTurns',
   ];
   const header = [...simpleKeys, 'actionCounts', 'tacticCounts'];

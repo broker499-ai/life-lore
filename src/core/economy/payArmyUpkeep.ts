@@ -5,6 +5,7 @@ import type { CityDefinitions } from '@/core/cities/CityDefinition';
 import { getFactionArmyUpkeepCityMultiplier } from '@/core/cities/cityTraits';
 import { getArmyUpkeepMultiplier } from '@/core/leaders/LeaderAbility';
 import type { FactionId, GameState } from '@/core/state/GameState';
+import { hasUnlimitedMoney } from '@/core/dev/developerMode';
 
 export type ArmyUpkeepEvent = {
   type: 'army_upkeep_paid';
@@ -41,15 +42,16 @@ export function payArmyUpkeep(
     const due = getFactionArmyUpkeep(state, unitDefinitions, faction.id, cityDefinitions);
     if (due <= 0) continue;
 
-    const amount = Math.min(faction.resources.money, due);
-    const unpaid = roundMoney(due - amount);
+    const unlimitedMoney = hasUnlimitedMoney(state, faction.id);
+    const amount = unlimitedMoney ? due : Math.min(faction.resources.money, due);
+    const unpaid = unlimitedMoney ? 0 : roundMoney(due - amount);
     nextFactions = {
       ...nextFactions,
       [faction.id]: {
         ...faction,
         resources: {
           ...faction.resources,
-          money: roundMoney(faction.resources.money - amount),
+          money: unlimitedMoney ? faction.resources.money : roundMoney(faction.resources.money - amount),
         },
       },
     };

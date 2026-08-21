@@ -9,6 +9,7 @@ import type {
   GameState,
   NodeId,
   ResourcesState,
+  UnitTypeId,
 } from '@/core/state/GameState';
 import { createPrototypeGameState } from '@/core/state/createPrototypeGameState';
 import { synchronizePlayerMapKnowledge } from '@/core/map/MapVisibility';
@@ -22,8 +23,12 @@ import { PRE_ROOT_CLASSIC_LAYOUT_ID } from '@/core/map/preRootMap';
 import { factionIgnoresMorale } from '@/core/leaders/LeaderAbility';
 import { prototypeArtifacts } from '@/data/artifacts/prototypeArtifacts';
 import { MAX_ACTIVE_ARTIFACTS, rebuildActiveArtifactTraits } from '@/core/artifacts/artifactLoadout';
+import { clampKnowledge } from '@/data/campaign/knowledgeRules';
+import { prototypeResearch } from '@/data/research/prototypeResearch';
+import { createInitialArmyGroups } from '@/core/armies/armyFlanks';
+import { prototypeUnits } from '@/data/units/prototypeUnits';
 
-export const CURRENT_SAVE_VERSION = 20 as const;
+export const CURRENT_SAVE_VERSION = 25 as const;
 const LEGACY_DEFAULT_UNIT_TYPE_ID = 'expedition-infantry';
 const LEGACY_RIVAL_FACTION_ID = 'meridian-company';
 const LEGACY_RESEARCH_COSTS_V14: Record<string, number> = {
@@ -40,6 +45,15 @@ type LegacyFactionStateV1 = { id: FactionId; controlledCityIds: string[] };
 type LegacyFactionStateV2 = LegacyFactionStateV1 & { resources: ResourcesState };
 type LegacyFactionStateV5 = { id: FactionId; resources: ResourcesState };
 type LegacyFactionStateV6 = LegacyFactionStateV5 & { strategicActionSpent: boolean };
+type Stage42CampaignField =
+  | 'cityRecruitmentUnitIds'
+  | 'uniqueUnitCityIds'
+  | 'recruitedUniqueUnitIds'
+  | 'siriusBossCityId'
+  | 'siriusDefeated'
+  | 'pendingReinforcements'
+  | 'homeRecruitmentRecoveryTurnByUnitId'
+  | 'gregJenkinsVictories';
 type LegacyCampaignStateV5 = { rootObtainedByFactionId: FactionId | null; strategicActionSpent: boolean };
 type LegacyCampaignStateV8 = { rootObtainedByFactionId: FactionId | null };
 type LegacyCampaignStateV9 = LegacyCampaignStateV8 & {
@@ -60,13 +74,15 @@ type LegacyCampaignStateV10 = {
 };
 type LegacyCampaignStateV11 = LegacyCampaignStateV10 & { discoveredNodeIds: NodeId[] };
 type LegacyFactionStateV13 = Omit<FactionState, 'specimensCollected'>;
-type LegacyCampaignStateV13 = Omit<CampaignState, 'tyranidEggClutches' | 'developerMode' | 'activeArtifactIds' | 'cityArtifactClaimedIds' | 'pendingBriefingId' | 'resolvedBriefingIds' | 'preRootLayoutId' | 'preRootLocationOrder' | 'extensionLocationOrder' | 'factionCapitalCityIds'>;
-type LegacyCampaignStateV14 = Omit<CampaignState, 'tyranidEggClutches' | 'developerMode' | 'activeArtifactIds' | 'preRootLayoutId' | 'preRootLocationOrder' | 'extensionLocationOrder' | 'factionCapitalCityIds'>;
-type LegacyCampaignStateV15 = Omit<CampaignState, 'tyranidEggClutches' | 'developerMode' | 'preRootLayoutId' | 'preRootLocationOrder' | 'extensionLocationOrder' | 'factionCapitalCityIds'>;
-type LegacyCampaignStateV16 = Omit<CampaignState, 'tyranidEggClutches' | 'developerMode' | 'preRootLayoutId' | 'preRootLocationOrder' | 'factionCapitalCityIds'>;
-type LegacyCampaignStateV17 = Omit<CampaignState, 'tyranidEggClutches' | 'developerMode' | 'preRootLayoutId' | 'preRootLocationOrder'>;
-type LegacyCampaignStateV18 = Omit<CampaignState, 'preRootLayoutId' | 'preRootLocationOrder' | 'tyranidEggClutches'>;
-type LegacyCampaignStateV19 = Omit<CampaignState, 'tyranidEggClutches'>;
+type LegacyCampaignStateV13 = Omit<CampaignState, Stage42CampaignField | 'tyranidEggClutches' | 'developerMode' | 'activeArtifactIds' | 'cityArtifactClaimedIds' | 'pendingBriefingId' | 'resolvedBriefingIds' | 'preRootLayoutId' | 'preRootLocationOrder' | 'extensionLocationOrder' | 'factionCapitalCityIds' | 'shortRestUsedNodeIds' | 'recruitmentBlockedUntilTurnByCityId'>;
+type LegacyCampaignStateV14 = Omit<CampaignState, Stage42CampaignField | 'tyranidEggClutches' | 'developerMode' | 'activeArtifactIds' | 'preRootLayoutId' | 'preRootLocationOrder' | 'extensionLocationOrder' | 'factionCapitalCityIds' | 'shortRestUsedNodeIds' | 'recruitmentBlockedUntilTurnByCityId'>;
+type LegacyCampaignStateV15 = Omit<CampaignState, Stage42CampaignField | 'tyranidEggClutches' | 'developerMode' | 'preRootLayoutId' | 'preRootLocationOrder' | 'extensionLocationOrder' | 'factionCapitalCityIds' | 'shortRestUsedNodeIds' | 'recruitmentBlockedUntilTurnByCityId'>;
+type LegacyCampaignStateV16 = Omit<CampaignState, Stage42CampaignField | 'tyranidEggClutches' | 'developerMode' | 'preRootLayoutId' | 'preRootLocationOrder' | 'factionCapitalCityIds' | 'shortRestUsedNodeIds' | 'recruitmentBlockedUntilTurnByCityId'>;
+type LegacyCampaignStateV17 = Omit<CampaignState, Stage42CampaignField | 'tyranidEggClutches' | 'developerMode' | 'preRootLayoutId' | 'preRootLocationOrder' | 'shortRestUsedNodeIds' | 'recruitmentBlockedUntilTurnByCityId'>;
+type LegacyCampaignStateV18 = Omit<CampaignState, Stage42CampaignField | 'preRootLayoutId' | 'preRootLocationOrder' | 'tyranidEggClutches' | 'shortRestUsedNodeIds' | 'recruitmentBlockedUntilTurnByCityId'>;
+type LegacyCampaignStateV19 = Omit<CampaignState, Stage42CampaignField | 'tyranidEggClutches' | 'shortRestUsedNodeIds' | 'recruitmentBlockedUntilTurnByCityId'>;
+type LegacyCampaignStateV21 = Omit<CampaignState, Stage42CampaignField | 'shortRestUsedNodeIds' | 'recruitmentBlockedUntilTurnByCityId'>;
+type LegacyCampaignStateV22 = Omit<CampaignState, Stage42CampaignField>;
 type LegacyCityStateV4 = Omit<CityState, 'garrison'>;
 type LegacyArmyStateV3 = {
   id: ArmyId;
@@ -83,6 +99,8 @@ type LegacyGameStateV16 = Omit<GameState, 'campaign'> & { campaign: LegacyCampai
 type LegacyGameStateV17 = Omit<GameState, 'campaign'> & { campaign: LegacyCampaignStateV17 };
 type LegacyGameStateV18 = Omit<GameState, 'campaign'> & { campaign: LegacyCampaignStateV18 };
 type LegacyGameStateV19 = Omit<GameState, 'campaign'> & { campaign: LegacyCampaignStateV19 };
+type LegacyGameStateV21 = Omit<GameState, 'campaign'> & { campaign: LegacyCampaignStateV21 };
+type LegacyGameStateV22 = Omit<GameState, 'campaign'> & { campaign: LegacyCampaignStateV22 };
 type LegacyGameStateV11 = Omit<LegacyGameStateV13, 'campaign'> & { campaign: LegacyCampaignStateV11 };
 type LegacyGameStateV10 = Omit<LegacyGameStateV11, 'campaign'> & { campaign: LegacyCampaignStateV10 };
 type LegacyGameStateV9 = Omit<LegacyGameStateV10, 'campaign'> & { campaign: LegacyCampaignStateV9 };
@@ -127,7 +145,12 @@ export type SaveFileV16 = { version: 16; state: LegacyGameStateV16 };
 export type SaveFileV17 = { version: 17; state: LegacyGameStateV17 };
 export type SaveFileV18 = { version: 18; state: LegacyGameStateV18 };
 export type SaveFileV19 = { version: 19; state: LegacyGameStateV19 };
-export type SaveFileV20 = { version: typeof CURRENT_SAVE_VERSION; state: GameState };
+export type SaveFileV20 = { version: 20; state: LegacyGameStateV21 };
+export type SaveFileV21 = { version: 21; state: LegacyGameStateV21 };
+export type SaveFileV22 = { version: 22; state: LegacyGameStateV22 };
+export type SaveFileV23 = { version: 23; state: GameState };
+export type SaveFileV24 = { version: 24; state: GameState };
+export type SaveFileV25 = { version: typeof CURRENT_SAVE_VERSION; state: GameState };
 export type SaveFile =
   | SaveFileV1
   | SaveFileV2
@@ -148,10 +171,15 @@ export type SaveFile =
   | SaveFileV17
   | SaveFileV18
   | SaveFileV19
-  | SaveFileV20;
+  | SaveFileV20
+  | SaveFileV21
+  | SaveFileV22
+  | SaveFileV23
+  | SaveFileV24
+  | SaveFileV25;
 
 export function serializeGame(state: GameState): string {
-  const save: SaveFileV20 = { version: CURRENT_SAVE_VERSION, state };
+  const save: SaveFileV25 = { version: CURRENT_SAVE_VERSION, state };
   return JSON.stringify(save);
 }
 
@@ -162,7 +190,12 @@ export function deserializeGame(serialized: string): GameState {
   }
 
   if (parsed.version === CURRENT_SAVE_VERSION) return parsed.state as GameState;
-  if (parsed.version === 19) return migrateV19ToV20(parsed.state as LegacyGameStateV19);
+  if (parsed.version === 24) return migrateV24ToV25(parsed.state as GameState);
+  if (parsed.version === 23) return migrateV24ToV25(migrateV23ToV24(parsed.state as GameState));
+  if (parsed.version === 22) return migrateV24ToV25(migrateV23ToV24(migrateV22ToV23(parsed.state as LegacyGameStateV22)));
+  if (parsed.version === 21) return migrateV24ToV25(migrateV23ToV24(migrateV22ToV23(migrateV21ToV22(parsed.state as LegacyGameStateV21))));
+  if (parsed.version === 20) return migrateV24ToV25(migrateV23ToV24(migrateV22ToV23(migrateV21ToV22(migrateV20ToV21(parsed.state as unknown as GameState)))));
+  if (parsed.version === 19) return migrateV24ToV25(migrateV23ToV24(migrateV22ToV23(migrateV21ToV22(migrateV20ToV21(migrateV19ToV20(parsed.state as LegacyGameStateV19))))));
 
   let v18: LegacyGameStateV18;
   if (parsed.version === 18) v18 = parsed.state as LegacyGameStateV18;
@@ -185,7 +218,120 @@ export function deserializeGame(serialized: string): GameState {
   else if (parsed.version === 1) v18 = migrateV17ToV18(migrateV16ToV17(migrateV15ToV16(migrateV14ToV15(migrateV13ToV14(migrateV12ToV13(migrateV11ToV12(migrateV10ToV11(migrateV9ToV10(migrateV8ToV9(migrateV7ToV8(migrateV6ToV7(migrateV5ToV6(migrateV4ToV5(migrateV3ToV4(migrateV1ToV3(parsed.state as LegacyGameStateV1))))))))))))))));
   else throw new Error('Unsupported or invalid save file');
 
-  return migrateV19ToV20(migrateV18ToV19(v18));
+  return migrateV24ToV25(migrateV23ToV24(migrateV22ToV23(migrateV21ToV22(migrateV20ToV21(migrateV19ToV20(migrateV18ToV19(v18)))))));
+}
+
+
+
+function migrateV24ToV25(state: GameState): GameState {
+  const armies = Object.fromEntries(
+    Object.entries(state.armies).map(([armyId, army]) => [
+      armyId,
+      army.groups && army.groups.length > 0
+        ? army
+        : { ...army, groups: createInitialArmyGroups(army.roster, prototypeUnits, `migrated-${armyId}`) },
+    ]),
+  ) as Record<ArmyId, ArmyState>;
+  return { ...state, armies };
+}
+
+function migrateV23ToV24(state: GameState): GameState {
+  if (state.campaign.uniqueUnitCityIds['gleb-khleb'] || state.campaign.recruitedUniqueUnitIds.includes('gleb-khleb')) return state;
+  const occupied = new Set<string>([
+    ...Object.values(state.campaign.uniqueUnitCityIds),
+    state.campaign.siriusBossCityId,
+    'outer-post',
+  ]);
+  const candidates = Object.keys(state.cities).sort().filter((cityId) => !occupied.has(cityId));
+  const fallbackCandidates = Object.keys(state.cities).sort().filter((cityId) => cityId !== 'outer-post');
+  const pool = candidates.length > 0 ? candidates : fallbackCandidates;
+  const picked = pool.length > 0 ? pool[Math.abs(state.rng.campaign.cursor) % pool.length] : 'outer-post';
+  return {
+    ...state,
+    campaign: {
+      ...state.campaign,
+      uniqueUnitCityIds: { ...state.campaign.uniqueUnitCityIds, 'gleb-khleb': picked },
+    },
+  };
+}
+
+function migrateV22ToV23(state: LegacyGameStateV22 | GameState): GameState {
+  const defaults = createPrototypeGameState(state.rng.campaign.seed, state.selectedLeaderId);
+  const uniqueUnitIds = new Set(Object.keys(defaults.campaign.uniqueUnitCityIds));
+  uniqueUnitIds.add('sirius-morpheus-nan');
+  const recruitedUniqueUnitIds = new Set<UnitTypeId>(
+    'recruitedUniqueUnitIds' in state.campaign ? state.campaign.recruitedUniqueUnitIds : [],
+  );
+  for (const army of Object.values(state.armies)) {
+    if (army.factionId !== state.playerFactionId) continue;
+    for (const [unitTypeId, amount] of Object.entries(army.roster)) {
+      if (amount > 0 && uniqueUnitIds.has(unitTypeId)) recruitedUniqueUnitIds.add(unitTypeId);
+    }
+  }
+
+  return {
+    ...state,
+    campaign: {
+      ...state.campaign,
+      cityRecruitmentUnitIds: { ...defaults.campaign.cityRecruitmentUnitIds },
+      uniqueUnitCityIds: { ...defaults.campaign.uniqueUnitCityIds },
+      recruitedUniqueUnitIds: Array.from(recruitedUniqueUnitIds),
+      siriusBossCityId: defaults.campaign.siriusBossCityId,
+      siriusDefeated: 'siriusDefeated' in state.campaign ? state.campaign.siriusDefeated : false,
+      pendingReinforcements: 'pendingReinforcements' in state.campaign ? [...state.campaign.pendingReinforcements] : [],
+      homeRecruitmentRecoveryTurnByUnitId: 'homeRecruitmentRecoveryTurnByUnitId' in state.campaign
+        ? { ...state.campaign.homeRecruitmentRecoveryTurnByUnitId }
+        : {},
+      gregJenkinsVictories: 'gregJenkinsVictories' in state.campaign ? state.campaign.gregJenkinsVictories : 0,
+    },
+  } as GameState;
+}
+
+
+function migrateV21ToV22(state: LegacyGameStateV21 | GameState): GameState {
+  return {
+    ...state,
+    campaign: {
+      ...state.campaign,
+      shortRestUsedNodeIds: [...('shortRestUsedNodeIds' in state.campaign ? state.campaign.shortRestUsedNodeIds : [])],
+      recruitmentBlockedUntilTurnByCityId: { ...('recruitmentBlockedUntilTurnByCityId' in state.campaign ? state.campaign.recruitmentBlockedUntilTurnByCityId : {}) },
+    },
+  } as GameState;
+}
+
+function migrateV20ToV21(state: GameState): GameState {
+  const playerFaction = state.factions[state.playerFactionId];
+  if (!playerFaction) return state;
+
+  const legacyKnowledge = Math.max(playerFaction.resources.specimens, playerFaction.specimensCollected);
+  const knowledge = clampKnowledge(legacyKnowledge + state.campaign.artifactIds.length);
+  const researchEffects = state.campaign.completedResearchIds.flatMap((researchId) => prototypeResearch[researchId]?.effects ?? []);
+  const traits = [...playerFaction.traits];
+  for (const effect of researchEffects) {
+    const index = traits.findIndex((trait) => sameTrait(trait, effect));
+    if (index >= 0) traits.splice(index, 1);
+  }
+
+  return {
+    ...state,
+    factions: {
+      ...state.factions,
+      [playerFaction.id]: {
+        ...playerFaction,
+        resources: { ...playerFaction.resources, specimens: knowledge },
+        specimensCollected: knowledge,
+        traits,
+      },
+    },
+    campaign: {
+      ...state.campaign,
+      completedResearchIds: [],
+    },
+  };
+}
+
+function sameTrait(a: FactionState['traits'][number], b: FactionState['traits'][number]): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
 }
 
 function migrateV19ToV20(state: LegacyGameStateV19): GameState {
@@ -199,8 +345,8 @@ function migrateV19ToV20(state: LegacyGameStateV19): GameState {
   return {
     ...state,
     factions,
-    campaign: { ...state.campaign, tyranidEggClutches: {} },
-  };
+    campaign: { ...state.campaign, tyranidEggClutches: {}, shortRestUsedNodeIds: [], recruitmentBlockedUntilTurnByCityId: {} },
+  } as unknown as GameState;
 }
 
 function migrateV18ToV19(state: LegacyGameStateV18): GameState {
@@ -268,7 +414,7 @@ function migrateV18ToV19(state: LegacyGameStateV18): GameState {
       }
     : null;
 
-  let migrated: GameState = {
+  let migrated = {
     ...state,
     factions,
     cities,
@@ -280,8 +426,10 @@ function migrateV18ToV19(state: LegacyGameStateV18): GameState {
       factionCapitalCityIds,
       pendingFactionEvent,
       tyranidEggClutches: {},
+      shortRestUsedNodeIds: [],
+      recruitmentBlockedUntilTurnByCityId: {},
     },
-  };
+  } as unknown as GameState;
 
   // Artemios' new perk is absolute: old saves immediately normalize his expedition to 100 morale.
   const normalizedArmies = Object.fromEntries(
@@ -377,8 +525,10 @@ function migrateV14ToV15(state: LegacyGameStateV14): LegacyGameStateV15 {
       factionCapitalCityIds: {},
       developerMode: false,
       tyranidEggClutches: {},
+      shortRestUsedNodeIds: [],
+      recruitmentBlockedUntilTurnByCityId: {},
     },
-  } as GameState;
+  } as unknown as GameState;
   const rebuilt = synchronizePlayerMapKnowledge(
     rebuildActiveArtifactTraits(temporary, temporary.playerFactionId, prototypeArtifacts),
     prototypeMap,

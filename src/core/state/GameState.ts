@@ -7,6 +7,14 @@ export type ArmyId = string;
 export type NodeId = string;
 export type LeaderId = string;
 export type UnitTypeId = string;
+export type ArmyRoster = Record<UnitTypeId, number>;
+export type ArmyFlankId = 'left' | 'center' | 'right';
+export type ArmyGroupState = {
+  id: string;
+  flank: ArmyFlankId;
+  roster: ArmyRoster;
+  unique: boolean;
+};
 export type StrategicActionKind = 'move' | 'attack' | 'recruit' | 'rest' | 'claim_root';
 
 export type TyranidEggClutchState = {
@@ -14,6 +22,20 @@ export type TyranidEggClutchState = {
   tyranidFactionId: FactionId;
   capturedTurn: number;
   deadlineTurn: number;
+};
+
+
+export type PendingReinforcementState = {
+  id: string;
+  sourceCityId: CityId;
+  armyId: ArmyId;
+  unitTypeId: UnitTypeId;
+  amount: number;
+  arrivalTurn: number;
+  /** Full recruitment batch, used for multi-unit unique groups such as Greg + spiders. */
+  roster?: ArmyRoster;
+  groupId?: string;
+  unique?: boolean;
 };
 
 export type PendingFactionEventState = {
@@ -39,8 +61,6 @@ export type FactionState = {
   traits: FactionTrait[];
 };
 
-export type ArmyRoster = Record<UnitTypeId, number>;
-
 export type CityGarrisonState = {
   roster: ArmyRoster;
   morale: number;
@@ -59,6 +79,8 @@ export type ArmyState = {
   nodeId: NodeId;
   morale: number;
   roster: ArmyRoster;
+  /** Persistent recruitment groups and their pre-battle flank assignment. */
+  groups?: ArmyGroupState[];
 };
 
 export type CampaignStatus = 'active' | 'victory' | 'defeat';
@@ -79,6 +101,16 @@ export type CampaignState = {
   pendingFactionEvent: PendingFactionEventState | null;
   resolvedFactionEventIds: string[];
   tyranidEggClutches: Record<CityId, TyranidEggClutchState>;
+  shortRestUsedNodeIds: NodeId[];
+  recruitmentBlockedUntilTurnByCityId: Record<CityId, number>;
+  cityRecruitmentUnitIds: Record<CityId, UnitTypeId[]>;
+  uniqueUnitCityIds: Record<UnitTypeId, CityId>;
+  recruitedUniqueUnitIds: UnitTypeId[];
+  siriusBossCityId: CityId;
+  siriusDefeated: boolean;
+  pendingReinforcements: PendingReinforcementState[];
+  homeRecruitmentRecoveryTurnByUnitId: Record<UnitTypeId, number>;
+  gregJenkinsVictories: number;
   preRootLayoutId: string;
   preRootLocationOrder: NodeId[];
   extensionLocationOrder: NodeId[];

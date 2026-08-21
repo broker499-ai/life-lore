@@ -106,7 +106,7 @@ export function getExtensionStagingCityId(state: GameState): string {
 
 export function getCampaignMap(state: GameState): MapGraph {
   const preRootMap = getPreRootMap(state);
-  if (!isExtensionUnlocked(state)) return preRootMap;
+  if (!isExtensionUnlocked(state) && !state.campaign.developerMode) return preRootMap;
 
   const order = normalizeExtensionOrder(state.campaign.extensionLocationOrder);
   const extensionNodes: MapNode[] = order.map((nodeId, index) => {

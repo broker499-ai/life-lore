@@ -32,9 +32,13 @@ export function getEffectiveCityRest(city: CityDefinition): CityDefinition['rest
 }
 
 export function getEffectiveCityRecruitmentOffers(city: CityDefinition): RecruitmentOffer[] {
+  return applyCityRecruitmentTraits(city, city.recruitment);
+}
+
+export function applyCityRecruitmentTraits(city: CityDefinition, offers: RecruitmentOffer[]): RecruitmentOffer[] {
   const costMultiplier = getCityTraitMultiplier(city, 'recruitment_cost_multiplier');
   const amountMultiplier = getCityTraitMultiplier(city, 'recruitment_amount_multiplier');
-  return city.recruitment.map((offer) => ({
+  return offers.map((offer) => ({
     ...offer,
     amount: Math.max(1, Math.round(offer.amount * amountMultiplier)),
     cost: Math.max(0, Math.round(offer.cost * costMultiplier)),

@@ -26,17 +26,17 @@ export type BattlePlaybackSample = {
 };
 
 const PHASE_MINIMUM_MS: Record<BattlePresentationPhase, number> = {
-  opening: 520,
-  advance: 560,
-  clash: 660,
-  morale: 480,
-  break: 900,
-  finish: 900,
+  opening: 900,
+  advance: 1050,
+  clash: 1900,
+  morale: 1300,
+  break: 2300,
+  finish: 1900,
 };
 
-const TIMELINE_MS_PER_SECOND = 145;
+const TIMELINE_MS_PER_SECOND = 220;
 const MIN_PLAYBACK_DELAY_MS = 140;
-const MAX_PLAYBACK_DELAY_MS = 1200;
+const MAX_PLAYBACK_DELAY_MS = 2600;
 
 /**
  * Legacy-compatible segment timing helper. Stage 10 uses this value as the
@@ -58,7 +58,7 @@ export function getBattleSegmentDurationMs(
   const simulatedSeconds = Math.max(1, next.at - current.at);
   const timelineDelay = simulatedSeconds * TIMELINE_MS_PER_SECOND;
   const phaseDelay = PHASE_MINIMUM_MS[next.phase];
-  return clamp(Math.max(timelineDelay, phaseDelay), 320, MAX_PLAYBACK_DELAY_MS);
+  return clamp(Math.max(timelineDelay, phaseDelay), 650, MAX_PLAYBACK_DELAY_MS);
 }
 
 export function buildBattlePlaybackTrack(frames: BattlePresentationFrame[]): BattlePlaybackTrack {

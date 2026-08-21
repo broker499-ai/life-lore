@@ -3,16 +3,15 @@ import { hasUnlimitedStrategicActions, shouldSpendStrategicAction } from '@/core
 import type { CommandOutcome } from '@/core/commands/CommandResult';
 import type { CityDefinitions } from '@/core/cities/CityDefinition';
 import { getRootClaimCitySupplyMultiplier } from '@/core/cities/cityTraits';
-import { factionIgnoresSupply, getRootClaimSupplyCostMultiplier, getRootSpecimenRequirementReduction, getSupplyActionCostMultiplier } from '@/core/leaders/LeaderAbility';
+import { factionIgnoresSupply, getRootClaimSupplyCostMultiplier, getSupplyActionCostMultiplier } from '@/core/leaders/LeaderAbility';
 import type { GameState } from '@/core/state/GameState';
 import type { RootAccessRule, RootObjectiveRules } from '@/data/campaign/prototypeRules';
 
 export type RootRequirementProgress = {
   controlledCities: number;
   requiredCities: number;
-  specimensAvailable: number;
-  specimensCollected: number;
-  requiredSpecimensCollected: number;
+  knowledge: number;
+  requiredKnowledge: number;
   requiredEventResolved: boolean;
   requiredEventId: string | null;
   turn: number;
@@ -165,9 +164,8 @@ export function getRootRequirementProgress(
   return {
     controlledCities,
     requiredCities: rule.minControlledCities,
-    specimensAvailable: faction?.resources.specimens ?? 0,
-    specimensCollected: faction?.specimensCollected ?? 0,
-    requiredSpecimensCollected: Math.max(0, rule.minSpecimens - getRootSpecimenRequirementReduction(state, factionId)),
+    knowledge: faction?.specimensCollected ?? 0,
+    requiredKnowledge: Math.max(0, rule.minKnowledge),
     requiredEventResolved: !requiredEventId || state.campaign.resolvedEventIds.includes(requiredEventId),
     requiredEventId,
     turn: state.turn,
@@ -184,7 +182,7 @@ function getFactionRootRule(state: GameState, factionId: string, rules: RootObje
 
 function requirementsMet(progress: RootRequirementProgress): boolean {
   if (progress.controlledCities < progress.requiredCities) return false;
-  if (progress.specimensCollected < progress.requiredSpecimensCollected) return false;
+  if (progress.knowledge < progress.requiredKnowledge) return false;
   if (!progress.requiredEventResolved) return false;
   if (progress.requiredTurn !== null && progress.turn < progress.requiredTurn) return false;
   return true;

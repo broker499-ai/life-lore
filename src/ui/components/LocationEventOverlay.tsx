@@ -6,6 +6,7 @@ import {
 } from '@/core/events/LocationEvent';
 import { getArtifactEffectMultiplier } from '@/core/leaders/LeaderAbility';
 import type { GameState } from '@/core/state/GameState';
+import { ARTIFACT_KNOWLEDGE_GAIN } from '@/data/campaign/knowledgeRules';
 
 export function LocationEventOverlay({
   state,
@@ -43,6 +44,7 @@ export function LocationEventOverlay({
         <div className="event-choice-list">
           {event.choices.map((choice) => {
             const availability = getEventChoiceAvailability(state, choice, factionId);
+            const hasArtifact = choice.effects.some((effect) => effect.type === 'artifact');
             return (
               <button
                 key={choice.id}
@@ -54,7 +56,9 @@ export function LocationEventOverlay({
               >
                 <strong>{choice.label}</strong>
                 {choice.description ? <span>{choice.description}</span> : null}
+                {hasArtifact ? <span className="artifact-danger-warning">Враги станут сильнее</span> : null}
                 <small>{describeEffects(choice, artifacts)}</small>
+                {hasArtifact ? <small className="artifact-threat-note">Познание +{ARTIFACT_KNOWLEDGE_GAIN} · часть городских гарнизонов получает подкрепление</small> : null}
               </button>
             );
           })}
@@ -83,16 +87,14 @@ function describeEffects(choice: EventChoice, artifacts: ArtifactDefinitions): s
   return parts.join(' · ') || 'Без немедленного эффекта';
 }
 
-function formatEffect(type: 'money' | 'supplies' | 'specimens' | 'morale', amount: number): string {
+function formatEffect(type: 'money' | 'supplies' | 'knowledge' | 'morale', amount: number): string {
   const sign = amount > 0 ? '+' : '';
-  const label = type === 'money' ? 'деньги' : type === 'supplies' ? 'припасы' : type === 'specimens' ? 'образцы' : 'моральная паника';
+  const label = type === 'money' ? 'деньги' : type === 'supplies' ? 'припасы' : type === 'knowledge' ? 'познание' : 'моральная паника';
   return `${sign}${amount} ${label}`;
 }
 
-function getUnavailableReason(reason: 'insufficient_money' | 'insufficient_supplies' | 'insufficient_specimens'): string {
-  if (reason === 'insufficient_money') return 'Недостаточно денег.';
-  if (reason === 'insufficient_supplies') return 'Недостаточно припасов.';
-  return 'Недостаточно образцов.';
+function getUnavailableReason(reason: 'insufficient_money' | 'insufficient_supplies'): string {
+  return reason === 'insufficient_money' ? 'Недостаточно денег.' : 'Недостаточно припасов.';
 }
 
 

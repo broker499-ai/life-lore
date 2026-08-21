@@ -17,6 +17,8 @@ export type BattleFormationDot = {
   y: number;
   r: number;
   opacity: number;
+  weakened: boolean;
+  brokenLane: boolean;
 };
 
 export type BattleFormationInput = {
@@ -33,6 +35,8 @@ export type BattleFormationInput = {
   battleTime: number;
   unitDefinitions: UnitDefinitions;
   maxDots?: number;
+  centerOnly?: boolean;
+  laneRedirects?: Partial<Record<BattleLane, BattleLane>>;
 };
 
 type FormationTemplateDot = {
@@ -45,6 +49,8 @@ type FormationTemplateDot = {
   unitDotIndex: number;
   unitDotCount: number;
   initialUnitCount: number;
+  laneDotIndex: number;
+  laneDotCount: number;
 };
 
 const LANE_Y: Record<BattleLane, number> = {
@@ -53,24 +59,30 @@ const LANE_Y: Record<BattleLane, number> = {
   right: 76,
 };
 
-const LINE_LANE_PATTERN: BattleLane[] = ['center', 'left', 'right', 'center', 'left', 'right'];
-const RANGED_LANE_PATTERN: BattleLane[] = ['left', 'right', 'center', 'left', 'right', 'center'];
-
 export function getBattleFormationDots(input: BattleFormationInput): BattleFormationDot[] {
   const initialRoster = input.from.initialRoster;
   const template = buildFormationTemplate(
     initialRoster,
     input.unitDefinitions,
     input.maxDots ?? 18,
+    input.centerOnly ?? false,
+    input.from.initialSectorState,
+    input.from.initialLaneRosters,
   );
   const pressure = lerp(input.overallPressureFrom, input.overallPressureTo, input.progress);
   const brokenWeight = lerp(input.from.broken ? 1 : 0, input.to.broken ? 1 : 0, input.progress);
   const forward = input.side === 'A' ? 1 : -1;
+  const sustainedContact = input.toPhase === 'clash' || input.toPhase === 'morale' || input.fromPhase === 'clash' || input.fromPhase === 'morale';
 
   return template.map((dot, index) => {
-    const fromWeight = getUnitActivityWeight(dot, input.from.roster);
-    const toWeight = getUnitActivityWeight(dot, input.to.roster);
-    const activeWeight = lerp(fromWeight, toWeight, input.progress);
+    const fromWeight = getLaneActivityWeight(dot, input.from.sectorState.sectors[dot.lane].units, input.from.initialSectorState.sectors[dot.lane].units);
+    const toWeight = getLaneActivityWeight(dot, input.to.sectorState.sectors[dot.lane].units, input.to.initialSectorState.sectors[dot.lane].units);
+    const lateUnit = (input.from.lateArrivalRoster?.[dot.unitTypeId] ?? input.to.lateArrivalRoster?.[dot.unitTypeId] ?? 0) > 0;
+    const lateArrivalWeight = lateUnit
+      ? lerp(input.from.lateArrivalCommitted ? 1 : 0, input.to.lateArrivalCommitted ? 1 : 0, input.progress)
+      : 1;
+    const laneActivityWeight = lerp(fromWeight, toWeight, input.progress);
+    const activeWeight = lateUnit ? Math.max(laneActivityWeight, lateArrivalWeight) : laneActivityWeight;
     const lanePush = getTacticLanePush(input.tactic, dot.lane, dot.role);
     const centerFrom =
       getFormationCenterX(input.side, input.fromPhase, input.from.broken, input.winnerSide) +
@@ -82,13 +94,32 @@ export function getBattleFormationDots(input: BattleFormationInput): BattleForma
       lanePush;
     const centerX = lerp(centerFrom, centerTo, input.progress);
     const roleDepth = getRoleDepth(dot.role, input.tactic) * forward;
-    const laneSpread = (dot.roleLaneIndex - (dot.roleLaneCount - 1) / 2) * 3.6;
+    const laneSpread = (dot.roleLaneIndex - (dot.roleLaneCount - 1) / 2) * (input.centerOnly ? 1.15 : 3.6);
     const staggerX = ((dot.roleLaneIndex % 2) - 0.5) * 1.5 * forward;
-    const organicX = continuousJitter(index, input.battleTime, 0.28 * activeWeight, 0.83);
-    const organicY = continuousJitter(index + 23, input.battleTime, 0.36 * activeWeight, 1.07);
+    const fromSector = input.from.sectorState.sectors[dot.lane];
+    const toSector = input.to.sectorState.sectors[dot.lane];
+    const laneMorale = lerp(fromSector.morale, toSector.morale, input.progress);
+    const brokenLane = input.progress < 0.5 ? fromSector.broken : toSector.broken;
+    const posture = input.progress < 0.55 ? fromSector.posture : toSector.posture;
+    const restWeight = lerp(fromSector.posture === 'rest' ? 1 : 0, toSector.posture === 'rest' ? 1 : 0, input.progress);
+    const interruptedWeight = lerp(fromSector.posture === 'rest_broken' ? 1 : 0, toSector.posture === 'rest_broken' ? 1 : 0, input.progress);
+    const motionScale = brokenLane ? 0.04 : posture === 'rest' ? 0.18 : posture === 'rest_broken' ? 1.16 : posture === 'cautious' ? 0.72 : posture === 'assault' ? 1.22 : 1;
+    const organicX = continuousJitter(index, input.battleTime, 0.28 * activeWeight * motionScale, 0.83);
+    const organicY = continuousJitter(index + 23, input.battleTime, 0.36 * activeWeight * motionScale, 1.07);
     const collapseBack = (1 - activeWeight) * 2.4 * -forward;
     const brokenScatterX = brokenWeight * ((index % 3) - 1) * 1.25;
     const brokenScatterY = brokenWeight * (((index * 7) % 5) - 2) * 1.1;
+    const contactPulse = sustainedContact && !brokenLane
+      ? Math.sin(input.battleTime * (posture === 'assault' ? 4.1 : 3.25) + index * 0.71) * 1.45 * activeWeight * motionScale
+      : 0;
+    const postureForward = (posture === 'assault' ? 2.8 * forward : posture === 'cautious' ? -1.1 * forward : 0) - 13.2 * forward * restWeight - 0.6 * forward * interruptedWeight;
+    const weakened = !brokenLane && laneMorale < 48;
+    const redirectTarget = input.laneRedirects?.[dot.lane] ?? null;
+    const redirectStrength = redirectTarget && redirectTarget !== dot.lane ? 0.78 : 0;
+    const redirectY = redirectTarget
+      ? (LANE_Y[redirectTarget] - LANE_Y[dot.lane]) * redirectStrength
+      : 0;
+    const redirectForward = redirectTarget ? forward * 3.2 * (redirectTarget === dot.lane ? 0.35 : redirectStrength) : 0;
 
     return {
       id: dot.id,
@@ -102,10 +133,15 @@ export function getBattleFormationDots(input: BattleFormationInput): BattleForma
         organicX +
         collapseBack +
         brokenScatterX +
-        pressure * 0.05,
-      y: LANE_Y[dot.lane] + laneSpread + organicY + brokenScatterY,
-      r: lerp(0.45, dot.role === 'ranged' ? 1.55 : 1.85 - brokenWeight * 0.25, activeWeight),
-      opacity: lerp(0.035, dot.role === 'ranged' ? 0.9 : 1, activeWeight),
+        pressure * 0.05 +
+        contactPulse +
+        postureForward +
+        redirectForward,
+      y: LANE_Y[dot.lane] + laneSpread + organicY + brokenScatterY + redirectY,
+      r: lerp(0.2, dot.role === 'ranged' ? 1.55 : 1.85 - brokenWeight * 0.25, activeWeight * lateArrivalWeight),
+      opacity: lerp(0, dot.role === 'ranged' ? 0.9 : 1, activeWeight) * lateArrivalWeight * (brokenLane ? 0.42 : weakened ? 0.68 : 1),
+      weakened,
+      brokenLane,
     };
   });
 }
@@ -125,6 +161,9 @@ function buildFormationTemplate(
   initialRoster: ArmyRoster,
   unitDefinitions: UnitDefinitions,
   maxDots: number,
+  centerOnly: boolean,
+  initialSectorState: BattlePresentationSide['initialSectorState'],
+  initialLaneRosters?: BattlePresentationSide['initialLaneRosters'],
 ): FormationTemplateDot[] {
   const entries = Object.entries(initialRoster)
     .map(([unitTypeId, count]) => ({
@@ -153,19 +192,43 @@ function buildFormationTemplate(
     if (entry) selectedTypes.push({ unitTypeId: entry.unitTypeId, role: entry.role });
   }
 
+  // Singular and unique units must stay visually legible even inside a very large army.
+  for (const entry of entries) {
+    const definition = unitDefinitions[entry.unitTypeId];
+    if (!definition?.replacesEntireLane && !definition?.isUnique) continue;
+    if (selectedTypes.some((item) => item.unitTypeId === entry.unitTypeId)) continue;
+    const replacementIndex = selectedTypes.findIndex((item) => {
+      const candidate = unitDefinitions[item.unitTypeId];
+      return !candidate?.replacesEntireLane && !candidate?.isUnique;
+    });
+    if (replacementIndex >= 0) selectedTypes[replacementIndex] = { unitTypeId: entry.unitTypeId, role: entry.role };
+    else selectedTypes.push({ unitTypeId: entry.unitTypeId, role: entry.role });
+  }
+
   const unitDotCounts = new Map<UnitTypeId, number>();
   for (const item of selectedTypes) {
     unitDotCounts.set(item.unitTypeId, (unitDotCounts.get(item.unitTypeId) ?? 0) + 1);
   }
 
   const unitSeen = new Map<UnitTypeId, number>();
-  const roleSeen: Record<UnitRole, number> = { line: 0, ranged: 0 };
+  const hasLaneReplacement = entries.some((entry) => inputUnitReplacesLane(entry.unitTypeId, unitDefinitions));
+  let regularLaneCounter = 0;
   const raw = selectedTypes.map((item, index) => {
     const unitDotIndex = unitSeen.get(item.unitTypeId) ?? 0;
     unitSeen.set(item.unitTypeId, unitDotIndex + 1);
-    const roleIndex = roleSeen[item.role]++;
-    const lanePattern = item.role === 'ranged' ? RANGED_LANE_PATTERN : LINE_LANE_PATTERN;
-    const lane = lanePattern[roleIndex % lanePattern.length] ?? 'center';
+    const replacesLane = inputUnitReplacesLane(item.unitTypeId, unitDefinitions);
+    const explicitLane = initialLaneRosters
+      ? pickLaneForUnitDot(item.unitTypeId, unitDotIndex, unitDotCounts.get(item.unitTypeId) ?? 1, initialLaneRosters)
+      : null;
+    const lane = centerOnly
+      ? 'center'
+      : explicitLane
+        ? explicitLane
+        : replacesLane
+          ? 'center'
+          : hasLaneReplacement
+            ? ((regularLaneCounter++ % 2 === 0) ? 'left' : 'right')
+            : pickLaneForDot(index, totalDots, initialSectorState);
     return {
       id: `${item.unitTypeId}:${unitDotIndex}`,
       unitTypeId: item.unitTypeId,
@@ -177,6 +240,10 @@ function buildFormationTemplate(
       index,
     };
   });
+
+  const laneDotCounts = new Map<BattleLane, number>();
+  for (const dot of raw) laneDotCounts.set(dot.lane, (laneDotCounts.get(dot.lane) ?? 0) + 1);
+  const laneDotSeen = new Map<BattleLane, number>();
 
   const laneRoleCounts = new Map<string, number>();
   for (const dot of raw) {
@@ -199,14 +266,51 @@ function buildFormationTemplate(
       unitDotIndex: dot.unitDotIndex,
       unitDotCount: dot.unitDotCount,
       initialUnitCount: dot.initialUnitCount,
+      laneDotIndex: (() => { const current = laneDotSeen.get(dot.lane) ?? 0; laneDotSeen.set(dot.lane, current + 1); return current; })(),
+      laneDotCount: laneDotCounts.get(dot.lane) ?? 1,
     };
   });
 }
 
-function getUnitActivityWeight(dot: FormationTemplateDot, roster: ArmyRoster): number {
-  const current = Math.max(0, roster[dot.unitTypeId] ?? 0);
-  const equivalentDots = dot.unitDotCount * clamp(current / Math.max(1, dot.initialUnitCount), 0, 1);
-  return clamp(equivalentDots - dot.unitDotIndex, 0, 1);
+function getLaneActivityWeight(dot: FormationTemplateDot, currentUnits: number, initialUnits: number): number {
+  if (initialUnits <= 0) return 0;
+  const equivalentDots = dot.laneDotCount * clamp(currentUnits / Math.max(1, initialUnits), 0, 1);
+  return clamp(equivalentDots - dot.laneDotIndex, 0, 1);
+}
+
+function inputUnitReplacesLane(unitTypeId: UnitTypeId, unitDefinitions: UnitDefinitions): boolean {
+  return Boolean(unitDefinitions[unitTypeId]?.replacesEntireLane);
+}
+
+function pickLaneForUnitDot(
+  unitTypeId: UnitTypeId,
+  unitDotIndex: number,
+  unitDotCount: number,
+  laneRosters: NonNullable<BattlePresentationSide['initialLaneRosters']>,
+): BattleLane | null {
+  const counts = {
+    left: laneRosters.left[unitTypeId] ?? 0,
+    center: laneRosters.center[unitTypeId] ?? 0,
+    right: laneRosters.right[unitTypeId] ?? 0,
+  };
+  const total = counts.left + counts.center + counts.right;
+  if (total <= 0) return null;
+  const target = (unitDotIndex + 0.5) / Math.max(1, unitDotCount);
+  const leftCut = counts.left / total;
+  const centerCut = leftCut + counts.center / total;
+  if (target < leftCut) return 'left';
+  if (target < centerCut) return 'center';
+  return 'right';
+}
+
+function pickLaneForDot(index: number, totalDots: number, initialSectorState: BattlePresentationSide['initialSectorState']): BattleLane {
+  const totalUnits = Math.max(1, initialSectorState.sectors.left.units + initialSectorState.sectors.center.units + initialSectorState.sectors.right.units);
+  const target = (index + 0.5) / Math.max(1, totalDots);
+  const leftCut = initialSectorState.sectors.left.units / totalUnits;
+  const centerCut = leftCut + initialSectorState.sectors.center.units / totalUnits;
+  if (target < leftCut) return 'left';
+  if (target < centerCut) return 'center';
+  return 'right';
 }
 
 function getRoleDepth(role: UnitRole, tactic: BattleTacticId): number {
@@ -243,7 +347,7 @@ function getFormationCenterX(
   if (phase === 'opening') return home;
   if (phase === 'advance') return home + forward * 9;
   if (phase === 'clash') return home + forward * 18;
-  if (phase === 'morale') return home + forward * 14;
+  if (phase === 'morale') return home + forward * 17.2;
   if (phase === 'break') return winnerSide === side ? home + forward * 23 : home - forward * 5;
   if (phase === 'finish') {
     if (winnerSide === side) return home + forward * 24;

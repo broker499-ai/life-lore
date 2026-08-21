@@ -1,11 +1,13 @@
-import { useEffect, useState, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { getRosterTotalUnits } from '@/core/armies/armyStats';
 import type { UnitDefinitions } from '@/core/armies/UnitDefinition';
-import type { BattleFormationId, BattleLane, BattlePlan, BattleReservePercent, BattleTacticId } from '@/core/battles/BattleTypes';
+import type { BattlePlan, BattleTacticId } from '@/core/battles/BattleTypes';
 import type { AttackCityAvailability, AttackCityError } from '@/core/cities/attackCity';
 import type { CityDefinition, RecruitmentOffer } from '@/core/cities/CityDefinition';
 import { getEffectiveCityRest, getEffectiveCityTaxIncome } from '@/core/cities/cityTraits';
-import type { RecruitAtCityAvailability, RecruitAtCityError } from '@/core/cities/recruitAtCity';
+import { getRecruitmentTerms } from '@/core/cities/recruitmentAttempt';
+import type { ShortRestAtPoiAvailability } from '@/core/events/shortRestAtPoi';
 import type { RestAtCityAvailability, RestAtCityError } from '@/core/cities/restAtCity';
 import type { ClearTyranidEggClutchAvailability } from '@/core/cities/clearTyranidEggClutch';
 import type { TyranidEggClutchStatus } from '@/core/cities/tyranidEggClutch';
@@ -23,19 +25,6 @@ const TACTICS: Array<{ id: BattleTacticId; label: string; title: string; hint: s
   { id: 'balanced', label: 'Стандарт', title: 'Средний риск. При превосходстве снижает потери умеренно.', hint: 'Средний риск; при превосходстве потери снижаются умеренно' },
   { id: 'cautious', label: 'Осторожно', title: 'Лучше бережёт людей при равных силах, но при большом превосходстве становится медленным и сравнительно более затратным.', hint: 'Паритет: потери ↓ · большое превосходство: сравнительные потери ↑' },
   { id: 'flank', label: 'Обход', title: 'Манёвр с усилением стрелковых частей и умеренным риском.', hint: 'Манёвр: усиление стрелков и умеренный риск' },
-];
-
-const FORMATIONS: Array<{ id: BattleFormationId; label: string; hint: string }> = [
-  { id: 'line', label: 'Линия', hint: '25 / 50 / 25' },
-  { id: 'strong_center', label: 'Сильный центр', hint: '15 / 70 / 15' },
-  { id: 'crescent', label: 'Полумесяц', hint: '35 / 30 / 35' },
-];
-
-const RESERVE_LEVELS: BattleReservePercent[] = [0, 15, 30];
-const RESERVE_LANES: Array<{ id: BattleLane; label: string }> = [
-  { id: 'left', label: 'Лево' },
-  { id: 'center', label: 'Центр' },
-  { id: 'right', label: 'Право' },
 ];
 
 export function DecisionPanel({
@@ -224,8 +213,8 @@ export function DecisionPanel({
               <span className={rootClaimAvailability.progress.controlledCities >= rootClaimAvailability.progress.requiredCities ? 'root-requirement is-ready' : 'root-requirement'}>
                 Города {rootClaimAvailability.progress.controlledCities}/{rootClaimAvailability.progress.requiredCities}
               </span>
-              <span className={rootClaimAvailability.progress.specimensCollected >= rootClaimAvailability.progress.requiredSpecimensCollected ? 'root-requirement is-ready' : 'root-requirement'}>
-                Научная готовность {rootClaimAvailability.progress.specimensCollected}/{rootClaimAvailability.progress.requiredSpecimensCollected}
+              <span className={rootClaimAvailability.progress.knowledge >= rootClaimAvailability.progress.requiredKnowledge ? 'root-requirement is-ready' : 'root-requirement'}>
+                Познание Орсии {rootClaimAvailability.progress.knowledge}/{rootClaimAvailability.progress.requiredKnowledge}
               </span>
               {rootClaimAvailability.progress.requiredEventId ? (
                 <span className={rootClaimAvailability.progress.requiredEventResolved ? 'root-requirement is-ready' : 'root-requirement'}>
@@ -267,11 +256,23 @@ export function StrategicActionBar({
   currentCityId,
   currentCityDefinition,
   currentRecruitmentOffers,
+  recruitmentCityId,
+  recruitmentCityDefinition,
+  recruitmentCityControlled,
+  uniqueRecruitmentUnitIds,
+  artifactCount,
+  recruitmentSafeLimitMultiplierByUnitId,
+  recruitmentRecoveryTurnsByUnitId,
+  siriusBossAvailable,
   currentCityControlled,
   tyranidClutchStatus,
   tyranidClutchAvailability,
   restAvailability,
-  recruitAvailabilityByUnitTypeId,
+  recruitmentBlockedTurns,
+  developerMode,
+  playerMoney,
+  shortRestAvailability,
+  currentPoiNodeId,
   unitDefinitions,
   moveSupplyCost,
   attackSupplyCost,
@@ -286,6 +287,9 @@ export function StrategicActionBar({
   onClearTyranidClutch,
   onRest,
   onRecruit,
+  onRecruitUnique,
+  onFightSiriusBoss,
+  onShortRest,
 }: {
   selectedNode: MapNode | null;
   selectedNodeVisibility: MapNodeVisibility | null;
@@ -299,11 +303,23 @@ export function StrategicActionBar({
   currentCityId: string | null;
   currentCityDefinition: CityDefinition | null;
   currentRecruitmentOffers: RecruitmentOffer[];
+  recruitmentCityId: string | null;
+  recruitmentCityDefinition: CityDefinition | null;
+  recruitmentCityControlled: boolean;
+  uniqueRecruitmentUnitIds: string[];
+  artifactCount: number;
+  recruitmentSafeLimitMultiplierByUnitId: Record<string, number>;
+  recruitmentRecoveryTurnsByUnitId: Record<string, number>;
+  siriusBossAvailable: boolean;
   currentCityControlled: boolean;
   tyranidClutchStatus: TyranidEggClutchStatus | null;
   tyranidClutchAvailability: ClearTyranidEggClutchAvailability | null;
   restAvailability: RestAtCityAvailability | null;
-  recruitAvailabilityByUnitTypeId: Record<string, RecruitAtCityAvailability>;
+  recruitmentBlockedTurns: number;
+  developerMode: boolean;
+  playerMoney: number;
+  shortRestAvailability: ShortRestAtPoiAvailability | null;
+  currentPoiNodeId: string | null;
   unitDefinitions: UnitDefinitions;
   moveSupplyCost: number;
   attackSupplyCost: number;
@@ -317,10 +333,16 @@ export function StrategicActionBar({
   onBattlePlanChange: (plan: BattlePlan) => void;
   onClearTyranidClutch: (cityId: string) => void;
   onRest: (cityId: string) => void;
-  onRecruit: (cityId: string, offer: RecruitmentOffer) => void;
+  onRecruit: (cityId: string, offer: RecruitmentOffer, amount: number) => void;
+  onRecruitUnique: (cityId: string, unitTypeId: string) => void;
+  onFightSiriusBoss: () => void;
+  onShortRest: () => void;
 }) {
   const [showTactics, setShowTactics] = useState(false);
   const [showRecruit, setShowRecruit] = useState(false);
+  const [recruitAmount, setRecruitAmount] = useState(1);
+  const [selectedRecruitUnitId, setSelectedRecruitUnitId] = useState<string | null>(null);
+  const recruitSheetRef = useRef<HTMLDivElement | null>(null);
   const visibleSelectedNode = selectedNodeVisibility === 'visible' ? selectedNode : null;
   const isCurrentNode = visibleSelectedNode?.id === playerNodeId;
   const isRootObjective = rootClaimAvailability !== null;
@@ -331,6 +353,11 @@ export function StrategicActionBar({
   const showCurrentCityActions = Boolean(
     currentCityId && currentCityControlled && currentCityDefinition && (!selectedNode || isCurrentNode),
   );
+  const showRecruitmentActions = Boolean(
+    recruitmentCityId && recruitmentCityControlled && recruitmentCityDefinition &&
+    (!selectedNode || selectedNode.id === recruitmentCityId),
+  );
+  const showCurrentPoiActions = Boolean(currentPoiNodeId && (!selectedNode || isCurrentNode));
   const effectiveMoveCost = moveAvailability?.canMove ? moveAvailability.supplyCost : moveSupplyCost;
   const effectiveAttackCost = attackAvailability?.canAttack ? attackAvailability.supplyCost : attackSupplyCost;
   const defenderUnits = attackAvailability?.canAttack
@@ -344,6 +371,32 @@ export function StrategicActionBar({
     setShowTactics(false);
     setShowRecruit(false);
   }, [selectedNode?.id]);
+
+  useEffect(() => {
+    if (!showRecruit) return;
+    const frame = window.requestAnimationFrame(() => {
+      recruitSheetRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+    });
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowRecruit(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showRecruit, recruitmentCityId]);
+
+  useEffect(() => {
+    const selected = currentRecruitmentOffers.find((offer) => offer.unitTypeId === selectedRecruitUnitId) ?? currentRecruitmentOffers[0];
+    if (!selected) {
+      setSelectedRecruitUnitId(null);
+      return;
+    }
+    setSelectedRecruitUnitId(selected.unitTypeId);
+    const safeMultiplier = recruitmentSafeLimitMultiplierByUnitId[selected.unitTypeId] ?? 1;
+    setRecruitAmount(getRecruitmentTerms(selected, selected.amount, developerMode, safeMultiplier).safeLimit);
+  }, [recruitmentCityId, currentRecruitmentOffers, developerMode, recruitmentSafeLimitMultiplierByUnitId, selectedRecruitUnitId]);
 
   return (
     <section className="strategic-action-panel" aria-label="Стратегические действия">
@@ -418,20 +471,43 @@ export function StrategicActionBar({
             >
               Привал
             </button>
-            {currentRecruitmentOffers.length > 0 ? (
-              <button
-                type="button"
-                className={`secondary-button action-button recruit-toggle${showRecruit ? ' is-active' : ''}`}
-                onClick={() => setShowRecruit((value) => !value)}
-                aria-expanded={showRecruit}
-              >
-                Набор · {currentRecruitmentOffers.length}
-              </button>
-            ) : null}
           </>
         ) : null}
 
-        {!isAttackTarget && !canMoveTarget && !isRootObjective && !showCurrentCityActions ? (
+        {showRecruitmentActions && recruitmentCityId && (currentRecruitmentOffers.length > 0 || uniqueRecruitmentUnitIds.length > 0) ? (
+          <button
+            type="button"
+            className={`secondary-button action-button recruit-toggle${showRecruit ? ' is-active' : ''}${recruitmentCityId === playerNodeId && uniqueRecruitmentUnitIds.length > 0 ? ' has-unique-recruit' : ''}${recruitmentCityId === playerNodeId && uniqueRecruitmentUnitIds.length > 0 && artifactCount > 0 ? ' is-unique-ready' : ''}`}
+            disabled={!developerMode && recruitmentBlockedTurns > 0}
+            title={!developerMode && recruitmentBlockedTurns > 0 ? `Набор восстановится через ${recruitmentBlockedTurns} ход.` : ''}
+            onClick={() => setShowRecruit((value) => !value)}
+            aria-expanded={showRecruit}
+          >
+            {!developerMode && recruitmentBlockedTurns > 0
+              ? `Набор · ${recruitmentBlockedTurns} ход.`
+              : `Набор${recruitmentCityId !== playerNodeId ? ' · доставка 3 хода' : ''}`}
+          </button>
+        ) : null}
+
+        {siriusBossAvailable && showCurrentCityActions ? (
+          <button type="button" className="secondary-button action-button sirius-boss-button" onClick={onFightSiriusBoss}>
+            Вызвать Сириуса Морфея Нана
+          </button>
+        ) : null}
+
+        {showCurrentPoiActions && shortRestAvailability ? (
+          <button
+            type="button"
+            className="secondary-button action-button poi-short-rest-button"
+            disabled={!shortRestAvailability.canRest}
+            title={!shortRestAvailability.canRest && shortRestAvailability.reason === 'already_used' ? 'Короткий привал здесь уже использован.' : ''}
+            onClick={onShortRest}
+          >
+            Короткий привал{shortRestAvailability.canRest ? ` · +${shortRestAvailability.suppliesRestore} прип.` : ' · использован'}
+          </button>
+        ) : null}
+
+        {!isAttackTarget && !canMoveTarget && !isRootObjective && !showCurrentCityActions && !showCurrentPoiActions ? (
           <span className="strategic-action-hint">
             {selectedNodeVisibility === 'unknown'
               ? 'Поселение известно, но путь и обстановка ещё не разведаны.'
@@ -462,53 +538,16 @@ export function StrategicActionBar({
           </PlanSection>
 
           <PlanSection title="Построение">
-            <div className="battle-plan-chip-row">
-              {FORMATIONS.map((formation) => (
-                <button
-                  key={formation.id}
-                  type="button"
-                  className={`battle-plan-chip${battlePlan.formation === formation.id ? ' is-active' : ''}`}
-                  onClick={() => onBattlePlanChange({ ...battlePlan, formation: formation.id })}
-                >
-                  <strong>{formation.label}</strong><span>{formation.hint}</span>
-                </button>
-              ))}
+            <div className="battle-live-orders-note">
+              <strong>Фланги задаются во вкладке «Армия»</strong>
+              <span>Три постоянных фланга и купленные отряды сохраняются между боями. Перед атакой можно поменять соседние фланги местами прямо в армейском экране.</span>
             </div>
-          </PlanSection>
-
-          <PlanSection title="Резерв · вводится в 3-м раунде">
-            <div className="battle-plan-chip-row is-tight">
-              {RESERVE_LEVELS.map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  className={`battle-plan-chip is-compact${battlePlan.reservePercent === value ? ' is-active' : ''}`}
-                  onClick={() => onBattlePlanChange({ ...battlePlan, reservePercent: value })}
-                >
-                  {value}%
-                </button>
-              ))}
-            </div>
-            {battlePlan.reservePercent > 0 ? (
-              <div className="battle-plan-chip-row is-tight" aria-label="Куда ввести резерв">
-                {RESERVE_LANES.map((lane) => (
-                  <button
-                    key={lane.id}
-                    type="button"
-                    className={`battle-plan-chip is-compact${battlePlan.reserveTarget === lane.id ? ' is-active' : ''}`}
-                    onClick={() => onBattlePlanChange({ ...battlePlan, reserveTarget: lane.id })}
-                  >
-                    {lane.label}
-                  </button>
-                ))}
-              </div>
-            ) : null}
           </PlanSection>
 
           <PlanSection title="Командование во время боя">
             <div className="battle-live-orders-note">
-              <strong>2 приказа</strong>
-              <span>До двух вмешательств за бой. Бой не ставится на паузу: можно включить оборону или натиск и выбрать сектор прямо на поле.</span>
+              <strong>Реактивное командование</strong>
+              <span>Приказы не ограничены. Тапните свой сектор и сразу выбирайте: повторный тап — глубокая оборона, тап по соответствующему или соседнему сектору врага — усиленная атака.</span>
             </div>
           </PlanSection>
 
@@ -523,32 +562,172 @@ export function StrategicActionBar({
         </div>
       ) : null}
 
-      {showRecruit && showCurrentCityActions && currentCityId ? (
-        <div className="recruit-option-grid" aria-label="Набор войск">
-          {currentRecruitmentOffers.map((offer) => {
-            const unit = unitDefinitions[offer.unitTypeId];
-            const availability = recruitAvailabilityByUnitTypeId[offer.unitTypeId] ?? null;
-            return (
-              <button
-                key={offer.unitTypeId}
-                type="button"
-                className="secondary-button recruit-option"
-                disabled={!availability?.canRecruit}
-                title={getRecruitDisabledReason(availability)}
-                onClick={() => onRecruit(currentCityId, offer)}
-              >
-                <strong>+{offer.amount} {unit?.shortName ?? offer.unitTypeId}</strong>
-                <span>−{offer.cost}</span>
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
+      {showRecruit && showRecruitmentActions && recruitmentCityId && typeof document !== 'undefined' ? (() => {
+        const offer = currentRecruitmentOffers.find((item) => item.unitTypeId === selectedRecruitUnitId) ?? currentRecruitmentOffers[0] ?? null;
+        const safeMultiplier = offer ? (recruitmentSafeLimitMultiplierByUnitId[offer.unitTypeId] ?? 1) : 1;
+        const terms = offer ? getRecruitmentTerms(offer, recruitAmount, developerMode, safeMultiplier) : null;
+        const safePercent = terms ? (terms.maxAmount <= 1 ? 100 : ((terms.safeLimit - 1) / (terms.maxAmount - 1)) * 100) : 100;
+        const disabledReason = recruitmentBlockedTurns > 0
+          ? `Набор закрыт ещё на ${recruitmentBlockedTurns} ход.`
+          : terms && !developerMode && playerMoney < terms.cost
+            ? 'Недостаточно денег.'
+            : '';
+
+        return createPortal(
+          <div className="recruit-modal-layer">
+            <button
+              type="button"
+              className="recruit-modal-backdrop"
+              aria-label="Закрыть окно найма"
+              onClick={() => setShowRecruit(false)}
+            />
+            <div
+              ref={recruitSheetRef}
+              className="recruit-slider-panel recruit-sheet-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Набор войск"
+            >
+              <div className="recruit-sheet-header">
+                <div>
+                  <span className="eyebrow">Вербовочный пункт</span>
+                  <strong>Набор войск</strong>
+                  <small>{recruitmentCityId === playerNodeId ? 'Пополнение сразу вступит в армию' : 'Отправка из первого города · прибытие через 3 хода'}</small>
+                </div>
+                <button type="button" className="recruit-sheet-close" aria-label="Закрыть" onClick={() => setShowRecruit(false)}>×</button>
+              </div>
+
+              {currentRecruitmentOffers.length > 0 ? (
+                <>
+                  <div className="recruit-section-label">1. Выберите подразделение</div>
+                  <div className="recruit-unit-tabs" role="tablist" aria-label="Тип войск">
+                    {currentRecruitmentOffers.map((candidate) => (
+                      <button
+                        key={candidate.unitTypeId}
+                        type="button"
+                        className={candidate.unitTypeId === offer?.unitTypeId ? 'is-active' : ''}
+                        onClick={() => {
+                          setSelectedRecruitUnitId(candidate.unitTypeId);
+                          const multiplier = recruitmentSafeLimitMultiplierByUnitId[candidate.unitTypeId] ?? 1;
+                          setRecruitAmount(getRecruitmentTerms(candidate, candidate.amount, developerMode, multiplier).safeLimit);
+                        }}
+                      >
+                        <strong>{unitDefinitions[candidate.unitTypeId]?.shortName ?? candidate.unitTypeId}</strong>
+                        <span>{getRecruitUnitShortHint(candidate.unitTypeId)}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : null}
+
+              {offer && terms ? (
+                <>
+                  <div className="recruit-slider-head">
+                    <div>
+                      <strong>{unitDefinitions[offer.unitTypeId]?.name ?? unitDefinitions[offer.unitTypeId]?.shortName ?? 'Первокурсники'}</strong>
+                      <span>{recruitmentCityId === playerNodeId ? 'Сразу в армию' : 'Подкрепление придёт через 3 хода'}</span>
+                    </div>
+                    <b>{terms.amount}</b>
+                  </div>
+                  <div className="recruit-unit-summary">
+                    <span>{unitDefinitions[offer.unitTypeId]?.description ?? ''}</span>
+                    <small>{getRecruitUnitGameplayHint(offer.unitTypeId)}</small>
+                  </div>
+                  <div className="recruit-section-label">2. Выберите количество</div>
+                  <div className="recruit-range-wrap" style={{ '--safe-limit-position': `${safePercent}%` } as import('react').CSSProperties}>
+                    <div className="recruit-range-numbers"><span>1</span><strong>{terms.amount}</strong><span>{terms.maxAmount}</span></div>
+                    <input
+                      type="range"
+                      min={1}
+                      max={terms.maxAmount}
+                      step={1}
+                      value={terms.amount}
+                      onChange={(event: ChangeEvent<HTMLInputElement>) => setRecruitAmount(Number(event.target.value))}
+                      aria-label="Количество нанимаемых бойцов"
+                    />
+                    <i className="recruit-safe-limit"><span>безопасно до {terms.safeLimit}</span></i>
+                  </div>
+                  <div className={`recruit-risk-note${terms.risky ? ' is-risky' : ''}`}>
+                    {terms.risky ? (
+                      <><strong>🎲 Рискованный набор</strong><span>Шанс успеха {terms.successChancePercent}%. Провал вызовет небольшую драку с жителями и закроет набор на 5 ходов.</span></>
+                    ) : (
+                      <><strong>Безопасный набор</strong><span>До отмеченного лимита жители соглашаются без сопротивления.</span></>
+                    )}
+                  </div>
+                  {(recruitmentRecoveryTurnsByUnitId[offer.unitTypeId] ?? 0) > 0 ? (
+                    <div className="recruit-home-recovery-note">Повышенный резерв первого города восстановится через {recruitmentRecoveryTurnsByUnitId[offer.unitTypeId]} ход.</div>
+                  ) : recruitmentCityId === 'outer-post' && safeMultiplier > 1 ? (
+                    <div className="recruit-home-recovery-note is-ready">Первый город: повышенный безопасный лимит готов. После набора восстановление займёт 6 ходов.</div>
+                  ) : null}
+                  {recruitmentBlockedTurns > 0 ? <div className="recruit-lock-note">После прошлой драки набор закрыт ещё на {recruitmentBlockedTurns} ход.</div> : null}
+                  <button
+                    type="button"
+                    className={`primary-button recruit-confirm${terms.risky ? ' is-risky' : ''}`}
+                    disabled={Boolean(disabledReason)}
+                    title={disabledReason}
+                    onClick={() => onRecruit(recruitmentCityId, offer, terms.amount)}
+                  >
+                    {developerMode ? `Подтвердить · DEV +${terms.amount}` : `Подтвердить найм · ${terms.amount} · −${terms.cost}${terms.risky ? ' · 🎲' : ''}`}
+                  </button>
+                </>
+              ) : null}
+
+              {uniqueRecruitmentUnitIds.length > 0 ? (
+                <div className="unique-recruitment-list">
+                  <strong>Уникальные</strong>
+                  {uniqueRecruitmentUnitIds.map((unitTypeId) => (
+                    <button
+                      key={unitTypeId}
+                      type="button"
+                      disabled={artifactCount < 1}
+                      title={artifactCount < 1 ? 'Нужен хотя бы 1 артефакт.' : ''}
+                      onClick={() => onRecruitUnique(recruitmentCityId, unitTypeId)}
+                    >
+                      <span>{unitDefinitions[unitTypeId]?.name ?? unitTypeId}</span>
+                      <small>{getUniqueRecruitmentHint(unitTypeId)} · {artifactCount < 1 ? '🔒 нужен 1 артефакт' : 'нанять сейчас'}</small>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>,
+          document.body,
+        );
+      })() : null}
 
       {feedback ? <div className="strategic-action-feedback" title={feedback}>{feedback}</div> : null}
     </section>
   );
 }
+
+function getUniqueRecruitmentHint(unitTypeId: string): string {
+  if (unitTypeId === 'greg-jenkins') return '10 пауков, +2 после каждой победы';
+  if (unitTypeId === 'xiang') return 'опаздывает и уничтожает фланг';
+  if (unitTypeId === 'marconi') return 'возвращает 50% потерь после боя';
+  if (unitTypeId === 'the-boys') return 'сила примерно 30 первокурсников';
+  if (unitTypeId === 'gleb-khleb') return 'заменяет целый сектор · сила 50 · мораль 100';
+  return 'уникальный боец';
+}
+
+function getRecruitUnitShortHint(unitTypeId: string): string {
+  if (unitTypeId === 'expedition-infantry') return 'Базовые';
+  if (unitTypeId === 'mirpolovtsy') return 'Дорого · слабо';
+  if (unitTypeId === 'economists') return 'Производят припасы';
+  if (unitTypeId === 'olympiadniks') return 'Элита';
+  if (unitTypeId === 'initiative-group') return 'Взрываются при гибели';
+  if (unitTypeId === 'philosophers') return 'Урон ↑ · живучесть ↓';
+  return 'Подразделение';
+}
+
+function getRecruitUnitGameplayHint(unitTypeId: string): string {
+  if (unitTypeId === 'mirpolovtsy') return 'Дорого · почти бесполезны';
+  if (unitTypeId === 'economists') return 'Низкий урон · производят припасы каждый ход';
+  if (unitTypeId === 'olympiadniks') return 'Элитные · дорогие · очень сильные';
+  if (unitTypeId === 'initiative-group') return 'При гибели наносят ответный урон';
+  if (unitTypeId === 'philosophers') return 'Очень высокий урон · низкая живучесть';
+  return 'Надёжная базовая пехота';
+}
+
 function LocationHeader({ eyebrow, name, onClear }: { eyebrow: string; name: string; onClear: () => void }) {
   return (
     <div className="location-title-row">
@@ -689,11 +868,6 @@ function getRestDisabledReason(availability: RestAtCityAvailability | null): str
   return getRestErrorMessage(availability.reason);
 }
 
-function getRecruitDisabledReason(availability: RecruitAtCityAvailability | null): string {
-  if (!availability || availability.canRecruit) return '';
-  return getRecruitErrorMessage(availability.reason);
-}
-
 export function getRestErrorMessage(error: RestAtCityError): string {
   switch (error) {
     case 'strategic_action_spent': return 'Стратегическое действие этого хода уже использовано.';
@@ -705,13 +879,3 @@ export function getRestErrorMessage(error: RestAtCityError): string {
   }
 }
 
-export function getRecruitErrorMessage(error: RecruitAtCityError): string {
-  switch (error) {
-    case 'strategic_action_spent': return 'Стратегическое действие этого хода уже использовано.';
-    case 'insufficient_money': return 'Недостаточно денег для найма.';
-    case 'city_not_controlled': return 'Найм доступен только в своём городе.';
-    case 'army_not_in_city': return 'Армия должна находиться в городе.';
-    case 'army_not_found': return 'Основная армия не найдена.';
-    case 'city_not_found': return 'Город не найден.';
-  }
-}

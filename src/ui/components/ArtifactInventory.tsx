@@ -24,12 +24,12 @@ export function ArtifactInventory({
           <span className="eyebrow">Находки экспедиции</span>
           <h3>Артефакты · {artifactIds.length}</h3>
           <p className="artifact-loadout-note">
-            Активно {activeArtifactIds.length}/{MAX_ACTIVE_ARTIFACTS}. Менять комплект можно бесплатно в своём городе.
+            Активно {activeArtifactIds.length}/{MAX_ACTIVE_ARTIFACTS}. Менять комплект можно бесплатно в своём городе. Каждый новый артефакт слегка усиливает часть вражеских городских гарнизонов.
           </p>
         </div>
       </div>
       {artifactIds.length === 0 ? (
-        <p className="artifact-empty">Пока ничего подозрительно ценного. Исследуйте города и точки интереса Орсии.</p>
+        <p className="artifact-empty">Пока ничего подозрительно ценного. Исследуйте точки интереса Орсии.</p>
       ) : (
         <div className="artifact-list">
           {artifactIds.map((artifactId) => {
@@ -42,7 +42,7 @@ export function ArtifactInventory({
                 <div className="artifact-card-copy">
                   <div className="artifact-card-title">
                     <strong>{artifact.name}</strong>
-                    <span>{artifact.rarity === 'rare' ? 'РЕДКИЙ' : 'ГОРОДСКОЙ'}</span>
+                    <span>{artifact.rarity === 'rare' ? 'РЕДКИЙ' : 'СТАРЫЙ ТРОФЕЙ'}</span>
                   </div>
                   <p>{artifact.description}</p>
                   <small className="artifact-effect">{artifact.effectLabel}</small>

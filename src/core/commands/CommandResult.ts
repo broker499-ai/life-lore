@@ -8,6 +8,7 @@ export type GameEvent =
       fromNodeId: string;
       toNodeId: string;
       supplyCost: number;
+      supplyShortfall?: number;
       leaderAbilityId?: 'river_double_move';
     }
   | {
@@ -61,6 +62,9 @@ export type GameEvent =
       reason: 'root_claimed' | 'rival_root_claimed' | 'army_destroyed';
       turn: number;
     }
+  | { type: 'travel_attrition_applied'; armyId: string; factionId: string; unitsLost: number }
+  | { type: 'reinforcements_arrived'; armyId: string; unitTypeId: string; amount: number; sourceCityId: string }
+  | { type: 'passive_supplies_produced'; factionId: string; amount: number }
   | { type: 'turn_ended'; turn: number };
 
 export type CommandResult<TState, TEvent extends GameEvent = GameEvent> = {

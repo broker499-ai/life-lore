@@ -35,6 +35,8 @@ import { synchronizePlayerMapKnowledge } from '@/core/map/MapVisibility';
 import type { ArmyId, ArmyState, CityId, GameState } from '@/core/state/GameState';
 import { applyTyranidReversionAfterArmyDeparture } from '@/core/cities/tyranidEggClutch';
 import { getSupplyAdjustedActionCost, getSupplyStatus, type SupplyStatus } from '@/core/supply/Supply';
+import { applySpecialUnitVictoryProgress, getSpecialUnitTypePowerMultipliers } from '@/core/armies/specialUnits';
+import { getArmyFlankRosters, reconcileArmyGroupsToRoster } from '@/core/armies/armyFlanks';
 
 export type AttackCityError =
   | 'army_not_found'
@@ -202,23 +204,29 @@ export function attackCity(
       sideA: {
         factionId: army.factionId,
         roster: army.roster,
+        laneRosters: getArmyFlankRosters(army),
         morale: getEffectiveMorale(state, army.factionId, army.morale),
         moraleLockedAt: factionIgnoresMorale(state, army.factionId) ? 100 : undefined,
         tactic: input.tactic,
         plan: input.battlePlan,
+        autoRestVictoriousLanes: true,
         moraleDamageInflictedMultiplier: getMoraleDamageInflictedMultiplier(state, army.factionId),
         moraleLossTakenMultiplier: getBattleMoraleLossTakenMultiplier(state, army.factionId),
         casualtyTakenMultiplier: getIncomingCasualtyMultiplier(state, army.factionId, 'cautious'),
         unitPowerMultiplier: getBattleUnitPowerMultiplier(state, army.factionId),
         randomMoraleGain: getRandomBattleMoraleGain(state, army.factionId) ?? undefined,
         centerOnlyFormation: factionUsesCenterOnlyFormation(state, army.factionId),
+        unitTypePowerMultipliers: getSpecialUnitTypePowerMultipliers(state, army.factionId, army.roster),
       },
       sideB: {
         factionId: defenderFactionId,
         roster: defenderRoster,
+        laneRosters: defendingArmy ? getArmyFlankRosters(defendingArmy) : undefined,
         morale: defenderMorale,
         moraleLockedAt: factionIgnoresMorale(state, defenderFactionId) ? 100 : undefined,
         tactic: 'cautious',
+        randomizeFlanks: true,
+        reactiveLanePostures: true,
         plan: {
           formation: 'line',
           reservePercent: 15,
@@ -234,6 +242,7 @@ export function attackCity(
           getCityDefenderUnitPowerMultiplier(dependencies.cityDefinitions[city.id]),
         randomMoraleGain: getRandomBattleMoraleGain(state, defenderFactionId) ?? undefined,
         centerOnlyFormation: factionUsesCenterOnlyFormation(state, defenderFactionId),
+        unitTypePowerMultipliers: getSpecialUnitTypePowerMultipliers(state, defenderFactionId, defenderRoster),
       },
     },
     state.rng.battles,
@@ -247,8 +256,7 @@ export function attackCity(
   const nextArmies = { ...state.armies };
 
   nextArmies[army.id] = {
-    ...army,
-    roster: attackerResult.remainingRoster,
+    ...reconcileArmyGroupsToRoster(army, attackerResult.remainingRoster, dependencies.unitDefinitions),
     morale: getEffectiveMorale(state, army.factionId, attackerResult.moraleAfter),
     nodeId: attackerWon ? city.id : army.nodeId,
   };
@@ -264,8 +272,7 @@ export function attackCity(
       );
       if (defenderRetreatNodeId) {
         nextArmies[defendingArmy.id] = {
-          ...defendingArmy,
-          roster: defenderResult.remainingRoster,
+          ...reconcileArmyGroupsToRoster(defendingArmy, defenderResult.remainingRoster, dependencies.unitDefinitions),
           morale: getEffectiveMorale(state, defendingArmy.factionId, defenderResult.moraleAfter),
           nodeId: defenderRetreatNodeId,
         };
@@ -274,8 +281,7 @@ export function attackCity(
       }
     } else {
       nextArmies[defendingArmy.id] = {
-        ...defendingArmy,
-        roster: defenderResult.remainingRoster,
+        ...reconcileArmyGroupsToRoster(defendingArmy, defenderResult.remainingRoster, dependencies.unitDefinitions),
         morale: getEffectiveMorale(state, defendingArmy.factionId, defenderResult.moraleAfter),
       };
     }
@@ -296,7 +302,7 @@ export function attackCity(
     delete nextEggClutches[city.id];
   }
 
-  const nextState: GameState = {
+  let nextState: GameState = {
     ...stateWithCost,
     campaign: { ...stateWithCost.campaign, tyranidEggClutches: nextEggClutches },
     rng: {
@@ -327,6 +333,13 @@ export function attackCity(
             },
     },
   };
+
+  nextState = applySpecialUnitVictoryProgress(
+    nextState,
+    army.factionId,
+    battle.winnerFactionId,
+    attackerResult.remainingRoster,
+  );
 
   const events: AttackCitySuccess['events'] = [
     { type: 'battle_fought', battleId, winnerFactionId: battle.winnerFactionId },

@@ -15,6 +15,8 @@ import {
 } from '@/core/leaders/LeaderAbility';
 import type { ArmyId, CityId, GameState } from '@/core/state/GameState';
 import { getTyranidClutchBattleRoster, getTyranidEggClutchStatus } from '@/core/cities/tyranidEggClutch';
+import { applySpecialUnitVictoryProgress, getSpecialUnitTypePowerMultipliers } from '@/core/armies/specialUnits';
+import { getArmyFlankRosters, reconcileArmyGroupsToRoster } from '@/core/armies/armyFlanks';
 
 export type ClearTyranidEggClutchError =
   | 'army_not_found'
@@ -94,22 +96,27 @@ export function clearTyranidEggClutch(
       sideA: {
         factionId: army.factionId,
         roster: army.roster,
+        laneRosters: getArmyFlankRosters(army),
         morale: getEffectiveMorale(state, army.factionId, army.morale),
         moraleLockedAt: factionIgnoresMorale(state, army.factionId) ? 100 : undefined,
         tactic: input.tactic,
         plan: input.battlePlan,
+        autoRestVictoriousLanes: true,
         moraleDamageInflictedMultiplier: getMoraleDamageInflictedMultiplier(state, army.factionId),
         moraleLossTakenMultiplier: getBattleMoraleLossTakenMultiplier(state, army.factionId),
         casualtyTakenMultiplier: getIncomingCasualtyMultiplier(state, army.factionId, 'balanced'),
         unitPowerMultiplier: getBattleUnitPowerMultiplier(state, army.factionId),
         randomMoraleGain: getRandomBattleMoraleGain(state, army.factionId) ?? undefined,
         centerOnlyFormation: factionUsesCenterOnlyFormation(state, army.factionId),
+        unitTypePowerMultipliers: getSpecialUnitTypePowerMultipliers(state, army.factionId, army.roster),
       },
       sideB: {
         factionId: status.tyranidFactionId,
         roster: clutchBattle.roster,
         morale: clutchBattle.morale,
         tactic: 'balanced',
+        randomizeFlanks: true,
+        reactiveLanePostures: true,
         plan: { formation: 'crescent', reservePercent: 0, reserveTarget: 'center', commands: [], retreatMoraleThreshold: null },
         moraleDamageInflictedMultiplier: getMoraleDamageInflictedMultiplier(state, status.tyranidFactionId),
         moraleLossTakenMultiplier: getBattleMoraleLossTakenMultiplier(state, status.tyranidFactionId),
@@ -127,7 +134,7 @@ export function clearTyranidEggClutch(
   const cleared = battle.winnerSide === 'A';
   const clutches = { ...state.campaign.tyranidEggClutches };
   if (cleared) delete clutches[city.id];
-  const nextState: GameState = {
+  let nextState: GameState = {
     ...state,
     rng: { ...state.rng, battles: battle.rngState },
     factions: {
@@ -141,13 +148,13 @@ export function clearTyranidEggClutch(
     armies: {
       ...state.armies,
       [army.id]: {
-        ...army,
-        roster: attacker.remainingRoster,
+        ...reconcileArmyGroupsToRoster(army, attacker.remainingRoster, dependencies.unitDefinitions),
         morale: getEffectiveMorale(state, army.factionId, attacker.moraleAfter),
       },
     },
     campaign: { ...state.campaign, tyranidEggClutches: clutches },
   };
+  nextState = applySpecialUnitVictoryProgress(nextState, army.factionId, battle.winnerFactionId, attacker.remainingRoster);
   return { ok: true, state: nextState, battle, cleared };
 }
 

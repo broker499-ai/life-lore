@@ -3,6 +3,7 @@ import { getArmyTotalUnits } from '@/core/armies/armyStats';
 import type { GameState } from '@/core/state/GameState';
 import { prototypeLeaderById } from '@/data/leaders/prototypeLeader';
 import { t } from '@/i18n/t';
+import { MAX_ORSIA_KNOWLEDGE } from '@/data/campaign/knowledgeRules';
 
 export function TopStatusBar({
   state,
@@ -58,10 +59,10 @@ export function TopStatusBar({
 
       <div className="campaign-resource-row">
         <StatusItem label={t('campaign.day')} value={state.turn} />
-        <StatusItem label={t('campaign.money')} value={resources?.money ?? 0} tone="money" />
+        <StatusItem label={t('campaign.money')} value={state.campaign.developerMode ? '∞' : (resources?.money ?? 0)} tone="money" />
         <StatusItem label={t('campaign.supplies')} value={resources?.supplies ?? 0} />
         <StatusItem label={t('campaign.army')} value={army ? getArmyTotalUnits(army) : 0} tone="army" />
-        <StatusItem label={t('campaign.specimens')} value={resources?.specimens ?? 0} tone="specimens" />
+        <StatusItem label={t('campaign.specimens')} value={`${state.factions[state.playerFactionId]?.specimensCollected ?? 0}/${MAX_ORSIA_KNOWLEDGE}`} tone="knowledge" />
       </div>
 
       {menuOpen ? (
@@ -92,11 +93,11 @@ export function TopStatusBar({
   );
 }
 
-function StatusItem({ label, value, tone = '' }: { label: string; value: number; tone?: string }) {
+function StatusItem({ label, value, tone = '' }: { label: string; value: number | string; tone?: string }) {
   return (
     <div className={`status-item${tone ? ` is-${tone}` : ''}`}>
       <span>{label}</span>
-      <strong>{formatValue(value)}</strong>
+      <strong>{typeof value === 'number' ? formatValue(value) : value}</strong>
     </div>
   );
 }

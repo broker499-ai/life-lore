@@ -1,7 +1,7 @@
 import { deserializeGame, serializeGame } from '@/core/saves/saveFile';
 import type { GameState } from '@/core/state/GameState';
 
-export type CampaignViewSnapshot = 'map' | 'army' | 'cities' | 'research';
+export type CampaignViewSnapshot = 'map' | 'army' | 'artifacts' | 'cities';
 
 export type CampaignMapCameraSnapshot = {
   zoom: number;
@@ -152,7 +152,7 @@ function parseEnvelope(raw: string): StoredCampaignEnvelope | null {
 }
 
 function sanitizeUiSnapshot(ui: Partial<CampaignUiSnapshot>): CampaignUiSnapshot {
-  const view: CampaignViewSnapshot = ui.view === 'army' || ui.view === 'cities' || ui.view === 'research' ? ui.view : 'map';
+  const view: CampaignViewSnapshot = ui.view === 'army' || ui.view === 'artifacts' || ui.view === 'cities' ? ui.view : 'map';
   const selectedNodeId = typeof ui.selectedNodeId === 'string' ? ui.selectedNodeId : null;
   const camera = ui.mapCamera;
   const mapCamera = isRecord(camera)

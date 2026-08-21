@@ -64,6 +64,29 @@ function stripGarrisons(state: ReturnType<typeof createPrototypeGameState>) {
 }
 
 describe('save file', () => {
+  it('migrates v22 saves by generating Stage 42 recruitment assignments and unique-unit state', () => {
+    const current = createPrototypeGameState(142, 'makson');
+    const {
+      cityRecruitmentUnitIds: _cityRecruitment,
+      uniqueUnitCityIds: _uniqueCities,
+      recruitedUniqueUnitIds: _recruited,
+      siriusBossCityId: _siriusCity,
+      siriusDefeated: _siriusDefeated,
+      pendingReinforcements: _pending,
+      homeRecruitmentRecoveryTurnByUnitId: _homeRecovery,
+      gregJenkinsVictories: _gregWins,
+      ...legacyCampaign
+    } = current.campaign;
+    const restored = deserializeGame(JSON.stringify({ version: 22, state: { ...current, campaign: legacyCampaign } }));
+
+    expect(restored.campaign.cityRecruitmentUnitIds['outer-post'].length).toBeGreaterThanOrEqual(6);
+    expect(restored.campaign.cityRecruitmentUnitIds['moss-market']).toHaveLength(3);
+    expect(Object.keys(restored.campaign.uniqueUnitCityIds)).toHaveLength(4);
+    expect(restored.campaign.siriusBossCityId).toBeTruthy();
+    expect(restored.campaign.pendingReinforcements).toEqual([]);
+    expect(restored.campaign.gregJenkinsVictories).toBe(0);
+  });
+
   it('round-trips current save including capitals, research, artifact loadout, scientific progress, story state and battle RNG cursor', () => {
     const state = createPrototypeGameState(99);
     state.rng.battles.cursor = 7;
@@ -87,6 +110,20 @@ describe('save file', () => {
     expect(JSON.parse(serializeGame(state)).version).toBe(CURRENT_SAVE_VERSION);
   });
 
+  it('migrates v20 specimens/research into capped knowledge and removes research traits', () => {
+    const current = createPrototypeGameState(109, 'vlados');
+    current.factions.expedition.resources.specimens = 2;
+    current.factions.expedition.specimensCollected = 4;
+    current.campaign.artifactIds = ['apple-skeleton', 'red-radish'];
+    current.campaign.completedResearchIds = ['flora-field-rations'];
+    current.factions.expedition.traits.push({ type: 'supply_action_cost_multiplier', multiplier: 0.9 });
+    const restored = deserializeGame(JSON.stringify({ version: 20, state: current }));
+    expect(restored.factions.expedition.specimensCollected).toBe(6);
+    expect(restored.factions.expedition.resources.specimens).toBe(6);
+    expect(restored.campaign.completedResearchIds).toEqual([]);
+    expect(restored.factions.expedition.traits).not.toContainEqual({ type: 'supply_action_cost_multiplier', multiplier: 0.9 });
+  });
+
 
   it('migrates v16 saves by assigning stable faction capitals', () => {
     const current = createPrototypeGameState(108, 'artemios');
@@ -102,7 +139,7 @@ describe('save file', () => {
   });
 
 
-  it('migrates v14 by reconstructing total collected specimens and activating up to three existing artifacts', () => {
+  it('migrates v14 into knowledge, counts legacy artifacts and activates up to three existing artifacts', () => {
     const current = createPrototypeGameState(90, 'vlados');
     current.factions.expedition.resources.specimens = 1;
     current.campaign.completedResearchIds = ['flora-field-rations'];
@@ -120,7 +157,7 @@ describe('save file', () => {
       state: { ...current, factions: legacyFactions, campaign: legacyCampaign },
     }));
 
-    expect(restored.factions.expedition.specimensCollected).toBe(3);
+    expect(restored.factions.expedition.specimensCollected).toBe(5);
     expect(restored.campaign.activeArtifactIds).toEqual(['apple-skeleton', 'last-word-stone']);
     const artifactTrait = restored.factions.expedition.traits.find((trait) => trait.source === 'artifact:apple-skeleton');
     expect(artifactTrait?.type).toBe('city_income_multiplier');
@@ -424,4 +461,20 @@ describe('save v20 faction mechanics migration', () => {
       expect(restored.factions['orsia-lateki'].traits).toContainEqual({ type: 'captured_city_income_multiplier', multiplier: 1.4 });
     }
   });
+  it('migrates v24 armies into persistent Stage 48 flank groups', () => {
+    const current = createPrototypeGameState(4804, 'vlados');
+    const legacyArmies = Object.fromEntries(
+      Object.entries(current.armies).map(([id, army]) => {
+        const { groups: _groups, ...legacyArmy } = army;
+        return [id, legacyArmy];
+      }),
+    );
+    const restored = deserializeGame(JSON.stringify({ version: 24, state: { ...current, armies: legacyArmies } }));
+    const playerGroups = restored.armies['player-main'].groups ?? [];
+    expect(playerGroups).toHaveLength(3);
+    expect(playerGroups.map((group) => group.flank)).toEqual(['left', 'center', 'right']);
+    expect(playerGroups.map((group) => group.roster['expedition-infantry'])).toEqual([8, 8, 8]);
+    expect(JSON.parse(serializeGame(restored)).version).toBe(25);
+  });
+
 });

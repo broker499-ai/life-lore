@@ -36,8 +36,7 @@ export function CampaignEndScreen({ state, onExit }: { state: GameState; onExit:
           <Stat label="Ваших городов" value={playerCities} />
           <Stat label="Городов конкурента" value={rivalCities} />
           <Stat label="Армия" value={playerArmy ? getArmyTotalUnits(playerArmy) : 0} />
-          <Stat label="Образцы в запасе" value={playerFaction?.resources.specimens ?? 0} />
-          <Stat label="Изучено образцов" value={playerFaction?.specimensCollected ?? 0} />
+          <Stat label="Познание Орсии" value={playerFaction?.specimensCollected ?? 0} />
           <Stat label="Артефакты" value={state.campaign.artifactIds.length} />
         </div>
 

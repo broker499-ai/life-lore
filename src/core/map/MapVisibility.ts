@@ -1,6 +1,7 @@
 import { factionKnowsFullMap, getMapVisionRadiusBonus } from '@/core/leaders/LeaderAbility';
 import { getNeighborNodeIds, type MapGraph } from '@/core/map/MapGraph';
 import type { FactionId, GameState, NodeId } from '@/core/state/GameState';
+import { hasFullDeveloperMapVision } from '@/core/dev/developerMode';
 
 export type MapNodeVisibility = 'unknown' | 'explored' | 'visible';
 
@@ -9,7 +10,7 @@ export function getCurrentVisibleNodeIds(
   graph: MapGraph,
   factionId: FactionId,
 ): NodeId[] {
-  if (factionKnowsFullMap(state, factionId)) {
+  if (factionKnowsFullMap(state, factionId) || hasFullDeveloperMapVision(state, factionId)) {
     return graph.nodes.map((node) => node.id);
   }
 
@@ -32,7 +33,7 @@ export function getDiscoveredNodeIds(
   graph: MapGraph,
   factionId: FactionId,
 ): NodeId[] {
-  if (factionKnowsFullMap(state, factionId)) {
+  if (factionKnowsFullMap(state, factionId) || hasFullDeveloperMapVision(state, factionId)) {
     return graph.nodes.map((node) => node.id);
   }
 

@@ -1,9 +1,10 @@
 import type { GameState } from '@/core/state/GameState';
 import { getExtensionStagingCityId, TRUE_ROOT_NODE_ID } from '@/core/map/extensionMap';
+import { ROOT_KNOWLEDGE_REQUIRED } from '@/data/campaign/knowledgeRules';
 
 export type RootAccessRule = {
   minControlledCities: number;
-  minSpecimens: number;
+  minKnowledge: number;
   requiredResolvedEventId?: string;
   minTurn?: number;
 };
@@ -37,12 +38,12 @@ export const prototypeCampaignRules: CampaignRules = {
     claimSupplyCost: 12,
     player: {
       minControlledCities: 4,
-      minSpecimens: 6,
+      minKnowledge: ROOT_KNOWLEDGE_REQUIRED,
       requiredResolvedEventId: 'almost-root-shop',
     },
     rival: {
       minControlledCities: 4,
-      minSpecimens: 0,
+      minKnowledge: 0,
       minTurn: 8,
     },
   },

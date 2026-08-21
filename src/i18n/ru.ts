@@ -13,7 +13,7 @@ export const ru = {
   'campaign.money': 'Деньги',
   'campaign.supplies': 'Припасы',
   'campaign.army': 'Армия',
-  'campaign.specimens': 'Образцы',
+  'campaign.specimens': 'Познание',
   'campaign.exit': 'В меню',
   'campaign.mapHint': 'Выберите узел карты',
   'campaign.movementHint': 'Соседние узлы подсвечены. Один переход расходует стратегическое действие.',

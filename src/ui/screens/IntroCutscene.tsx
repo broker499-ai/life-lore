@@ -1,23 +1,45 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type MouseEvent, type PointerEvent } from 'react';
 
 const INTRO_IMAGE = '/assets/intro/orsia-descent.webp';
+const SURFACE_HOLD_MS = 2000;
+const UNDERGROUND_REVEAL_MS = 1350;
 const FINALE_HOLD_MS = 5200;
+
+type IntroPhase = 'surface' | 'reveal' | 'scroll' | 'finale';
 
 export function IntroCutscene({ onComplete }: { onComplete: () => void }) {
   const stageRef = useRef<HTMLElement | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
+  const phaseTimerRef = useRef<number | null>(null);
   const finishTimerRef = useRef<number | null>(null);
   const completedRef = useRef(false);
   const [imageReady, setImageReady] = useState(false);
-  const [phase, setPhase] = useState<'scroll' | 'finale'>('scroll');
+  const [phase, setPhase] = useState<IntroPhase>('surface');
   const [skipVisible, setSkipVisible] = useState(false);
 
   const complete = () => {
     if (completedRef.current) return;
     completedRef.current = true;
+    if (phaseTimerRef.current !== null) window.clearTimeout(phaseTimerRef.current);
     if (finishTimerRef.current !== null) window.clearTimeout(finishTimerRef.current);
     onComplete();
   };
+
+  useEffect(() => {
+    if (!imageReady || phase !== 'surface') return;
+    phaseTimerRef.current = window.setTimeout(() => setPhase('reveal'), SURFACE_HOLD_MS);
+    return () => {
+      if (phaseTimerRef.current !== null) window.clearTimeout(phaseTimerRef.current);
+    };
+  }, [imageReady, phase]);
+
+  useEffect(() => {
+    if (phase !== 'reveal') return;
+    phaseTimerRef.current = window.setTimeout(() => setPhase('scroll'), UNDERGROUND_REVEAL_MS);
+    return () => {
+      if (phaseTimerRef.current !== null) window.clearTimeout(phaseTimerRef.current);
+    };
+  }, [phase]);
 
   useEffect(() => {
     if (!imageReady || phase !== 'scroll') return;
@@ -36,7 +58,9 @@ export function IntroCutscene({ onComplete }: { onComplete: () => void }) {
       return;
     }
 
-    const duration = Math.min(24000, Math.max(17000, 15000 + travel * 5));
+    // Stage 38: the descent is deliberately brisker than the original cutscene,
+    // while still leaving enough time to read the large environmental image.
+    const duration = Math.min(19000, Math.max(14000, 11800 + travel * 4));
     const animation = image.animate(
       [
         { transform: 'translate3d(0, 0, 0)' },
@@ -71,7 +95,7 @@ export function IntroCutscene({ onComplete }: { onComplete: () => void }) {
   return (
     <main
       ref={stageRef}
-      className={`intro-cutscene${phase === 'finale' ? ' is-finale' : ''}`}
+      className={`intro-cutscene is-${phase}`}
       aria-label="Вступительная заставка"
       onPointerUp={revealSkip}
     >
@@ -88,6 +112,7 @@ export function IntroCutscene({ onComplete }: { onComplete: () => void }) {
         />
       </div>
 
+      <div className="intro-underground-cover" aria-hidden="true" />
       <div className="intro-cutscene-dimmer" aria-hidden="true" />
 
       <div className="intro-cutscene-copy" aria-live="polite">
@@ -100,8 +125,8 @@ export function IntroCutscene({ onComplete }: { onComplete: () => void }) {
         className={`intro-skip-button${skipVisible ? ' is-visible' : ''}`}
         aria-hidden={!skipVisible}
         tabIndex={skipVisible ? 0 : -1}
-        onPointerUp={(event) => event.stopPropagation()}
-        onClick={(event) => {
+        onPointerUp={(event: PointerEvent<HTMLButtonElement>) => event.stopPropagation()}
+        onClick={(event: MouseEvent<HTMLButtonElement>) => {
           event.stopPropagation();
           complete();
         }}

@@ -9,6 +9,7 @@ import type { MapGraph } from '@/core/map/MapGraph';
 import type { GameState } from '@/core/state/GameState';
 import { endTurn } from '@/core/turns/endTurn';
 import { applySupplyPressure } from '@/core/supply/applySupplyPressure';
+import { applyTravelAttrition } from '@/core/supply/applyTravelAttrition';
 import type { RootObjectiveRules } from '@/data/campaign/prototypeRules';
 
 export type AiTurnConfig = {
@@ -81,6 +82,10 @@ export function advanceTurn(
   const supplyPressure = applySupplyPressure(nextState, input.graph);
   nextState = supplyPressure.state;
   events.push(...supplyPressure.events);
+
+  const travelAttrition = applyTravelAttrition(nextState);
+  nextState = travelAttrition.state;
+  events.push(...travelAttrition.events);
 
   const ended = endTurn(nextState, {
     cityDefinitions: input.cityDefinitions,

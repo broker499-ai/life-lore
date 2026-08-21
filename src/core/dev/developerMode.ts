@@ -4,6 +4,18 @@ export function hasUnlimitedStrategicActions(state: GameState, factionId: Factio
   return state.campaign.developerMode && factionId === state.playerFactionId;
 }
 
+export function hasUnlimitedMoney(state: GameState, factionId: FactionId): boolean {
+  return state.campaign.developerMode && factionId === state.playerFactionId;
+}
+
+export function hasUnlimitedRecruitment(state: GameState, factionId: FactionId): boolean {
+  return state.campaign.developerMode && factionId === state.playerFactionId;
+}
+
+export function hasFullDeveloperMapVision(state: GameState, factionId: FactionId): boolean {
+  return state.campaign.developerMode && factionId === state.playerFactionId;
+}
+
 export function shouldSpendStrategicAction(state: GameState, factionId: FactionId): boolean {
   return !hasUnlimitedStrategicActions(state, factionId);
 }

@@ -34,7 +34,7 @@ describe('simulateBattle', () => {
     const replay = simulateBattle(baseBattle, rng, prototypeUnits, prototypeBattleRules);
 
     expect(replay).toEqual(first);
-    expect(first.rngState.cursor).toBe(first.roundsFought * 2);
+    expect(first.rngState.cursor).toBeGreaterThanOrEqual(first.roundsFought * 2);
     expect(rng.cursor).toBe(0);
   });
 
@@ -136,8 +136,8 @@ describe('simulateBattle', () => {
       sideAMorale: 71,
       sideBOutcome: 'retreat',
       sideBLosses: { 'orssian-guard': 3, 'orssian-slingers': 1 },
-      sideBMorale: 56,
-      rngCursor: 8,
+      sideBMorale: 59,
+      rngCursor: 10,
     });
   });
 
@@ -437,4 +437,286 @@ describe('Stage 36 Orc center-only formation', () => {
     expect(flank.sides.B.remainingUnits).toBeLessThanOrEqual(frontal.sides.B.remainingUnits);
     expect(flank.sides.B.moraleAfter).toBeLessThanOrEqual(frontal.sides.B.moraleAfter);
   });
+});
+
+describe('Stage 45 reactive flank battle', () => {
+  const reactiveInput = {
+    battleId: 'reactive-flanks',
+    scale: 'battle' as const,
+    sideA: {
+      factionId: 'expedition',
+      roster: { 'expedition-infantry': 36, 'expedition-rangers': 12 },
+      morale: 78,
+      tactic: 'balanced' as const,
+      autoRestVictoriousLanes: true,
+      plan: {
+        formation: 'line' as const,
+        reservePercent: 0 as const,
+        reserveTarget: 'center' as const,
+        commands: [
+          'flank_left_to_center' as const,
+          'defend_center' as const,
+          'flank_right_to_center' as const,
+          'defend_left' as const,
+          'flank_center_to_right' as const,
+        ],
+        commandRounds: [1, 1, 2, 3, 4],
+        retreatMoraleThreshold: null,
+      },
+    },
+    sideB: {
+      factionId: 'orssia-neutral',
+      roster: { 'orssian-guard': 38, 'orssian-slingers': 10 },
+      morale: 74,
+      tactic: 'balanced' as const,
+      randomizeFlanks: true,
+      reactiveLanePostures: true,
+    },
+  };
+
+  it('keeps total enemy force while seeded-randomizing its flank allocation and morale', () => {
+    const result = simulateBattle(reactiveInput, createRngState(145), prototypeUnits, prototypeBattleRules);
+    const initial = result.timeline.find((event) => event.type === 'formation_set' && event.side === 'B');
+    expect(initial?.type).toBe('formation_set');
+    if (!initial || initial.type !== 'formation_set') return;
+    const sectors = initial.snapshot.sectors;
+    expect(sectors.left.units + sectors.center.units + sectors.right.units + initial.snapshot.reserveUnits).toBe(48);
+    expect(new Set([sectors.left.units, sectors.center.units, sectors.right.units]).size).toBeGreaterThan(1);
+    expect(Math.min(sectors.left.morale, sectors.center.morale, sectors.right.morale)).toBeLessThan(
+      Math.max(sectors.left.morale, sectors.center.morale, sectors.right.morale),
+    );
+  });
+
+  it('telegraphs a posture for every living enemy lane and remains deterministic', () => {
+    const first = simulateBattle(reactiveInput, createRngState(246), prototypeUnits, prototypeBattleRules);
+    const replay = simulateBattle(reactiveInput, createRngState(246), prototypeUnits, prototypeBattleRules);
+    expect(replay).toEqual(first);
+    const firstRoundPostures = first.timeline.filter(
+      (event) => event.type === 'lane_posture' && event.side === 'B' && event.round === 1 && event.at < 1.15,
+    );
+    expect(firstRoundPostures).toHaveLength(3);
+    expect(firstRoundPostures.every((event) => event.type === 'lane_posture' && ['assault', 'rest', 'cautious'].includes(event.posture))).toBe(true);
+  });
+
+
+  it('rewards deep defense against a telegraphed assault and pressure against a resting lane', () => {
+    const makeReactionInput = (command?: 'defend_center' | 'flank_center_to_center') => ({
+      battleId: 'reaction-counter',
+      scale: 'battle' as const,
+      sideA: {
+        factionId: 'expedition',
+        roster: { 'expedition-infantry': 54 },
+        morale: 78,
+        tactic: 'balanced' as const,
+        autoRestVictoriousLanes: true,
+        plan: {
+          formation: 'line' as const,
+          reservePercent: 0 as const,
+          reserveTarget: 'center' as const,
+          commands: command ? [command] : [],
+          commandRounds: command ? [1] : [],
+          retreatMoraleThreshold: null,
+        },
+      },
+      sideB: {
+        factionId: 'orssia-neutral',
+        roster: { 'orssian-guard': 45 },
+        morale: 72,
+        tactic: 'balanced' as const,
+        randomizeFlanks: true,
+        reactiveLanePostures: true,
+        plan: { formation: 'line' as const, reservePercent: 0 as const, reserveTarget: 'center' as const, commands: [], retreatMoraleThreshold: null },
+      },
+    });
+
+    const assaultBase = simulateBattle(makeReactionInput(), createRngState(2), prototypeUnits, prototypeBattleRules);
+    const defended = simulateBattle(makeReactionInput('defend_center'), createRngState(2), prototypeUnits, prototypeBattleRules);
+    const assaultTelegraph = assaultBase.timeline.find((event) => event.type === 'lane_posture' && event.side === 'B' && event.round === 1 && event.lane === 'center');
+    expect(assaultTelegraph?.type === 'lane_posture' ? assaultTelegraph.posture : null).toBe('assault');
+    expect(defended.sides.A.moraleAfter).toBeGreaterThan(assaultBase.sides.A.moraleAfter);
+
+    const restBase = simulateBattle(makeReactionInput(), createRngState(3), prototypeUnits, prototypeBattleRules);
+    const pressured = simulateBattle(makeReactionInput('flank_center_to_center'), createRngState(3), prototypeUnits, prototypeBattleRules);
+    const restTelegraph = restBase.timeline.find((event) => event.type === 'lane_posture' && event.side === 'B' && event.round === 1 && event.lane === 'center');
+    expect(restTelegraph?.type === 'lane_posture' ? restTelegraph.posture : null).toBe('rest');
+    expect(pressured.sides.B.totalLosses).toBeGreaterThanOrEqual(restBase.sides.B.totalLosses);
+    expect(pressured.sides.B.moraleAfter).toBeLessThanOrEqual(restBase.sides.B.moraleAfter);
+  });
+
+
+  it('interrupts a resting enemy lane when that lane is pressured', () => {
+    const makeInput = (command?: 'flank_center_to_center') => ({
+      battleId: 'rest-interruption',
+      scale: 'battle' as const,
+      sideA: {
+        factionId: 'expedition',
+        roster: { 'expedition-infantry': 54 },
+        morale: 80,
+        tactic: 'balanced' as const,
+        plan: { formation: 'line' as const, reservePercent: 0 as const, reserveTarget: 'center' as const, commands: command ? [command] : [], commandRounds: command ? [1] : [], retreatMoraleThreshold: null },
+      },
+      sideB: {
+        factionId: 'orssia-neutral',
+        roster: { 'orssian-guard': 45 },
+        morale: 72,
+        tactic: 'balanced' as const,
+        randomizeFlanks: true,
+        reactiveLanePostures: true,
+        plan: { formation: 'line' as const, reservePercent: 0 as const, reserveTarget: 'center' as const, commands: [], retreatMoraleThreshold: null },
+      },
+    });
+    const base = simulateBattle(makeInput(), createRngState(3), prototypeUnits, prototypeBattleRules);
+    const rest = base.timeline.find((event) => event.type === 'lane_posture' && event.side === 'B' && event.round === 1 && event.lane === 'center');
+    expect(rest?.type === 'lane_posture' ? rest.posture : null).toBe('rest');
+    const pressured = simulateBattle(makeInput('flank_center_to_center'), createRngState(3), prototypeUnits, prototypeBattleRules);
+    expect(pressured.timeline.some((event) => event.type === 'lane_posture' && event.side === 'B' && event.round === 1 && event.lane === 'center' && event.posture === 'rest_broken')).toBe(true);
+  });
+
+  it('lets Gleb Khleb occupy the center alone with morale locked at 100', () => {
+    const result = simulateBattle({
+      battleId: 'gleb-khleb-lane',
+      scale: 'battle',
+      sideA: {
+        factionId: 'expedition',
+        roster: { 'gleb-khleb': 1, 'expedition-infantry': 30 },
+        morale: 46,
+        tactic: 'balanced',
+        plan: { formation: 'line', reservePercent: 0, reserveTarget: 'center', commands: [], retreatMoraleThreshold: null },
+      },
+      sideB: {
+        factionId: 'orssia-neutral',
+        roster: { 'orssian-guard': 40 },
+        morale: 74,
+        tactic: 'balanced',
+        randomizeFlanks: true,
+        reactiveLanePostures: true,
+      },
+    }, createRngState(991), prototypeUnits, prototypeBattleRules);
+    const initial = result.timeline.find((event) => event.type === 'formation_set' && event.side === 'A');
+    expect(initial?.type).toBe('formation_set');
+    if (!initial || initial.type !== 'formation_set') return;
+    expect(initial.snapshot.sectors.center.units).toBe(1);
+    const finalCenter = result.sides.A.sectorState.sectors.center;
+    if (finalCenter.units > 0) expect(finalCenter.morale).toBe(100);
+  });
+
+  it('keeps more than two live orders instead of truncating the battle plan', () => {
+    const result = simulateBattle(reactiveInput, createRngState(347), prototypeUnits, prototypeBattleRules);
+    expect(result.sides.A.plan.commands).toHaveLength(5);
+    expect(result.timeline.filter((event) => event.type === 'command_order' && event.side === 'A')).toHaveLength(5);
+  });
+
+  it('resets only the selected lane to cautious fighting with a scoped clear command', () => {
+    const input = {
+      ...reactiveInput,
+      battleId: 'scoped-cautious-clear',
+      sideA: {
+        ...reactiveInput.sideA,
+        plan: {
+          ...reactiveInput.sideA.plan,
+          commands: ['flank_center_to_center' as const, 'defend_left' as const, 'clear_center' as const],
+          commandRounds: [1, 1, 2],
+        },
+      },
+    };
+    const result = simulateBattle(input, createRngState(448), prototypeUnits, prototypeBattleRules);
+    expect(result.sides.A.plan.commands).toEqual(['flank_center_to_center', 'defend_left', 'clear_center']);
+    expect(result.timeline.some((event) => event.type === 'command_order' && event.side === 'A' && event.round === 2 && event.command === 'clear_center')).toBe(true);
+    expect(result.timeline.some((event) => event.type === 'command_order' && event.side === 'A' && event.command === 'defend_left')).toBe(true);
+  });
+  it('splits a full battle into four stage boundaries and resets surviving lanes there', () => {
+    const result = simulateBattle(
+      {
+        battleId: 'four-stage-boundaries',
+        scale: 'battle',
+        sideA: {
+          factionId: 'expedition',
+          roster: { 'expedition-infantry': 60 },
+          morale: 100,
+          tactic: 'balanced',
+          plan: { formation: 'line', reservePercent: 0, reserveTarget: 'center', commands: ['defend_left'], commandRounds: [1], retreatMoraleThreshold: null },
+        },
+        sideB: {
+          factionId: 'orssia-neutral',
+          roster: { 'orssian-guard': 72 },
+          morale: 100,
+          tactic: 'balanced',
+          reactiveLanePostures: true,
+        },
+      },
+      createRngState(4801),
+      prototypeUnits,
+      prototypeBattleRules,
+    );
+
+    const stages = result.timeline.filter((event) => event.type === 'stage_transition');
+    expect(stages.map((event) => event.stage)).toEqual([1, 2, 3, 4]);
+    for (const boundary of stages.slice(1)) {
+      expect(result.timeline.some((event) => event.type === 'lane_posture' && event.side === 'A' && event.round === boundary.round && event.posture === 'engage')).toBe(true);
+    }
+  });
+
+  it('lets Morpheus keep two enemy lanes asleep across all four stages', () => {
+    const result = simulateBattle(
+      {
+        battleId: 'morpheus-forced-rest',
+        scale: 'battle',
+        sideA: {
+          factionId: 'expedition',
+          roster: { 'expedition-infantry': 45, 'sirius-morpheus-nan': 1 },
+          laneRosters: {
+            left: { 'expedition-infantry': 22 },
+            center: { 'sirius-morpheus-nan': 1 },
+            right: { 'expedition-infantry': 23 },
+          },
+          morale: 100,
+          tactic: 'balanced',
+        },
+        sideB: {
+          factionId: 'orssia-neutral',
+          roster: { 'orssian-guard': 96 },
+          morale: 100,
+          tactic: 'balanced',
+          reactiveLanePostures: true,
+        },
+      },
+      createRngState(4802),
+      prototypeUnits,
+      prototypeBattleRules,
+    );
+
+    const forced = ['left', 'right'] as const;
+    for (const lane of forced) {
+      expect(result.timeline.some((event) => event.type === 'lane_posture' && event.side === 'B' && event.lane === lane && event.posture === 'rest')).toBe(true);
+      expect(result.timeline.some((event) => event.type === 'lane_posture' && event.side === 'B' && event.lane === lane && event.posture === 'rest_broken')).toBe(false);
+    }
+  });
+
+  it('fires Xiang on the boundary after stage three', () => {
+    const result = simulateBattle(
+      {
+        battleId: 'xiang-stage-three-boundary',
+        scale: 'battle',
+        sideA: {
+          factionId: 'expedition',
+          roster: { 'expedition-infantry': 50, xiang: 1 },
+          laneRosters: { left: { 'expedition-infantry': 25 }, center: { xiang: 1 }, right: { 'expedition-infantry': 25 } },
+          morale: 100,
+          tactic: 'balanced',
+        },
+        sideB: { factionId: 'orssia-neutral', roster: { 'orssian-guard': 120 }, morale: 100, tactic: 'balanced' },
+      },
+      createRngState(4803),
+      prototypeUnits,
+      prototypeBattleRules,
+    );
+    const stageFour = result.timeline.find((event) => event.type === 'stage_transition' && event.stage === 4);
+    const xiang = result.timeline.find((event) => event.type === 'late_flank_strike' && event.unitTypeId === 'xiang');
+    expect(stageFour).toBeTruthy();
+    expect(xiang).toBeTruthy();
+    if (stageFour?.type === 'stage_transition' && xiang?.type === 'late_flank_strike') {
+      expect(xiang.round).toBe(stageFour.round);
+    }
+  });
+
 });

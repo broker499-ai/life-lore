@@ -8,6 +8,9 @@ import { RIVAL_FACTION_ID, rivalExpeditions } from '@/data/factions/rivalExpedit
 import { chooseExtensionLocationOrder, extensionCityIds, getCampaignMap } from '@/core/map/extensionMap';
 import { choosePreRootMap } from '@/core/map/preRootMap';
 import { createFactionCapitalCityIds } from '@/core/map/factionCapitals';
+import { STANDARD_RECRUITMENT_UNIT_IDS, RANDOM_LOCAL_RECRUITMENT_UNIT_IDS, UNIQUE_RECRUITMENT_UNIT_IDS, FRESHMAN_UNIT_ID } from '@/data/units/recruitmentPools';
+import { createFreshmanStartingGroups, createInitialArmyGroups } from '@/core/armies/armyFlanks';
+import { prototypeUnits } from '@/data/units/prototypeUnits';
 
 export const PLAYER_FACTION_ID = 'expedition';
 export { RIVAL_FACTION_ID };
@@ -169,6 +172,9 @@ export function createPrototypeGameState(
     PLAYER_FACTION_ID,
   );
 
+  const recruitmentAssignments = chooseRecruitmentAssignments(Object.keys(cities), rng.campaign);
+  rng = { ...rng, campaign: recruitmentAssignments.rngState };
+
   const initialState: GameState = {
     turn: 1,
     playerFactionId: PLAYER_FACTION_ID,
@@ -182,9 +188,9 @@ export function createPrototypeGameState(
         nodeId: 'outer-post',
         morale: leader.traits.some((trait) => trait.type === 'ignore_morale') ? 100 : 80,
         roster: {
-          'expedition-infantry': 20,
-          'expedition-rangers': 4,
+          [FRESHMAN_UNIT_ID]: 24,
         },
+        groups: createFreshmanStartingGroups(FRESHMAN_UNIT_ID, 24),
       },
       [RIVAL_ARMY_ID]: {
         id: RIVAL_ARMY_ID,
@@ -195,6 +201,7 @@ export function createPrototypeGameState(
           'expedition-infantry': 18,
           'expedition-rangers': 6,
         },
+        groups: createInitialArmyGroups({ 'expedition-infantry': 18, 'expedition-rangers': 6 }, prototypeUnits, 'rival-initial'),
       },
     },
     campaign: {
@@ -212,6 +219,16 @@ export function createPrototypeGameState(
       pendingFactionEvent: null,
       resolvedFactionEventIds: [],
       tyranidEggClutches: {},
+      shortRestUsedNodeIds: [],
+      recruitmentBlockedUntilTurnByCityId: {},
+      cityRecruitmentUnitIds: recruitmentAssignments.cityRecruitmentUnitIds,
+      uniqueUnitCityIds: recruitmentAssignments.uniqueUnitCityIds,
+      recruitedUniqueUnitIds: [],
+      siriusBossCityId: recruitmentAssignments.siriusBossCityId,
+      siriusDefeated: false,
+      pendingReinforcements: [],
+      homeRecruitmentRecoveryTurnByUnitId: {},
+      gregJenkinsVictories: 0,
       preRootLayoutId: preRootMapRoll.layoutId,
       preRootLocationOrder: preRootMapRoll.locationOrder,
       extensionLocationOrder: extensionOrder.order,
@@ -351,6 +368,41 @@ export function distributeOrsiaCities(initialRng: RngState): OrsiaDistribution {
   }
 
   return { activeFactionIds, cityOwners, rngState: rng };
+}
+
+export type RecruitmentAssignments = {
+  cityRecruitmentUnitIds: Record<string, string[]>;
+  uniqueUnitCityIds: Record<string, string>;
+  siriusBossCityId: string;
+  rngState: RngState;
+};
+
+export function chooseRecruitmentAssignments(cityIds: readonly string[], initialRng: RngState): RecruitmentAssignments {
+  let rng = initialRng;
+  const cityRecruitmentUnitIds: Record<string, string[]> = {};
+  for (const cityId of cityIds) {
+    if (cityId === 'outer-post') {
+      cityRecruitmentUnitIds[cityId] = [...STANDARD_RECRUITMENT_UNIT_IDS];
+      continue;
+    }
+    const shuffled = shuffleWithRng(RANDOM_LOCAL_RECRUITMENT_UNIT_IDS, rng);
+    rng = shuffled.rngState;
+    cityRecruitmentUnitIds[cityId] = [FRESHMAN_UNIT_ID, ...shuffled.items.slice(0, 2)];
+  }
+
+  const uniqueCandidates = cityIds.filter((cityId) => cityId !== 'outer-post');
+  const uniqueShuffle = shuffleWithRng(uniqueCandidates, rng);
+  rng = uniqueShuffle.rngState;
+  const uniqueUnitCityIds: Record<string, string> = {};
+  UNIQUE_RECRUITMENT_UNIT_IDS.forEach((unitTypeId, index) => {
+    const fallback = uniqueCandidates[index % Math.max(1, uniqueCandidates.length)] ?? 'outer-post';
+    uniqueUnitCityIds[unitTypeId] = uniqueShuffle.items[index] ?? fallback;
+  });
+  const siriusBossCityId = uniqueShuffle.items[UNIQUE_RECRUITMENT_UNIT_IDS.length]
+    ?? uniqueShuffle.items[0]
+    ?? 'outer-post';
+
+  return { cityRecruitmentUnitIds, uniqueUnitCityIds, siriusBossCityId, rngState: rng };
 }
 
 function shuffleWithRng<T>(items: readonly T[], initialRng: RngState): { items: T[]; rngState: RngState } {

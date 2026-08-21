@@ -3,11 +3,13 @@ import { acquireArtifact } from '@/core/artifacts/acquireArtifact';
 import type { GameEvent } from '@/core/commands/CommandResult';
 import type { ArmyId, GameState, NodeId } from '@/core/state/GameState';
 import { factionIgnoresMorale } from '@/core/leaders/LeaderAbility';
+import { hasUnlimitedMoney } from '@/core/dev/developerMode';
+import { clampKnowledge, MAX_ORSIA_KNOWLEDGE } from '@/data/campaign/knowledgeRules';
 
 export type EventEffect =
   | { type: 'money'; amount: number }
   | { type: 'supplies'; amount: number }
-  | { type: 'specimens'; amount: number }
+  | { type: 'knowledge'; amount: number }
   | { type: 'morale'; amount: number }
   | { type: 'artifact'; artifactId: string }
   | { type: 'discover_nodes'; nodeIds: NodeId[] };
@@ -40,7 +42,7 @@ export type ResolveLocationEventInput = {
 
 export type EventChoiceAvailability =
   | { canChoose: true }
-  | { canChoose: false; reason: 'insufficient_money' | 'insufficient_supplies' | 'insufficient_specimens' };
+  | { canChoose: false; reason: 'insufficient_money' | 'insufficient_supplies' };
 
 export function triggerLocationEvent(
   state: GameState,
@@ -71,10 +73,8 @@ export function getEventChoiceAvailability(
   if (!faction) return { canChoose: false, reason: 'insufficient_money' };
   const moneyDelta = sumEffects(choice.effects, 'money');
   const suppliesDelta = sumEffects(choice.effects, 'supplies');
-  const specimenDelta = choice.effects.reduce((sum, effect) => sum + (effect.type === 'specimens' ? effect.amount : 0), 0);
-  if (faction.resources.money + moneyDelta < 0) return { canChoose: false, reason: 'insufficient_money' };
+  if (!hasUnlimitedMoney(state, factionId) && faction.resources.money + moneyDelta < 0) return { canChoose: false, reason: 'insufficient_money' };
   if (faction.resources.supplies + suppliesDelta < 0) return { canChoose: false, reason: 'insufficient_supplies' };
-  if (faction.resources.specimens + specimenDelta < 0) return { canChoose: false, reason: 'insufficient_specimens' };
   return { canChoose: true };
 }
 
@@ -101,18 +101,16 @@ export function resolveLocationEvent(
   let nextState = state;
   let money = faction.resources.money;
   let supplies = faction.resources.supplies;
-  let specimens = faction.resources.specimens;
-  let specimensCollected = faction.specimensCollected;
+  let knowledge = Math.max(faction.resources.specimens, faction.specimensCollected);
   let morale = factionIgnoresMorale(state, input.factionId) ? 100 : army.morale;
   const discoveredNodes = new Set(state.campaign.discoveredNodeIds);
   const emitted: GameEvent[] = [];
 
   for (const effect of choice.effects) {
-    if (effect.type === 'money') money += effect.amount;
+    if (effect.type === 'money' && !(effect.amount < 0 && hasUnlimitedMoney(state, input.factionId))) money += effect.amount;
     if (effect.type === 'supplies') supplies = clamp(supplies + effect.amount, 0, input.supplyCap);
-    if (effect.type === 'specimens') {
-      specimens = Math.max(0, specimens + effect.amount);
-      if (effect.amount > 0) specimensCollected += effect.amount;
+    if (effect.type === 'knowledge') {
+      knowledge = clampKnowledge(knowledge + effect.amount);
     }
     if (effect.type === 'morale' && !factionIgnoresMorale(state, input.factionId)) morale = clamp(morale + effect.amount, 0, input.moraleCap);
     if (effect.type === 'discover_nodes') {
@@ -126,8 +124,8 @@ export function resolveLocationEvent(
       ...nextState.factions,
       [faction.id]: {
         ...faction,
-        resources: { money, supplies, specimens },
-        specimensCollected,
+        resources: { money, supplies, specimens: Math.min(MAX_ORSIA_KNOWLEDGE, knowledge) },
+        specimensCollected: Math.min(MAX_ORSIA_KNOWLEDGE, knowledge),
       },
     },
     armies: { ...nextState.armies, [army.id]: { ...army, morale } },

@@ -3,7 +3,7 @@ import { simulateCampaign } from '@/simulation/simulateCampaign';
 
 describe('headless campaign simulator', () => {
   it('replays the same seed deterministically', () => {
-    const input = { seed: 17, leaderId: 'makson', strategy: 'research' as const, maxTurns: 25 };
+    const input = { seed: 17, leaderId: 'makson', strategy: 'knowledge' as const, maxTurns: 25 };
     expect(simulateCampaign(input)).toEqual(simulateCampaign(input));
   });
 

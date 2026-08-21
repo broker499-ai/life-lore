@@ -24,7 +24,7 @@ export type MoveArmyInput = {
 };
 
 export type MoveArmyAvailability =
-  | { canMove: true; supplyCost: number; supplyStatus: SupplyStatus; usesRiverDoubleMove: boolean }
+  | { canMove: true; supplyCost: number; supplyShortfall: number; supplyStatus: SupplyStatus; usesRiverDoubleMove: boolean }
   | { canMove: false; reason: MoveArmyError };
 
 export function getMoveArmyAvailability(
@@ -64,11 +64,14 @@ export function getMoveArmyAvailability(
     getSupplyAdjustedActionCost(input.supplyCost, supplyStatus) *
       getSupplyActionCostMultiplier(state, army.factionId),
   ));
-  if (faction.resources.supplies < supplyCost) {
-    return { canMove: false, reason: 'insufficient_supplies' };
-  }
-
-  return { canMove: true, supplyCost, supplyStatus, usesRiverDoubleMove };
+  const paidSupplyCost = Math.min(faction.resources.supplies, supplyCost);
+  return {
+    canMove: true,
+    supplyCost: paidSupplyCost,
+    supplyShortfall: Math.max(0, supplyCost - paidSupplyCost),
+    supplyStatus,
+    usesRiverDoubleMove,
+  };
 }
 
 export function moveArmy(
@@ -84,6 +87,7 @@ export function moveArmy(
     fromNodeId: string;
     toNodeId: string;
     supplyCost: number;
+    supplyShortfall?: number;
     leaderAbilityId?: 'river_double_move';
   }
 > {
@@ -129,6 +133,7 @@ export function moveArmy(
         fromNodeId,
         toNodeId: input.toNodeId,
         supplyCost: availability.supplyCost,
+        ...(availability.supplyShortfall > 0 ? { supplyShortfall: availability.supplyShortfall } : {}),
         ...(availability.usesRiverDoubleMove ? { leaderAbilityId: 'river_double_move' as const } : {}),
       },
     ],
