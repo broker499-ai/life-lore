@@ -9,6 +9,7 @@
   for = "/manifest.webmanifest"
   [headers.values]
     Content-Type = "application/manifest+json"
+    Cache-Control = "no-cache"
 
 [[headers]]
   for = "/sw.js"
