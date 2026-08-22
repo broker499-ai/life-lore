@@ -37,6 +37,11 @@ const PHASE_MINIMUM_MS: Record<BattlePresentationPhase, number> = {
 const TIMELINE_MS_PER_SECOND = 220;
 const MIN_PLAYBACK_DELAY_MS = 140;
 const MAX_PLAYBACK_DELAY_MS = 2600;
+// The opening has several bookkeeping frames (formation, stage reset, round start).
+// Without compressing that micro-window, phase minimums postpone the first visible
+// enemy posture to ~7–8 real seconds. Keep the first tactical reveal near 2s at x1.
+const INITIAL_TACTICAL_REVEAL_SIM_SECONDS = 1.08;
+const INITIAL_TACTICAL_REVEAL_REAL_MS = 2000;
 
 /**
  * Legacy-compatible segment timing helper. Stage 10 uses this value as the
@@ -79,7 +84,7 @@ export function buildBattlePlaybackTrack(frames: BattlePresentationFrame[]): Bat
     const next = frames[index + 1];
     if (!current || !next) continue;
 
-    const durationMs = getBattleSegmentDurationMs(current, next);
+    const durationMs = getTrackSegmentDurationMs(current, next, cursorMs);
     segments.push({
       fromIndex: index,
       toIndex: index + 1,
@@ -93,6 +98,21 @@ export function buildBattlePlaybackTrack(frames: BattlePresentationFrame[]): Bat
   }
 
   return { durationMs: cursorMs, segments, frameTimesMs };
+}
+
+
+function getTrackSegmentDurationMs(
+  current: BattlePresentationFrame,
+  next: BattlePresentationFrame,
+  cursorMs: number,
+): number {
+  if (next.at <= INITIAL_TACTICAL_REVEAL_SIM_SECONDS + 0.0001) {
+    const targetEndMs = Math.round(
+      (Math.max(0, next.at) / INITIAL_TACTICAL_REVEAL_SIM_SECONDS) * INITIAL_TACTICAL_REVEAL_REAL_MS,
+    );
+    return Math.max(1, targetEndMs - cursorMs);
+  }
+  return getBattleSegmentDurationMs(current, next);
 }
 
 export function sampleBattlePlayback(

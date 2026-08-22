@@ -7383,7 +7383,9 @@ button:disabled {
   z-index: 2;
   left: 0;
   right: 0;
-  top: clamp(112px, 15.5vh, 158px);
+  /* Runtime JS pins this to the actual image's surface line (Y=352/2048).
+     This fallback is only visible before the image geometry is available. */
+  top: min(51.7vw, 352px);
   bottom: 0;
   pointer-events: none;
   background: #000;
@@ -8232,7 +8234,7 @@ button.battle-scene-sector-chip {
   touch-action: manipulation;
 }
 .battle-flank-tap-side.is-enemy .battle-flank-tap-zone:not(.is-valid-target) {
-  pointer-events: none;
+  pointer-events: auto;
 }
 .battle-flank-tap-zone.is-selected {
   background: radial-gradient(circle at 45% 50%, rgba(157, 202, 109, .14), transparent 68%);
@@ -9035,7 +9037,7 @@ button.battle-scene-sector-chip {
   min-width: 0;
   border: 0;
   background: transparent;
-  pointer-events: none;
+  pointer-events: auto;
   touch-action: manipulation;
 }
 .battle-flank-neutral-zone.is-valid-clear {
@@ -9523,4 +9525,518 @@ button.battle-scene-sector-chip {
 
 @media (prefers-reduced-motion: reduce) {
   .flank-group-split-actions { transition: none !important; }
+}
+
+/* ======================================================================
+   Stage 52 — real landscape battle layout.
+   Portrait keeps the normal document flow. In a short/wide viewport the battle
+   becomes a battlefield + compact control rail; the campaign resource strip is
+   hidden during combat because it was consuming scarce vertical space and the
+   battle scoreboard already carries the relevant combat state.
+   ====================================================================== */
+.battle-side-rail {
+  display: contents;
+}
+
+@media (min-aspect-ratio: 4/3) and (max-height: 700px) {
+  html,
+  body,
+  #root {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .campaign-shell.battle-shell {
+    width: 100vw;
+    max-width: none;
+    height: 100dvh;
+    min-height: 0;
+    padding:
+      env(safe-area-inset-top)
+      max(5px, env(safe-area-inset-right))
+      env(safe-area-inset-bottom)
+      max(5px, env(safe-area-inset-left));
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 44px minmax(0, 1fr);
+    gap: 0;
+    overflow: hidden;
+    background: #0f0d0a;
+  }
+
+  .campaign-shell.battle-shell > .campaign-header {
+    grid-row: 1;
+    width: 100%;
+    min-width: 0;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+    display: block;
+    overflow: visible;
+  }
+
+  .campaign-shell.battle-shell > .campaign-header .campaign-header-main {
+    height: 44px;
+    min-height: 44px;
+    padding-inline: 4px;
+  }
+
+  .campaign-shell.battle-shell > .campaign-header .campaign-resource-row {
+    display: none;
+  }
+
+  .campaign-shell.battle-shell > .campaign-header .campaign-header-leader img {
+    width: 32px;
+    height: 32px;
+    flex-basis: 32px;
+  }
+
+  .campaign-shell.battle-shell > .campaign-header .campaign-header-leader strong { font-size: 12px; }
+  .campaign-shell.battle-shell > .campaign-header .campaign-header-leader span { font-size: 6.8px; }
+  .campaign-shell.battle-shell > .campaign-header .header-supply-chip { display: none; }
+  .campaign-shell.battle-shell > .campaign-header .header-menu-button {
+    min-height: 42px;
+    height: 42px;
+  }
+  .campaign-shell.battle-shell > .campaign-header .campaign-header-menu {
+    top: 44px;
+    max-height: calc(100dvh - 48px);
+    overflow-y: auto;
+  }
+
+  .campaign-shell.battle-shell > .battle-viewer {
+    grid-row: 2;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    padding: 4px 0 3px;
+    margin: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) clamp(205px, 27vw, 255px);
+    grid-template-rows: 54px minmax(0, 1fr);
+    grid-template-areas:
+      "score score"
+      "pitch rail";
+    gap: 4px 6px;
+    align-content: stretch;
+    overflow: hidden;
+  }
+
+  .battle-viewer > .battle-viewer-header {
+    display: none;
+  }
+
+  .battle-viewer > .battle-scoreboard {
+    grid-area: score;
+    width: 100%;
+    min-width: 0;
+    height: 54px;
+    min-height: 54px;
+    margin: 0;
+    padding: 2px 6px;
+    gap: 5px;
+    overflow: hidden;
+  }
+
+  .battle-scoreboard .battle-side-score {
+    min-width: 0;
+    min-height: 0;
+    gap: 1px;
+  }
+
+  .battle-scoreboard .battle-side-identity { gap: 4px; min-width: 0; }
+  .battle-scoreboard .battle-leader-portrait { width: 34px; height: 34px; flex: 0 0 34px; }
+  .battle-scoreboard .battle-side-identity > div { min-width: 0; }
+  .battle-scoreboard .battle-side-identity strong {
+    display: block;
+    max-width: 23vw;
+    overflow: hidden;
+    font-size: 10px;
+    line-height: 1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .battle-scoreboard .battle-side-identity small,
+  .battle-scoreboard .battle-side-score > small { display: none; }
+  .battle-scoreboard .battle-side-score > span { font-size: 5.8px; }
+  .battle-scoreboard .battle-score-values { line-height: 1; }
+  .battle-scoreboard .battle-score-values b { font-size: 13px; }
+  .battle-scoreboard .battle-score-values span { font-size: 5.5px; }
+  .battle-scoreboard .morale-track { height: 3px; }
+  .battle-scoreboard .battle-clock { min-width: 86px; padding-inline: 4px; }
+  .battle-scoreboard .battle-clock strong { font-size: 12px; line-height: 1; }
+  .battle-scoreboard .battle-clock span { font-size: 6px; line-height: 1.05; white-space: nowrap; }
+
+  .battle-viewer > .battle-pitch {
+    grid-area: pitch;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    max-height: none;
+    margin: 0;
+    align-self: stretch;
+    border-radius: 3px;
+  }
+
+  .battle-pitch .battle-scene-background {
+    object-fit: cover;
+    object-position: center 56%;
+  }
+
+  .battle-viewer > .battle-side-rail {
+    grid-area: rail;
+    min-width: 0;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(74px, 1fr) 34px auto;
+    gap: 4px;
+    overflow: hidden;
+  }
+
+  .battle-side-rail > .battle-commentary {
+    min-width: 0;
+    min-height: 0;
+    height: auto;
+    margin: 0;
+    padding: 6px 7px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .battle-side-rail > .battle-commentary strong { font-size: 10px; line-height: 1.12; }
+  .battle-side-rail > .battle-commentary p { margin-top: 3px; font-size: 8px; line-height: 1.22; }
+  .battle-side-rail > .battle-commentary .battle-phase-label { font-size: 5.8px; }
+
+  .battle-side-rail > .battle-scrubber {
+    min-width: 0;
+    min-height: 34px;
+    height: 34px;
+    margin: 0;
+    padding: 0 2px;
+    gap: 4px;
+  }
+  .battle-side-rail > .battle-scrubber input[type='range'] { min-height: 32px; height: 32px; }
+  .battle-side-rail > .battle-scrubber span { font-size: 6px; }
+
+  .battle-side-rail > .battle-playback-toolbar {
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+    display: grid;
+    grid-template-rows: 38px 36px;
+    gap: 3px;
+  }
+
+  .battle-side-rail .battle-playback-controls {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) 38px;
+    gap: 3px;
+  }
+  .battle-side-rail .battle-step-button,
+  .battle-side-rail .battle-play-button {
+    min-width: 0;
+    min-height: 38px;
+    height: 38px;
+    padding: 4px;
+    font-size: 7px;
+  }
+
+  .battle-side-rail .battle-speed-controls {
+    min-width: 0;
+    min-height: 36px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(72px, 1.35fr);
+    align-items: stretch;
+    gap: 3px;
+  }
+  .battle-side-rail .battle-speed-controls > span { display: none; }
+  .battle-side-rail .battle-speed-controls button {
+    min-width: 0;
+    min-height: 36px;
+    height: 36px;
+    padding: 3px 4px;
+    font-size: 7px;
+    white-space: nowrap;
+  }
+
+  .battle-pitch .battle-lane-status-side { width: 52px; }
+  .battle-pitch .battle-lane-rail-bar { height: 30px; }
+  .battle-pitch .battle-lane-rail-label { max-width: 48px; font-size: 4.8px; }
+  .battle-pitch .battle-reactive-hint {
+    bottom: 3px;
+    width: min(66%, 520px);
+    padding: 3px 5px;
+    font-size: 5px;
+  }
+  .battle-pitch .battle-dramatic-banner { max-width: 68%; }
+  .battle-pitch .battle-return-map-button {
+    right: 3%;
+    bottom: 5%;
+    min-width: 150px;
+    min-height: 58px;
+  }
+}
+
+@media (min-aspect-ratio: 16/9) and (max-height: 430px) {
+  .campaign-shell.battle-shell {
+    grid-template-rows: 40px minmax(0, 1fr);
+  }
+  .campaign-shell.battle-shell > .campaign-header,
+  .campaign-shell.battle-shell > .campaign-header .campaign-header-main {
+    height: 40px;
+    min-height: 40px;
+  }
+  .campaign-shell.battle-shell > .campaign-header .campaign-header-leader img {
+    width: 29px;
+    height: 29px;
+    flex-basis: 29px;
+  }
+  .campaign-shell.battle-shell > .battle-viewer {
+    grid-template-columns: minmax(0, 1fr) clamp(190px, 26vw, 235px);
+    grid-template-rows: 48px minmax(0, 1fr);
+  }
+  .battle-viewer > .battle-scoreboard { height: 48px; min-height: 48px; }
+  .battle-scoreboard .battle-leader-portrait { width: 30px; height: 30px; flex-basis: 30px; }
+  .battle-scoreboard .battle-side-identity strong { font-size: 9px; }
+  .battle-side-rail > .battle-commentary { padding: 4px 6px; }
+  .battle-side-rail > .battle-commentary p { font-size: 7.4px; }
+  .battle-viewer > .battle-side-rail { grid-template-rows: minmax(60px, 1fr) 30px auto; }
+  .battle-side-rail > .battle-scrubber,
+  .battle-side-rail > .battle-scrubber input[type='range'] { min-height: 30px; height: 30px; }
+  .battle-side-rail > .battle-playback-toolbar { grid-template-rows: 34px 32px; }
+  .battle-side-rail .battle-step-button,
+  .battle-side-rail .battle-play-button { min-height: 34px; height: 34px; }
+  .battle-side-rail .battle-speed-controls,
+  .battle-side-rail .battle-speed-controls button { min-height: 32px; height: 32px; }
+}
+
+/* Reset the named grid areas from the older Stage 35 landscape layout now that
+   these controls live inside the Stage 52 rail wrapper. */
+@media (min-aspect-ratio: 4/3) and (max-height: 700px) {
+  .battle-side-rail > .battle-commentary,
+  .battle-side-rail > .battle-scrubber,
+  .battle-side-rail > .battle-playback-toolbar {
+    grid-area: auto;
+  }
+}
+@media (min-aspect-ratio: 4/3) and (max-height: 700px) {
+  .battle-pitch .battle-formation-legend { display: none; }
+}
+
+/* ======================================================================
+   Stage 53 — final Root cinematic, DEV teleport and speed control placement.
+   ====================================================================== */
+.developer-teleport-button {
+  border-color: rgba(133, 112, 196, .7) !important;
+  background: linear-gradient(180deg, rgba(67, 53, 104, .94), rgba(37, 31, 60, .96)) !important;
+  color: #eee7ff !important;
+}
+
+.root-finale-cinematic {
+  position: fixed;
+  inset: 0;
+  z-index: 1800;
+  overflow: hidden;
+  background: #050506;
+  color: #f1eadb;
+  opacity: 1;
+  transition: opacity 520ms ease;
+}
+.root-finale-cinematic.is-finalizing { opacity: 0; pointer-events: none; }
+.root-finale-image-stack,
+.root-finale-vignette {
+  position: absolute;
+  inset: 0;
+}
+.root-finale-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  opacity: 0;
+  transform: scale(1.025);
+  transition: opacity 900ms ease-in-out, transform 5.5s ease-out;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.root-finale-image.is-active {
+  opacity: 1;
+  transform: scale(1);
+}
+.root-finale-vignette {
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 46%, transparent 38%, rgba(0,0,0,.22) 72%, rgba(0,0,0,.58) 100%),
+    linear-gradient(180deg, rgba(0,0,0,.17), transparent 25%, transparent 67%, rgba(0,0,0,.48));
+}
+.root-finale-intro-caption {
+  position: absolute;
+  left: 50%;
+  bottom: 13%;
+  width: min(900px, calc(100% - 36px));
+  transform: translate(-50%, 14px);
+  opacity: 0;
+  text-align: center;
+  color: #f3ecdc;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(22px, 4vw, 46px);
+  font-style: italic;
+  line-height: 1.15;
+  letter-spacing: .015em;
+  text-shadow: 0 2px 7px #000, 0 0 22px rgba(0,0,0,.9);
+  transition: opacity 700ms ease, transform 700ms ease;
+  pointer-events: none;
+}
+.root-finale-intro-caption.is-visible { opacity: 1; transform: translate(-50%, 0); }
+
+.root-finale-choice-card {
+  position: absolute;
+  left: 50%;
+  bottom: max(18px, env(safe-area-inset-bottom));
+  width: min(980px, calc(100% - 28px));
+  max-height: min(62%, 650px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: clamp(14px, 2.4vw, 26px);
+  border: 1px solid rgba(206, 183, 130, .48);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(13,12,10,.84), rgba(7,7,7,.94));
+  box-shadow: 0 16px 50px rgba(0,0,0,.55), inset 0 0 35px rgba(179,151,92,.05);
+  backdrop-filter: blur(6px);
+  opacity: 0;
+  transform: translate(-50%, 22px);
+  pointer-events: none;
+  transition: opacity 650ms ease, transform 650ms ease;
+}
+.root-finale-choice-card.is-visible { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.root-finale-monologue {
+  margin: 0 0 15px;
+  color: #e9dfca;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(15px, 2.1vw, 23px);
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+.root-finale-choice-card .root-finale-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.root-final-choice {
+  min-width: 0;
+  min-height: 112px;
+  padding: 13px 14px;
+  text-align: left;
+}
+.root-final-choice strong { display: block; margin-bottom: 6px; font-size: clamp(13px, 1.7vw, 18px); }
+.root-final-choice span { display: block; line-height: 1.35; }
+.root-final-choice em {
+  display: block;
+  margin-top: 9px;
+  color: #d98274;
+  font-size: .76em;
+  font-style: normal;
+  letter-spacing: .02em;
+}
+.root-final-choice em.is-ready { color: #9cc68f; }
+.root-final-choice:disabled { opacity: .52; cursor: not-allowed; }
+
+.root-cafe-ending {
+  position: absolute;
+  left: 50%;
+  bottom: max(28px, calc(env(safe-area-inset-bottom) + 12px));
+  width: min(900px, calc(100% - 30px));
+  padding: clamp(15px, 2.5vw, 26px);
+  border: 1px solid rgba(248, 224, 158, .5);
+  border-radius: 13px;
+  background: rgba(15, 12, 8, .78);
+  box-shadow: 0 12px 40px rgba(0,0,0,.42);
+  backdrop-filter: blur(5px);
+  opacity: 0;
+  transform: translate(-50%, 16px);
+  pointer-events: none;
+  text-align: center;
+  transition: opacity 720ms ease, transform 720ms ease;
+}
+.root-cafe-ending.is-visible { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.root-cafe-ending p {
+  margin: 0 0 14px;
+  color: #fff1c8;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(18px, 3vw, 34px);
+  line-height: 1.28;
+  text-shadow: 0 2px 7px #000;
+}
+.root-cafe-ending button { min-width: min(320px, 100%); }
+
+.battle-speed-under-right-flank {
+  margin: 0;
+  padding: 5px 7px;
+  border: 1px solid rgba(123, 137, 116, .28);
+  border-radius: 8px;
+  background: rgba(12, 16, 13, .88);
+}
+
+@media (max-width: 700px) {
+  .root-finale-choice-card { max-height: 68%; padding: 12px; }
+  .root-finale-choice-card .root-finale-actions { grid-template-columns: 1fr; }
+  .root-final-choice { min-height: 92px; }
+  .root-finale-monologue { font-size: 15px; }
+}
+
+@media (min-aspect-ratio: 4/3) and (max-height: 700px) {
+  .root-finale-choice-card {
+    left: auto;
+    right: max(10px, env(safe-area-inset-right));
+    bottom: max(8px, env(safe-area-inset-bottom));
+    width: min(620px, 48vw);
+    max-height: calc(100% - 16px);
+    padding: 10px 12px;
+    transform: translate(16px, 0);
+  }
+  .root-finale-choice-card.is-visible { transform: translate(0, 0); }
+  .root-finale-choice-card .root-finale-actions { grid-template-columns: 1fr; gap: 6px; }
+  .root-finale-monologue { margin-bottom: 8px; font-size: 12px; line-height: 1.28; }
+  .root-final-choice { min-height: 70px; padding: 8px 9px; }
+  .root-final-choice strong { margin-bottom: 3px; font-size: 11px; }
+  .root-final-choice span { font-size: 8.5px; line-height: 1.22; }
+  .root-final-choice em { margin-top: 4px; font-size: 7.5px; }
+  .root-cafe-ending { width: min(720px, 68vw); padding: 12px 16px; }
+  .root-cafe-ending p { font-size: clamp(16px, 2.2vw, 25px); }
+
+  .battle-viewer > .battle-side-rail {
+    grid-template-rows: 36px minmax(68px, 1fr) 34px 38px;
+  }
+  .battle-side-rail > .battle-speed-under-right-flank {
+    min-height: 36px;
+    height: 36px;
+    padding: 2px 3px;
+  }
+  .battle-side-rail > .battle-playback-toolbar { grid-template-rows: 38px; }
+}
+
+@media (min-aspect-ratio: 16/9) and (max-height: 430px) {
+  .battle-viewer > .battle-side-rail {
+    grid-template-rows: 32px minmax(56px, 1fr) 30px 34px;
+  }
+  .battle-side-rail > .battle-speed-under-right-flank,
+  .battle-side-rail > .battle-speed-under-right-flank button {
+    min-height: 32px;
+    height: 32px;
+  }
+  .battle-side-rail > .battle-playback-toolbar { grid-template-rows: 34px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root-finale-image,
+  .root-finale-intro-caption,
+  .root-finale-choice-card,
+  .root-cafe-ending,
+  .root-finale-cinematic {
+    transition-duration: 120ms !important;
+  }
 }

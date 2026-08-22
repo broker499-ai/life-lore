@@ -280,6 +280,7 @@ export function StrategicActionBar({
   battlePlan,
   feedback,
   onMove,
+  onDeveloperTeleport,
   onOpenRootFinale,
   onAttack,
   onTacticChange,
@@ -327,6 +328,7 @@ export function StrategicActionBar({
   battlePlan: BattlePlan;
   feedback: string | null;
   onMove: (nodeId: string) => void;
+  onDeveloperTeleport: (nodeId: string) => void;
   onOpenRootFinale: () => void;
   onAttack: (cityId: string) => void;
   onTacticChange: (tactic: BattleTacticId) => void;
@@ -401,6 +403,16 @@ export function StrategicActionBar({
   return (
     <section className="strategic-action-panel" aria-label="Стратегические действия">
       <div className="strategic-action-grid">
+        {developerMode && visibleSelectedNode && visibleSelectedNode.id !== playerNodeId ? (
+          <button
+            type="button"
+            className="secondary-button action-button developer-teleport-button"
+            onClick={() => onDeveloperTeleport(visibleSelectedNode.id)}
+          >
+            DEV · Телепорт
+          </button>
+        ) : null}
+
         {canMoveTarget && visibleSelectedNode ? (
           <button
             type="button"

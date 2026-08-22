@@ -57,6 +57,19 @@ describe('continuous battle playback track', () => {
     expect(getBattleFrameTimeMs(track, 2)).toBe(track.durationMs);
   });
 
+  it('reveals the first tactical posture at about two real seconds on x1', () => {
+    const openingFrames = [
+      frame(0, 0, 'opening'),
+      frame(1, 0.2, 'opening'),
+      frame(2, 0.66, 'clash'),
+      frame(3, 0.72, 'clash'),
+      frame(4, 1, 'clash'),
+      frame(5, 1.08, 'clash'),
+    ];
+    const openingTrack = buildBattlePlaybackTrack(openingFrames);
+    expect(getBattleFrameTimeMs(openingTrack, 5)).toBe(2000);
+  });
+
   it('samples between frames instead of jumping discretely', () => {
     const firstSegment = track.segments[0];
     expect(firstSegment).toBeDefined();

@@ -2,7 +2,7 @@ import { randomInt } from '@/core/rng/seededRandom';
 import type { RngState } from '@/core/rng/RngState';
 import type { GameState, NodeId } from '@/core/state/GameState';
 import type { MapGraph, MapNode } from '@/core/map/MapGraph';
-import { getPreRootMap } from '@/core/map/preRootMap';
+import { getPreRootExtensionRoute, getPreRootMap } from '@/core/map/preRootMap';
 
 export const FALSE_ROOT_EVENT_ID = 'false-root-revelation';
 export const FALSE_ROOT_NODE_ID = 'root-sanctum';
@@ -51,7 +51,7 @@ const extensionNodeTemplates: Record<string, Omit<MapNode, 'x' | 'y'>> = {
   'pyroral-workshop': { id: 'pyroral-workshop', nameKey: 'map.pyroralWorkshop', descriptionKey: 'map.pyroralWorkshop.description', kind: 'poi' },
 };
 
-const extensionSlots = [
+const standardExtensionSlots = [
   { x: 50, y: -15 },
   { x: 43, y: -27 },
   { x: 55, y: -39 },
@@ -109,9 +109,11 @@ export function getCampaignMap(state: GameState): MapGraph {
   if (!isExtensionUnlocked(state) && !state.campaign.developerMode) return preRootMap;
 
   const order = normalizeExtensionOrder(state.campaign.extensionLocationOrder);
+  const route = getPreRootExtensionRoute(state);
+  const routeGeometry = buildExtensionGeometry(route.direction, route.anchor.x, route.anchor.y);
   const extensionNodes: MapNode[] = order.map((nodeId, index) => {
     const template = extensionNodeTemplates[nodeId];
-    const slot = extensionSlots[index];
+    const slot = routeGeometry.slots[index];
     if (!template || !slot) throw new Error(`Missing extension map data for ${nodeId}`);
     return { ...template, x: slot.x, y: slot.y };
   });
@@ -120,13 +122,13 @@ export function getCampaignMap(state: GameState): MapGraph {
     nameKey: 'map.trueRootSanctum',
     descriptionKey: 'map.trueRootSanctum.description',
     kind: 'special',
-    x: 50,
-    y: -198,
+    x: routeGeometry.trueRoot.x,
+    y: routeGeometry.trueRoot.y,
     isCentral: true,
   };
 
   const extensionEdges = [
-    { from: FALSE_ROOT_NODE_ID, to: order[0] },
+    { from: route.entryNodeId, to: order[0] },
     ...order.slice(1).map((nodeId, index) => ({ from: order[index], to: nodeId })),
     { from: order[order.length - 1], to: TRUE_ROOT_NODE_ID },
   ];
@@ -139,6 +141,32 @@ export function getCampaignMap(state: GameState): MapGraph {
 
 export function getAllExtensionDiscoveryNodeIds(state: GameState): NodeId[] {
   return [...normalizeExtensionOrder(state.campaign.extensionLocationOrder), TRUE_ROOT_NODE_ID];
+}
+
+
+function buildExtensionGeometry(direction: 'standard' | 'left' | 'right', anchorX: number, anchorY: number): {
+  slots: Array<{ x: number; y: number }>;
+  trueRoot: { x: number; y: number };
+} {
+  if (direction === 'standard') {
+    return {
+      slots: standardExtensionSlots.map((slot) => ({ ...slot })),
+      trueRoot: { x: 50, y: -198 },
+    };
+  }
+
+  const sign = direction === 'right' ? 1 : -1;
+  const baseX = anchorX + sign * 15;
+  const baseY = anchorY - 7;
+  const slots = Array.from({ length: extensionLocationIds.length }, (_, index) => ({
+    x: baseX + sign * (index % 2 === 0 ? 0 : 8),
+    y: baseY - index * 12,
+  }));
+  const last = slots[slots.length - 1] ?? { x: baseX, y: baseY };
+  return {
+    slots,
+    trueRoot: { x: last.x + sign * 3, y: last.y - 15 },
+  };
 }
 
 function normalizeExtensionOrder(order: readonly NodeId[]): NodeId[] {

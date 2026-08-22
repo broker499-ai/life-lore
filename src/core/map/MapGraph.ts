@@ -69,5 +69,12 @@ export function getShortestPathDistance(
 }
 
 export function getCentralNodeId(graph: MapGraph): string | null {
-  return graph.nodes.find((node) => node.isCentral)?.id ?? null;
+  // The false Root remains on the graph after deep Orsia opens. Prefer the
+  // newest/farthest central objective (the true Root is appended last) so the
+  // race indicator does not keep pointing back to an already disproved target.
+  for (let index = graph.nodes.length - 1; index >= 0; index -= 1) {
+    const node = graph.nodes[index];
+    if (node?.isCentral) return node.id;
+  }
+  return null;
 }

@@ -29,13 +29,14 @@ import {
 import type { ArmyFlankId, GameState } from '@/core/state/GameState';
 import { autoDistributeArmyGroups, mergeArmyGroups, moveArmyGroup, splitArmyGroup, swapArmyFlanks } from '@/core/armies/armyFlanks';
 import { claimRoot, getRootClaimAvailability } from '@/core/campaign/rootObjective';
+import { developerTeleportArmy } from '@/core/dev/developerMode';
 import { evaluatePlayerDefeat } from '@/core/campaign/campaignOutcome';
 import { getSupplyStatus } from '@/core/supply/Supply';
 import { canUseRiverDoubleMove } from '@/core/leaders/LeaderAbility';
 import { resolveLocationEvent, triggerLocationEvent } from '@/core/events/LocationEvent';
 import { getShortRestAtPoiAvailability, shortRestAtPoi } from '@/core/events/shortRestAtPoi';
 import { toggleActiveArtifact } from '@/core/artifacts/artifactLoadout';
-import { acknowledgeSurfaceBriefing, triggerAvailableSurfaceBriefing, triggerSurfaceBriefingById } from '@/core/story/SurfaceBriefing';
+import { acknowledgeSurfaceBriefing, triggerAvailableSurfaceBriefing } from '@/core/story/SurfaceBriefing';
 import { advanceTurn } from '@/core/turns/advanceTurn';
 import { resolveFactionDefeatEvent } from '@/core/factions/resolveFactionDefeatEvent';
 import { RIVAL_ARMY_ID, RIVAL_FACTION_ID } from '@/core/state/createPrototypeGameState';
@@ -50,7 +51,7 @@ import { prototypeUnits } from '@/data/units/prototypeUnits';
 import { prototypeLeaderById } from '@/data/leaders/prototypeLeader';
 import { prototypeEvents } from '@/data/events/prototypeEvents';
 import { prototypeArtifacts } from '@/data/artifacts/prototypeArtifacts';
-import { ROOT_PRIORITY_BRIEFING_ID, prototypeSurfaceBriefingById, prototypeSurfaceBriefings } from '@/data/story/prototypeSurfaceBriefings';
+import { prototypeSurfaceBriefingById, prototypeSurfaceBriefings } from '@/data/story/prototypeSurfaceBriefings';
 import { rivalExpeditionById } from '@/data/factions/rivalExpeditions';
 import { factionDefeatEvents } from '@/data/factions/factionDefeatEvents';
 import { orsiaSubfactionById } from '@/data/factions/orsiaSubfactions';
@@ -76,7 +77,7 @@ import { LocationEventOverlay } from '@/ui/components/LocationEventOverlay';
 import { ArtifactInventory } from '@/ui/components/ArtifactInventory';
 import { CitiesOverview } from '@/ui/components/CitiesOverview';
 import { FactionDefeatOverlay } from '@/ui/components/FactionDefeatOverlay';
-import { RootFinaleOverlay } from '@/ui/components/RootFinaleOverlay';
+import { RootFinaleOverlay, type RootFinaleChoice } from '@/ui/components/RootFinaleOverlay';
 import { SurfaceBriefingOverlay } from '@/ui/components/SurfaceBriefingOverlay';
 import { RecruitmentRollOverlay, type RecruitmentRollOutcome } from '@/ui/components/RecruitmentRollOverlay';
 import { CampaignEndScreen } from '@/ui/screens/CampaignEndScreen';
@@ -644,15 +645,10 @@ export function CampaignScreen({
       setFeedback(getRootClaimErrorMessage(playerRootAvailability.reason));
       return;
     }
-    if (!state.campaign.resolvedBriefingIds.includes(ROOT_PRIORITY_BRIEFING_ID)) {
-      const nextState = triggerSurfaceBriefingById(state, ROOT_PRIORITY_BRIEFING_ID, prototypeSurfaceBriefings);
-      setState(nextState);
-      return;
-    }
     setRootFinaleOpen(true);
   }
 
-  function handleClaimRoot() {
+  function handleClaimRoot(choice: RootFinaleChoice) {
     const result = claimRoot(state, {
       factionId: state.playerFactionId,
       armyId: 'player-main',
@@ -667,6 +663,28 @@ export function CampaignScreen({
     setState(result.state);
     setRootFinaleOpen(false);
     setBattleReport(null);
+    setFeedback(choice === 'deliver'
+      ? 'Корень упакован и подготовлен к возвращению на поверхность.'
+      : 'Экспедиция принимает зов Корня.');
+  }
+
+  function handleDeveloperTeleport(nodeId: string) {
+    const teleported = developerTeleportArmy(state, campaignMap, { armyId: 'player-main', toNodeId: nodeId });
+    if (!teleported.ok) {
+      setFeedback('DEV-телепорт сейчас недоступен.');
+      return;
+    }
+    const triggered = triggerLocationEvent(teleported.state, nodeId, prototypeEvents);
+    const nextState = triggerAvailableSurfaceBriefing(triggered.state, prototypeSurfaceBriefings);
+    setPendingMovement(null);
+    setActivePlayerBattle(null);
+    setBattleReport(null);
+    setState(nextState);
+    setSelectedNodeId(nodeId);
+    setView('map');
+    setFeedback(triggered.events.length > 0
+      ? 'DEV: телепорт выполнен. В точке обнаружено событие.'
+      : 'DEV: телепорт выполнен.');
   }
 
   function handleCloseBattle() {
@@ -955,7 +973,6 @@ export function CampaignScreen({
     if (!briefingId) return;
     const nextState = acknowledgeSurfaceBriefing(state, briefingId);
     setState(nextState);
-    if (briefingId === ROOT_PRIORITY_BRIEFING_ID) setRootFinaleOpen(true);
   }
 
   function handleEndTurn() {
@@ -1036,7 +1053,7 @@ export function CampaignScreen({
     }));
     setFeedback(state.campaign.developerMode
       ? 'Режим разработчика выключен.'
-      : 'DEV включён: вся карта раскрыта, деньги ∞, найм бесплатный и без лимита действий.');
+      : 'DEV включён: вся карта раскрыта, деньги ∞, найм бесплатный, действия без лимита; доступен телепорт в выбранную точку.');
   }
 
   function handleManualSave() {
@@ -1229,6 +1246,7 @@ export function CampaignScreen({
               battlePlan={battlePlan}
               feedback={feedback}
               onMove={handleMove}
+              onDeveloperTeleport={handleDeveloperTeleport}
               onOpenRootFinale={handleOpenRootFinale}
               onAttack={handleAttack}
               onTacticChange={setSelectedTactic}
@@ -1304,8 +1322,8 @@ export function CampaignScreen({
       {rootFinaleOpen && playerRootAvailability.canClaim ? (
         <RootFinaleOverlay
           availability={playerRootAvailability}
-          onConfirm={handleClaimRoot}
-          onCancel={() => setRootFinaleOpen(false)}
+          maxKnowledge={MAX_ORSIA_KNOWLEDGE}
+          onChoose={handleClaimRoot}
         />
       ) : null}
 

@@ -3,6 +3,7 @@ import { getAttackCityAvailability } from '@/core/cities/attackCity';
 import { recruitAtCity } from '@/core/cities/recruitAtCity';
 import { restAtCity } from '@/core/cities/restAtCity';
 import { moveArmy } from '@/core/map/moveArmy';
+import { developerTeleportArmy } from '@/core/dev/developerMode';
 import { createPrototypeGameState } from '@/core/state/createPrototypeGameState';
 import { prototypeCities } from '@/data/cities/prototypeCities';
 import { prototypeMap } from '@/data/map/prototypeMap';
@@ -62,5 +63,19 @@ describe('developer mode', () => {
     });
     expect(rested.ok).toBe(true);
     expect(rested.ok && rested.state.factions[restState.playerFactionId].strategicActionSpent).toBe(false);
+  });
+
+  it('teleports the player army to any graph node only while DEV is enabled', () => {
+    const state = createPrototypeGameState(10, 'artemios');
+    const blocked = developerTeleportArmy(state, prototypeMap, { armyId: 'player-main', toNodeId: 'root-sanctum' });
+    expect(blocked).toMatchObject({ ok: false, error: 'developer_mode_disabled' });
+
+    state.campaign.developerMode = true;
+    const result = developerTeleportArmy(state, prototypeMap, { armyId: 'player-main', toNodeId: 'root-sanctum' });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.state.armies['player-main'].nodeId).toBe('root-sanctum');
+    expect(result.state.campaign.discoveredNodeIds).toContain('root-sanctum');
+    expect(result.state.factions[state.playerFactionId].strategicActionSpent).toBe(false);
   });
 });

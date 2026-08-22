@@ -83,6 +83,7 @@ const BASE_VIEW_HEIGHT = 116;
 const BASE_WORLD_MIN = -8;
 const BASE_WORLD_MAX = 108;
 const WORLD_PADDING = 8;
+const CAMERA_OVERSCROLL = 14;
 
 export function SvgWorldMap({
   graph,
@@ -755,10 +756,13 @@ function clampCamera(camera: CameraState, bounds: WorldBounds, viewportAspect: n
   const { width: viewWidth, height: viewHeight } = getViewDimensions(zoom, viewportAspect);
   const halfWidth = viewWidth / 2;
   const halfHeight = viewHeight / 2;
-  const minCenterX = bounds.minX + halfWidth;
-  const maxCenterX = bounds.maxX - halfWidth;
-  const minCenterY = bounds.minY + halfHeight;
-  const maxCenterY = bounds.maxY - halfHeight;
+  // Camera bounds are deliberately wider than the drawn world. This small
+  // overscroll lets edge locations move away from the screen bezel / command deck
+  // instead of becoming awkward to tap simply because they sit at the graph edge.
+  const minCenterX = bounds.minX - CAMERA_OVERSCROLL + halfWidth;
+  const maxCenterX = bounds.maxX + CAMERA_OVERSCROLL - halfWidth;
+  const minCenterY = bounds.minY - CAMERA_OVERSCROLL + halfHeight;
+  const maxCenterY = bounds.maxY + CAMERA_OVERSCROLL - halfHeight;
   return {
     zoom,
     centerX: minCenterX > maxCenterX ? (bounds.minX + bounds.maxX) / 2 : Math.min(maxCenterX, Math.max(minCenterX, camera.centerX)),

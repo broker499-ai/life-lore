@@ -4,6 +4,8 @@ const INTRO_IMAGE = '/assets/intro/orsia-descent.webp';
 const SURFACE_HOLD_MS = 2000;
 const UNDERGROUND_REVEAL_MS = 1350;
 const FINALE_HOLD_MS = 5200;
+const SURFACE_CUT_IMAGE_Y = 352;
+const INTRO_SCROLL_SPEED_MULTIPLIER = 1.3;
 
 type IntroPhase = 'surface' | 'reveal' | 'scroll' | 'finale';
 
@@ -16,6 +18,7 @@ export function IntroCutscene({ onComplete }: { onComplete: () => void }) {
   const [imageReady, setImageReady] = useState(false);
   const [phase, setPhase] = useState<IntroPhase>('surface');
   const [skipVisible, setSkipVisible] = useState(false);
+  const [surfaceCutPx, setSurfaceCutPx] = useState<number | null>(null);
 
   const complete = () => {
     if (completedRef.current) return;
@@ -24,6 +27,33 @@ export function IntroCutscene({ onComplete }: { onComplete: () => void }) {
     if (finishTimerRef.current !== null) window.clearTimeout(finishTimerRef.current);
     onComplete();
   };
+
+
+  useEffect(() => {
+    if (!imageReady) return undefined;
+    const stage = stageRef.current;
+    const image = imageRef.current;
+    if (!stage || !image) return undefined;
+
+    const updateSurfaceCut = () => {
+      const stageRect = stage.getBoundingClientRect();
+      const imageRect = image.getBoundingClientRect();
+      const naturalWidth = Math.max(1, image.naturalWidth || 682);
+      const renderedScale = imageRect.width / naturalWidth;
+      const nextCut = imageRect.top - stageRect.top + SURFACE_CUT_IMAGE_Y * renderedScale;
+      setSurfaceCutPx(Math.max(0, nextCut));
+    };
+
+    updateSurfaceCut();
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateSurfaceCut) : null;
+    observer?.observe(stage);
+    observer?.observe(image);
+    window.addEventListener('resize', updateSurfaceCut);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', updateSurfaceCut);
+    };
+  }, [imageReady]);
 
   useEffect(() => {
     if (!imageReady || phase !== 'surface') return;
@@ -60,7 +90,8 @@ export function IntroCutscene({ onComplete }: { onComplete: () => void }) {
 
     // Stage 38: the descent is deliberately brisker than the original cutscene,
     // while still leaving enough time to read the large environmental image.
-    const duration = Math.min(19000, Math.max(14000, 11800 + travel * 4));
+    const baseDuration = Math.min(19000, Math.max(14000, 11800 + travel * 4));
+    const duration = Math.round(baseDuration / INTRO_SCROLL_SPEED_MULTIPLIER);
     const animation = image.animate(
       [
         { transform: 'translate3d(0, 0, 0)' },
@@ -112,7 +143,11 @@ export function IntroCutscene({ onComplete }: { onComplete: () => void }) {
         />
       </div>
 
-      <div className="intro-underground-cover" aria-hidden="true" />
+      <div
+        className="intro-underground-cover"
+        aria-hidden="true"
+        style={surfaceCutPx === null ? undefined : { top: `${surfaceCutPx}px` }}
+      />
       <div className="intro-cutscene-dimmer" aria-hidden="true" />
 
       <div className="intro-cutscene-copy" aria-live="polite">

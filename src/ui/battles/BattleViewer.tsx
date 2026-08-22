@@ -64,6 +64,7 @@ export function BattleViewer({
   const [commandSubmitting, setCommandSubmitting] = useState(false);
   const [commandCoolingDown, setCommandCoolingDown] = useState(false);
   const [flankSourceLane, setFlankSourceLane] = useState<BattleLane | null>(null);
+  const flankSourceLaneRef = useRef<BattleLane | null>(null);
   const [dramaticOverlay, setDramaticOverlay] = useState<DramaticOverlayEvent | null>(null);
   const [resultStampPhase, setResultStampPhase] = useState<ResultStampPhase>('hidden');
   const lastRafTimeRef = useRef<number | null>(null);
@@ -213,6 +214,7 @@ export function BattleViewer({
     dramaticQueueRef.current = [];
     lastDramaticScanIndexRef.current = Math.max(0, presentation.frames.length - 1);
     setDramaticOverlay(null);
+    flankSourceLaneRef.current = null;
     setFlankSourceLane(null);
     setCommandSubmitting(false);
     setIsPlaying(false);
@@ -238,34 +240,43 @@ export function BattleViewer({
     setCommandCoolingDown(true);
     window.setTimeout(() => setCommandCoolingDown(false), 1000);
     window.setTimeout(() => setCommandSubmitting(false), 100);
+    flankSourceLaneRef.current = null;
     setFlankSourceLane(null);
   }
 
   function handleFlankSource(lane: BattleLane) {
-    if (liveCommandRound === null || commandSubmitting || isLast) return;
+    // Do not allow a lane to look selected while the explicit 1s post-order
+    // cooldown is still running. That was perceived as input latency because
+    // the lane highlighted immediately but every target stayed disabled.
+    if (liveCommandRound === null || commandSubmitting || commandCoolingDown || isLast) return;
     const sector = sideA.sectorState.sectors[lane];
     if (sector.units <= 0 || sector.broken) return;
-    if (flankSourceLane === lane) {
-      if (commandCoolingDown) return;
+    const currentSourceLane = flankSourceLaneRef.current ?? flankSourceLane;
+    if (currentSourceLane === lane) {
       const defendCommand: BattleCommandId = lane === 'left' ? 'defend_left' : lane === 'right' ? 'defend_right' : 'defend_center';
       handleCommand(defendCommand);
       return;
     }
+    flankSourceLaneRef.current = lane;
     setFlankSourceLane(lane);
   }
 
   function handleFlankTarget(lane: BattleLane) {
-    if (!flankSourceLane || commandCoolingDown) return;
-    const command = getFlankCommand(flankSourceLane, lane);
+    const sourceLane = flankSourceLaneRef.current ?? flankSourceLane;
+    if (!sourceLane || commandCoolingDown) return;
+    const targetSector = sideB.sectorState.sectors[lane];
+    if (targetSector.units <= 0 || targetSector.broken || (report.result.sides.B.centerOnlyFormation && lane !== 'center')) return;
+    const command = getFlankCommand(sourceLane, lane);
     if (!command) return;
     handleCommand(command);
   }
 
   function handleFlankClear() {
-    if (!flankSourceLane || commandCoolingDown) return;
-    const command: BattleCommandId = flankSourceLane === 'left'
+    const sourceLane = flankSourceLaneRef.current ?? flankSourceLane;
+    if (!sourceLane || commandCoolingDown) return;
+    const command: BattleCommandId = sourceLane === 'left'
       ? 'clear_left'
-      : flankSourceLane === 'right'
+      : sourceLane === 'right'
         ? 'clear_right'
         : 'clear_center';
     handleCommand(command);
@@ -328,59 +339,8 @@ export function BattleViewer({
         onClose={onClose}
       />
 
-      <div className={`battle-commentary${commentaryTone ? ` is-${commentaryTone}` : ''}`} aria-live="polite">
-        <span className="battle-phase-label">{getPhaseLabel(eventFrame.phase)}</span>
-        <strong>{eventFrame.title}</strong>
-        <p>{eventFrame.detail}</p>
-      </div>
-
-      <div className="battle-scrubber">
-        <input
-          aria-label="Ход боя"
-          type="range"
-          min={0}
-          max={Math.max(0, track.durationMs)}
-          step={1}
-          value={Math.min(elapsedMs, track.durationMs)}
-          onChange={handleScrub}
-        />
-        <span>
-          {displayedFrameIndex + 1}/{presentation.frames.length}
-        </span>
-      </div>
-
-      <div className="battle-playback-toolbar">
-        <div className="battle-playback-controls">
-          <button
-            type="button"
-            className="secondary-button battle-step-button"
-            disabled={elapsedMs <= 0}
-            onClick={handlePrevious}
-            aria-label="Предыдущее событие"
-          >
-            ‹
-          </button>
-          <button
-            type="button"
-            className="primary-button battle-play-button"
-            onClick={togglePlayback}
-            disabled={isLast && resultStampPhase !== 'done'}
-            aria-pressed={isPlaying && !isLast}
-          >
-            {isLast ? '↻ Повторить' : isPlaying ? 'Ⅱ Пауза' : '▶ Продолжить'}
-          </button>
-          <button
-            type="button"
-            className="secondary-button battle-step-button"
-            disabled={isLast}
-            onClick={handleNext}
-            aria-label="Следующее событие"
-          >
-            ›
-          </button>
-        </div>
-
-        <div className="battle-speed-controls" aria-label="Скорость боя">
+      <div className="battle-side-rail">
+        <div className="battle-speed-controls battle-speed-under-right-flank" aria-label="Скорость боя">
           <span>Скорость</span>
           {PLAYBACK_SPEEDS.map((value) => (
             <button
@@ -396,6 +356,59 @@ export function BattleViewer({
           {!isLast ? (
             <button type="button" className="battle-skip-button" onClick={handleSkipBattle}>⏭ Пропустить</button>
           ) : null}
+        </div>
+
+        <div className={`battle-commentary${commentaryTone ? ` is-${commentaryTone}` : ''}`} aria-live="polite">
+          <span className="battle-phase-label">{getPhaseLabel(eventFrame.phase)}</span>
+          <strong>{eventFrame.title}</strong>
+          <p>{eventFrame.detail}</p>
+        </div>
+
+        <div className="battle-scrubber">
+          <input
+            aria-label="Ход боя"
+            type="range"
+            min={0}
+            max={Math.max(0, track.durationMs)}
+            step={1}
+            value={Math.min(elapsedMs, track.durationMs)}
+            onChange={handleScrub}
+          />
+          <span>
+            {displayedFrameIndex + 1}/{presentation.frames.length}
+          </span>
+        </div>
+
+        <div className="battle-playback-toolbar">
+          <div className="battle-playback-controls">
+            <button
+              type="button"
+              className="secondary-button battle-step-button"
+              disabled={elapsedMs <= 0}
+              onClick={handlePrevious}
+              aria-label="Предыдущее событие"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              className="primary-button battle-play-button"
+              onClick={togglePlayback}
+              disabled={isLast && resultStampPhase !== 'done'}
+              aria-pressed={isPlaying && !isLast}
+            >
+              {isLast ? '↻ Повторить' : isPlaying ? 'Ⅱ Пауза' : '▶ Продолжить'}
+            </button>
+            <button
+              type="button"
+              className="secondary-button battle-step-button"
+              disabled={isLast}
+              onClick={handleNext}
+              aria-label="Следующее событие"
+            >
+              ›
+            </button>
+          </div>
         </div>
       </div>
     </section>
@@ -911,7 +924,7 @@ function BattleFlankTapOverlay({
               className={`battle-flank-tap-zone lane-${lane}${sourceLane === lane ? ' is-selected' : ''}`}
               disabled={!enabled}
               aria-label={`Выбрать свой ${getLaneLabel(lane)} сектор`}
-              onClick={() => onSource(lane)}
+              onPointerUp={() => onSource(lane)}
             />
           );
         })}
@@ -925,9 +938,9 @@ function BattleFlankTapOverlay({
               key={lane}
               type="button"
               className={`battle-flank-tap-zone lane-${lane}${valid ? ' is-valid-target' : ''}`}
-              disabled={!valid}
+              aria-disabled={!valid}
               aria-label={`Направить атаку на ${getLaneLabel(lane)} сектор противника`}
-              onClick={() => onTarget?.(lane)}
+              onPointerUp={() => onTarget?.(lane)}
             />
           );
         })}
@@ -938,9 +951,9 @@ function BattleFlankTapOverlay({
             key={lane}
             type="button"
             className={`battle-flank-neutral-zone lane-${lane}${sourceLane === lane && !coolingDown ? ' is-valid-clear' : ''}`}
-            disabled={!sourceLane || sourceLane !== lane || coolingDown || !onClear}
+            aria-disabled={!sourceLane || sourceLane !== lane || coolingDown || !onClear}
             aria-label={`Сбросить приказ на ${getLaneLabel(lane)} секторе до осторожного боя`}
-            onClick={() => onClear?.()}
+            onPointerUp={() => onClear?.()}
           />
         ))}
       </div>
